@@ -8,6 +8,7 @@
 
 import { OctomilError } from "./types.js";
 import type { ToolDef } from "./responses.js";
+import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,10 +127,12 @@ interface WireChunkToolCall {
 export class ChatClient {
   private readonly serverUrl: string;
   private readonly apiKey: string;
+  private readonly telemetry: TelemetryReporter | null;
 
-  constructor(serverUrl: string, apiKey: string) {
+  constructor(serverUrl: string, apiKey: string, telemetry?: TelemetryReporter | null) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
+    this.telemetry = telemetry ?? null;
   }
 
   /**
@@ -159,6 +162,8 @@ export class ChatClient {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let chunkIndex = 0;
+    const modelId = request.model;
 
     try {
       for (;;) {
@@ -171,14 +176,28 @@ export class ChatClient {
 
         for (const line of lines) {
           const chunk = this.parseSSELine(line);
-          if (chunk) yield chunk;
+          if (chunk) {
+            this.telemetry?.track("inference.chunk_produced", {
+              "model.id": modelId,
+              "inference.chunk_index": chunkIndex,
+            });
+            chunkIndex++;
+            yield chunk;
+          }
         }
       }
 
       // Process remaining buffer
       if (buffer.trim()) {
         const chunk = this.parseSSELine(buffer);
-        if (chunk) yield chunk;
+        if (chunk) {
+          this.telemetry?.track("inference.chunk_produced", {
+            "model.id": modelId,
+            "inference.chunk_index": chunkIndex,
+          });
+          chunkIndex++;
+          yield chunk;
+        }
       }
     } finally {
       reader.releaseLock();
