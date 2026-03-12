@@ -163,7 +163,6 @@ export class InferenceEngine implements ModelRuntime {
 
     return { tensors, label, score, scores };
   }
-}
 
   // ---------------------------------------------------------------------------
   // ModelRuntime interface methods
