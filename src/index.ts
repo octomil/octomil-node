@@ -15,6 +15,8 @@ export { ModelsClient } from "./models.js";
 /** @tier Core */
 export { OctomilClient } from "./client.js";
 /** @tier Core */
+export type { TelemetryFacade } from "./client.js";
+/** @tier Core */
 export { OctomilError } from "./types.js";
 
 // Core type exports

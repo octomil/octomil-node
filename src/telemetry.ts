@@ -57,7 +57,7 @@ export interface TelemetryEvent {
 export interface TelemetryResource {
   sdk: "node";
   sdk_version: string;
-  device_id: null;
+  device_id: string | null;
   platform: string;
   org_id: string;
 }
@@ -102,7 +102,7 @@ function resourceToAttributes(resource: TelemetryResource): OtlpKeyValue[] {
   return [
     { key: "sdk", value: { stringValue: resource.sdk } },
     { key: "sdk_version", value: { stringValue: resource.sdk_version } },
-    { key: "device_id", value: { stringValue: "" } },
+    { key: "device_id", value: { stringValue: resource.device_id ?? "" } },
     { key: "platform", value: { stringValue: resource.platform } },
     { key: "org_id", value: { stringValue: resource.org_id } },
   ];
@@ -141,13 +141,14 @@ export class TelemetryReporter {
     orgId: string,
     flushInterval = 30_000,
     maxBatchSize = 50,
+    deviceId?: string,
   ) {
     this.flushInterval = flushInterval;
     this.maxBatchSize = maxBatchSize;
     this.resource = {
       sdk: "node",
       sdk_version: getSdkVersion(),
-      device_id: null,
+      device_id: deviceId ?? null,
       platform: platform(),
       org_id: orgId,
     };

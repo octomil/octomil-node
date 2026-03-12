@@ -23,6 +23,20 @@ import type { StreamToken, StreamInput } from "./streaming.js";
 const DEFAULT_SERVER_URL = "https://api.octomil.com";
 const DEFAULT_CACHE_DIR = join(homedir(), ".octomil", "models");
 
+/** Public telemetry facade exposed via `client.telemetry`. */
+export interface TelemetryFacade {
+  /** Immediately flush any queued telemetry events. */
+  flush(): void;
+  /** Queue a custom telemetry event. */
+  track(name: string, attributes: Record<string, unknown>): void;
+}
+
+/** No-op telemetry facade returned when telemetry is disabled. */
+const NOOP_TELEMETRY: TelemetryFacade = {
+  flush() {},
+  track() {},
+};
+
 export class OctomilClient {
   private readonly apiKey: string;
   private readonly orgId: string;
@@ -30,7 +44,7 @@ export class OctomilClient {
   private readonly cacheDir: string;
   private readonly downloader: ModelDownloader;
   private readonly cache: FileCache;
-  private readonly telemetry: TelemetryReporter | null;
+  private readonly _telemetry: TelemetryReporter | null;
   private readonly runtime: ModelRuntime | undefined;
   private readonly _loadedModels: Map<string, Model> = new Map();
   private readonly _activeDownloads: Set<string> = new Set();
@@ -49,10 +63,28 @@ export class OctomilClient {
     this.cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
     this.downloader = new ModelDownloader(this.serverUrl, this.apiKey, this.orgId);
     this.cache = new FileCache(this.cacheDir);
-    this.telemetry = options.telemetry !== false
-      ? new TelemetryReporter(this.serverUrl, this.apiKey, this.orgId)
+    this._telemetry = options.telemetry !== false
+      ? new TelemetryReporter(
+          this.serverUrl, this.apiKey, this.orgId,
+          undefined, undefined, options.deviceId,
+        )
       : null;
     this.runtime = options.runtime;
+  }
+
+  /**
+   * Public telemetry facade.
+   *
+   * Returns an object with `flush()` and `track()` methods.
+   * When telemetry is disabled in the constructor, returns a safe no-op facade.
+   */
+  get telemetry(): TelemetryFacade {
+    if (!this._telemetry) return NOOP_TELEMETRY;
+    const reporter = this._telemetry;
+    return {
+      flush() { void reporter.flush(); },
+      track(name: string, attributes: Record<string, unknown>) { reporter.track(name, attributes); },
+    };
   }
 
   get integrations(): IntegrationsClient {
@@ -67,7 +99,7 @@ export class OctomilClient {
       this._responses = new ResponsesClient({
         serverUrl: this.serverUrl,
         apiKey: this.apiKey,
-        telemetry: this.telemetry,
+        telemetry: this._telemetry,
       });
     }
     return this._responses;
@@ -75,7 +107,7 @@ export class OctomilClient {
 
   get chat(): ChatClient {
     if (!this._chat) {
-      this._chat = new ChatClient(this.serverUrl, this.apiKey, this.telemetry);
+      this._chat = new ChatClient(this.serverUrl, this.apiKey, this._telemetry);
     }
     return this._chat;
   }
@@ -115,8 +147,11 @@ export class OctomilClient {
     if (!options?.force && this.cache.has(modelRef, pullResult.checksum)) {
       const cachedPath = this.cache.getPath(modelRef);
       if (cachedPath) {
-        this.telemetry?.track("cache_hit", { "model.id": modelRef });
-        return new Model(modelRef, cachedPath, new InferenceEngine(), this.telemetry, this.runtime);
+        this._telemetry?.track("cache_hit", { "model.id": modelRef });
+        return new Model(
+          modelRef, cachedPath, new InferenceEngine(), this._telemetry,
+          this.runtime, pullResult.tag, pullResult.format,
+        );
       }
     }
 
@@ -146,8 +181,11 @@ export class OctomilClient {
       sizeBytes,
     });
 
-    this.telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
-    return new Model(modelRef, destPath, new InferenceEngine(), this.telemetry, this.runtime);
+    this._telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
+    return new Model(
+      modelRef, destPath, new InferenceEngine(), this._telemetry,
+      this.runtime, pullResult.tag, pullResult.format,
+    );
   }
 
   private async getModel(modelRef: string, options?: PullOptions & LoadOptions): Promise<Model> {
@@ -203,15 +241,26 @@ export class OctomilClient {
       modelId,
       input,
       parameters,
-      this.telemetry,
+      this._telemetry,
     );
   }
 
-  dispose(): void {
+  /**
+   * Close the client, releasing all loaded models and flushing telemetry.
+   *
+   * This is the canonical shutdown method. `dispose()` is kept as an alias
+   * for backward compatibility.
+   */
+  close(): void {
     for (const model of this._loadedModels.values()) {
       model.dispose();
     }
     this._loadedModels.clear();
-    this.telemetry?.dispose();
+    this._telemetry?.dispose();
+  }
+
+  /** @deprecated Use `close()` instead. */
+  dispose(): void {
+    this.close();
   }
 }

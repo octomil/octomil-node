@@ -226,4 +226,85 @@ describe("OctomilClient", () => {
       expect(() => clientNoTelemetry.dispose()).not.toThrow();
     });
   });
+
+  describe("close", () => {
+    it("should be callable and dispose telemetry", async () => {
+      const { TelemetryReporter } = await import("../src/telemetry.js");
+      const mockTelemetry = (TelemetryReporter as any).mock.results[0].value;
+
+      client.close();
+      expect(mockTelemetry.dispose).toHaveBeenCalled();
+    });
+
+    it("dispose should delegate to close", async () => {
+      const closeSpy = vi.spyOn(client, "close");
+      client.dispose();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("telemetry facade", () => {
+    it("should expose flush and track methods", () => {
+      const facade = client.telemetry;
+      expect(typeof facade.flush).toBe("function");
+      expect(typeof facade.track).toBe("function");
+    });
+
+    it("should delegate track to TelemetryReporter", async () => {
+      const { TelemetryReporter } = await import("../src/telemetry.js");
+      const mockTelemetry = (TelemetryReporter as any).mock.results[0].value;
+
+      client.telemetry.track("custom.event", { key: "value" });
+      expect(mockTelemetry.track).toHaveBeenCalledWith("custom.event", { key: "value" });
+    });
+
+    it("should delegate flush to TelemetryReporter", async () => {
+      const { TelemetryReporter } = await import("../src/telemetry.js");
+      const mockTelemetry = (TelemetryReporter as any).mock.results[0].value;
+
+      client.telemetry.flush();
+      expect(mockTelemetry.flush).toHaveBeenCalled();
+    });
+
+    it("should return no-op facade when telemetry is disabled", () => {
+      const clientNoTelemetry = new OctomilClient({
+        apiKey: "test-key",
+        orgId: "org-123",
+        telemetry: false,
+      });
+
+      // Should not throw
+      expect(() => clientNoTelemetry.telemetry.flush()).not.toThrow();
+      expect(() => clientNoTelemetry.telemetry.track("e", {})).not.toThrow();
+    });
+  });
+
+  describe("deviceId option", () => {
+    it("should pass deviceId to TelemetryReporter", async () => {
+      const { TelemetryReporter } = await import("../src/telemetry.js");
+
+      new OctomilClient({
+        apiKey: "test-key",
+        orgId: "org-123",
+        deviceId: "device-abc",
+      });
+
+      expect(TelemetryReporter).toHaveBeenCalledWith(
+        expect.any(String),
+        "test-key",
+        "org-123",
+        undefined,
+        undefined,
+        "device-abc",
+      );
+    });
+  });
+
+  describe("pull with version/format", () => {
+    it("should set version and format on pulled model", async () => {
+      const model = await client.pull("test-model:latest");
+      expect(model.version).toBe("latest");
+      expect(model.format).toBe("onnx");
+    });
+  });
 });

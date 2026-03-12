@@ -21,16 +21,25 @@ export class Model {
   private _modelParams = 0;
   private _modelSizeMb = 0;
 
+  /** Model version tag (e.g. "latest", "v1.2"). Set during pull. */
+  public readonly version: string;
+  /** Model format (e.g. "onnx", "tflite"). Set during pull. */
+  public readonly format: string;
+
   constructor(
     public readonly modelRef: string,
     public readonly filePath: string,
     engine: InferenceEngine,
     telemetry: TelemetryReporter | null,
     runtime?: ModelRuntime,
+    version?: string,
+    format?: string,
   ) {
     this.engine = engine;
     this.telemetry = telemetry;
     this._runtime = runtime ?? null;
+    this.version = version ?? "";
+    this.format = format ?? "";
   }
 
   /**
@@ -120,6 +129,59 @@ export class Model {
     return { ...output, latencyMs };
   }
 
+  /**
+   * Pre-warm the model by running a dummy inference pass.
+   *
+   * This triggers any lazy allocation inside the runtime (e.g. GPU memory,
+   * thread pool spin-up, graph optimisation) so the first real inference
+   * call doesn't pay the cold-start penalty.
+   *
+   * Requires the model to be loaded first.
+   */
+  async warmup(): Promise<void> {
+    if (!this.isLoaded) {
+      throw new OctomilError("Model not loaded. Call load() first.", "NOT_LOADED");
+    }
+    if (this._disposed) {
+      throw new OctomilError("Model has been disposed", "SESSION_DISPOSED");
+    }
+
+    // Build a minimal dummy input using the session's declared input names.
+    // We use a small 1-element float tensor for each input.
+    const dummyInput: Record<string, { data: Float32Array; dims: number[] }> = {};
+    for (const name of this._inputNames) {
+      dummyInput[name] = { data: new Float32Array([0]), dims: [1] };
+    }
+
+    try {
+      await this.engine.run(this.session!, dummyInput as PredictInput);
+    } catch {
+      // Warmup failures are non-fatal — some models may reject dummy shapes.
+      // The purpose is to trigger runtime-level allocation, not to produce
+      // meaningful output.
+    }
+
+    this.telemetry?.track("model_warmup", {
+      "model.id": this.modelRef,
+    });
+  }
+
+  /**
+   * Stream inference results from the model.
+   *
+   * For standard ONNX runtimes this yields a single `PredictOutput` since
+   * ONNX Runtime does not natively support token-level streaming. Custom
+   * `ModelRuntime` implementations may yield multiple partial results.
+   *
+   * Callers should consume via `for await`:
+   * ```ts
+   * for await (const output of model.predictStream(input)) { ... }
+   * ```
+   */
+  async *predictStream(input: PredictInput): AsyncGenerator<PredictOutput> {
+    yield await this.predict(input);
+  }
+
   async predictBatch(inputs: PredictInput[]): Promise<PredictOutput[]> {
     const results: PredictOutput[] = [];
     for (const input of inputs) {
@@ -128,11 +190,22 @@ export class Model {
     return results;
   }
 
-  dispose(): void {
+  /**
+   * Close the model, releasing the underlying session and buffers.
+   *
+   * This is the canonical shutdown method. `dispose()` is kept as an alias
+   * for backward compatibility.
+   */
+  close(): void {
     this.session = null;
     this._disposed = true;
     this._inputNames = [];
     this._outputNames = [];
+  }
+
+  /** @deprecated Use `close()` instead. */
+  dispose(): void {
+    this.close();
   }
 
   private async tryCloudInference(input: PredictInput): Promise<PredictOutput | null> {

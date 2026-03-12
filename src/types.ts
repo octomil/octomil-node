@@ -9,6 +9,14 @@ export interface OctomilClientOptions {
   telemetry?: boolean;
   /** Optional custom model runtime. When provided, Model instances use it instead of InferenceEngine. */
   runtime?: import("./model-runtime.js").ModelRuntime;
+  /**
+   * Optional device identifier.
+   *
+   * When provided, this value is attached to all telemetry events as the
+   * `device_id` resource attribute, enabling per-device filtering in
+   * analytics dashboards.
+   */
+  deviceId?: string;
 }
 
 export interface PullOptions {
