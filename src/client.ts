@@ -14,6 +14,7 @@ import { ControlClient } from "./control.js";
 import { ModelsClient } from "./models.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
+import type { ModelRuntime } from "./model-runtime.js";
 import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
 import { OctomilError } from "./types.js";
 import { streamInference } from "./streaming.js";
@@ -30,6 +31,7 @@ export class OctomilClient {
   private readonly downloader: ModelDownloader;
   private readonly cache: FileCache;
   private readonly telemetry: TelemetryReporter | null;
+  private readonly runtime: ModelRuntime | undefined;
   private readonly _loadedModels: Map<string, Model> = new Map();
   private readonly _activeDownloads: Set<string> = new Set();
   private readonly _errorModels: Set<string> = new Set();
@@ -50,6 +52,7 @@ export class OctomilClient {
     this.telemetry = options.telemetry !== false
       ? new TelemetryReporter(this.serverUrl, this.apiKey, this.orgId)
       : null;
+    this.runtime = options.runtime;
   }
 
   get integrations(): IntegrationsClient {
@@ -113,7 +116,7 @@ export class OctomilClient {
       const cachedPath = this.cache.getPath(modelRef);
       if (cachedPath) {
         this.telemetry?.track("cache_hit", { "model.id": modelRef });
-        return new Model(modelRef, cachedPath, new InferenceEngine(), this.telemetry);
+        return new Model(modelRef, cachedPath, new InferenceEngine(), this.telemetry, this.runtime);
       }
     }
 
@@ -144,7 +147,7 @@ export class OctomilClient {
     });
 
     this.telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
-    return new Model(modelRef, destPath, new InferenceEngine(), this.telemetry);
+    return new Model(modelRef, destPath, new InferenceEngine(), this.telemetry, this.runtime);
   }
 
   private async getModel(modelRef: string, options?: PullOptions & LoadOptions): Promise<Model> {
