@@ -468,7 +468,7 @@ export class ResponsesClient {
     } catch (err) {
       throw new OctomilError(
         `Responses request failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }

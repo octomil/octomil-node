@@ -1,0 +1,197 @@
+import { describe, it, expect } from "vitest";
+import { OctomilError } from "../src/types.js";
+import type { OctomilErrorCode } from "../src/types.js";
+
+describe("OctomilError", () => {
+  describe("constructor", () => {
+    it("sets name to OctomilError", () => {
+      const err = new OctomilError("test", "UNKNOWN");
+      expect(err.name).toBe("OctomilError");
+    });
+
+    it("sets message and code", () => {
+      const err = new OctomilError("something broke", "INFERENCE_FAILED");
+      expect(err.message).toBe("something broke");
+      expect(err.code).toBe("INFERENCE_FAILED");
+    });
+
+    it("sets optional cause", () => {
+      const cause = new TypeError("bad type");
+      const err = new OctomilError("wrapped", "UNKNOWN", cause);
+      expect(err.cause).toBe(cause);
+    });
+
+    it("is an instance of Error", () => {
+      const err = new OctomilError("test", "UNKNOWN");
+      expect(err).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("canonical error codes", () => {
+    const canonicalCodes: OctomilErrorCode[] = [
+      "MODEL_NOT_FOUND",
+      "MODEL_LOAD_FAILED",
+      "MODEL_DISABLED",
+      "INFERENCE_FAILED",
+      "NETWORK_UNAVAILABLE",
+      "INVALID_INPUT",
+      "INVALID_API_KEY",
+      "AUTHENTICATION_FAILED",
+      "FORBIDDEN",
+      "REQUEST_TIMEOUT",
+      "RATE_LIMITED",
+      "SERVER_ERROR",
+      "DOWNLOAD_FAILED",
+      "CHECKSUM_MISMATCH",
+      "INSUFFICIENT_STORAGE",
+      "INSUFFICIENT_MEMORY",
+      "RUNTIME_UNAVAILABLE",
+      "CANCELLED",
+      "UNKNOWN",
+    ];
+
+    it("accepts all 19 canonical error codes", () => {
+      for (const code of canonicalCodes) {
+        const err = new OctomilError(`test ${code}`, code);
+        expect(err.code).toBe(code);
+      }
+    });
+
+    const extraCodes: OctomilErrorCode[] = [
+      "NOT_LOADED",
+      "SESSION_DISPOSED",
+      "CACHE_ERROR",
+      "INTEGRITY_ERROR",
+      "NETWORK_ERROR",
+    ];
+
+    it("accepts SDK-specific extra codes for backwards-compat", () => {
+      for (const code of extraCodes) {
+        const err = new OctomilError(`test ${code}`, code);
+        expect(err.code).toBe(code);
+      }
+    });
+  });
+
+  describe("retryable", () => {
+    const retryableCodes: OctomilErrorCode[] = [
+      "NETWORK_UNAVAILABLE",
+      "NETWORK_ERROR",
+      "REQUEST_TIMEOUT",
+      "SERVER_ERROR",
+      "DOWNLOAD_FAILED",
+      "CHECKSUM_MISMATCH",
+      "INFERENCE_FAILED",
+      "RATE_LIMITED",
+    ];
+
+    for (const code of retryableCodes) {
+      it(`${code} is retryable`, () => {
+        const err = new OctomilError("test", code);
+        expect(err.retryable).toBe(true);
+      });
+    }
+
+    const nonRetryableCodes: OctomilErrorCode[] = [
+      "MODEL_NOT_FOUND",
+      "MODEL_LOAD_FAILED",
+      "MODEL_DISABLED",
+      "INVALID_INPUT",
+      "INVALID_API_KEY",
+      "AUTHENTICATION_FAILED",
+      "FORBIDDEN",
+      "INSUFFICIENT_STORAGE",
+      "INSUFFICIENT_MEMORY",
+      "RUNTIME_UNAVAILABLE",
+      "CANCELLED",
+      "UNKNOWN",
+      "NOT_LOADED",
+      "SESSION_DISPOSED",
+      "CACHE_ERROR",
+      "INTEGRITY_ERROR",
+    ];
+
+    for (const code of nonRetryableCodes) {
+      it(`${code} is NOT retryable`, () => {
+        const err = new OctomilError("test", code);
+        expect(err.retryable).toBe(false);
+      });
+    }
+  });
+
+  describe("fromHttpStatus", () => {
+    it("maps 401 to INVALID_API_KEY", () => {
+      const err = OctomilError.fromHttpStatus(401);
+      expect(err.code).toBe("INVALID_API_KEY");
+      expect(err.message).toBe("HTTP 401");
+    });
+
+    it("maps 403 to FORBIDDEN", () => {
+      const err = OctomilError.fromHttpStatus(403, "Access denied");
+      expect(err.code).toBe("FORBIDDEN");
+      expect(err.message).toBe("Access denied");
+    });
+
+    it("maps 404 to MODEL_NOT_FOUND", () => {
+      const err = OctomilError.fromHttpStatus(404);
+      expect(err.code).toBe("MODEL_NOT_FOUND");
+    });
+
+    it("maps 408 to REQUEST_TIMEOUT", () => {
+      const err = OctomilError.fromHttpStatus(408);
+      expect(err.code).toBe("REQUEST_TIMEOUT");
+    });
+
+    it("maps 429 to RATE_LIMITED", () => {
+      const err = OctomilError.fromHttpStatus(429);
+      expect(err.code).toBe("RATE_LIMITED");
+    });
+
+    it("maps 500 to SERVER_ERROR", () => {
+      const err = OctomilError.fromHttpStatus(500);
+      expect(err.code).toBe("SERVER_ERROR");
+    });
+
+    it("maps 502 to SERVER_ERROR", () => {
+      const err = OctomilError.fromHttpStatus(502);
+      expect(err.code).toBe("SERVER_ERROR");
+    });
+
+    it("maps 503 to SERVER_ERROR", () => {
+      const err = OctomilError.fromHttpStatus(503, "Service Unavailable");
+      expect(err.code).toBe("SERVER_ERROR");
+      expect(err.message).toBe("Service Unavailable");
+    });
+
+    it("maps unknown status to UNKNOWN", () => {
+      const err = OctomilError.fromHttpStatus(418);
+      expect(err.code).toBe("UNKNOWN");
+    });
+
+    it("uses custom message when provided", () => {
+      const err = OctomilError.fromHttpStatus(401, "Invalid token");
+      expect(err.message).toBe("Invalid token");
+    });
+
+    it("uses default message when none provided", () => {
+      const err = OctomilError.fromHttpStatus(500);
+      expect(err.message).toBe("HTTP 500");
+    });
+
+    it("returns an OctomilError instance", () => {
+      const err = OctomilError.fromHttpStatus(500);
+      expect(err).toBeInstanceOf(OctomilError);
+      expect(err).toBeInstanceOf(Error);
+      expect(err.name).toBe("OctomilError");
+    });
+
+    it("returned error has correct retryable property", () => {
+      expect(OctomilError.fromHttpStatus(429).retryable).toBe(true);   // RATE_LIMITED
+      expect(OctomilError.fromHttpStatus(500).retryable).toBe(true);   // SERVER_ERROR
+      expect(OctomilError.fromHttpStatus(408).retryable).toBe(true);   // REQUEST_TIMEOUT
+      expect(OctomilError.fromHttpStatus(401).retryable).toBe(false);  // INVALID_API_KEY
+      expect(OctomilError.fromHttpStatus(403).retryable).toBe(false);  // FORBIDDEN
+      expect(OctomilError.fromHttpStatus(404).retryable).toBe(false);  // MODEL_NOT_FOUND
+    });
+  });
+});

@@ -232,7 +232,7 @@ export class ChatClient {
     } catch (err) {
       throw new OctomilError(
         `Chat request failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }

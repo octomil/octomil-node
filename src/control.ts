@@ -92,7 +92,7 @@ export class ControlClient {
     } catch (err) {
       throw new OctomilError(
         `Device registration failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }
@@ -101,7 +101,7 @@ export class ControlClient {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
         `Device registration failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
       );
     }
 
@@ -136,7 +136,7 @@ export class ControlClient {
     } catch (err) {
       throw new OctomilError(
         `Heartbeat failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }
@@ -145,7 +145,7 @@ export class ControlClient {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
         `Heartbeat failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
       );
     }
 
@@ -173,7 +173,7 @@ export class ControlClient {
     } catch (err) {
       throw new OctomilError(
         `Assignment refresh failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }
@@ -182,7 +182,7 @@ export class ControlClient {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
         `Assignment refresh failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
       );
     }
 

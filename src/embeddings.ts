@@ -59,11 +59,11 @@ export async function embed(
   if (!config.serverUrl) {
     throw new OctomilError(
       "serverUrl is required for embed()",
-      "NETWORK_ERROR",
+      "NETWORK_UNAVAILABLE",
     );
   }
   if (!config.apiKey) {
-    throw new OctomilError("apiKey is required for embed()", "NETWORK_ERROR");
+    throw new OctomilError("apiKey is required for embed()", "NETWORK_UNAVAILABLE");
   }
 
   const url = `${config.serverUrl.replace(/\/+$/, "")}/api/v1/embeddings`;
@@ -82,7 +82,7 @@ export async function embed(
   } catch (err) {
     throw new OctomilError(
       `embed() request failed: ${String(err)}`,
-      "NETWORK_ERROR",
+      "NETWORK_UNAVAILABLE",
       err,
     );
   }
