@@ -127,3 +127,18 @@ export type {
 } from "./embeddings.js";
 export { streamInference, parseSSELine } from "./streaming.js";
 export type { StreamToken, StreamInput, StreamingConfig } from "./streaming.js";
+
+// ---------------------------------------------------------------------------
+// Contract-generated types (from octomil-contracts)
+// ---------------------------------------------------------------------------
+
+export {
+  ErrorCode,
+  ModelStatus as ContractModelStatus,
+  DeviceClass,
+  FinishReason,
+  CompatibilityLevel,
+  OTLP_RESOURCE_ATTRIBUTES,
+  TELEMETRY_EVENTS,
+  EVENT_REQUIRED_ATTRIBUTES,
+} from "./_generated/index.js";
