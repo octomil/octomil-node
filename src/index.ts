@@ -51,3 +51,17 @@ export type {
   ModelInfo,
   QueryRoutingDecision,
 } from "./query-routing.js";
+export { ResponsesClient } from "./responses.js";
+export type {
+  ResponseRequest,
+  ContentBlock,
+  ToolDef,
+  ResponseOutput,
+  ResponseObj,
+  ResponseUsage,
+  TextDeltaEvent,
+  ToolCallDeltaEvent,
+  DoneEvent,
+  ResponseStreamEvent,
+  ResponsesClientOptions,
+} from "./responses.js";

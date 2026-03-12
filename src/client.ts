@@ -7,6 +7,7 @@ import { InferenceEngine } from "./inference-engine.js";
 import { TelemetryReporter } from "./telemetry.js";
 import { computeFileHash } from "./integrity.js";
 import { IntegrationsClient } from "./integrations.js";
+import { ResponsesClient } from "./responses.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
@@ -27,6 +28,7 @@ export class OctomilClient {
   private readonly telemetry: TelemetryReporter | null;
   private readonly models: Map<string, Model> = new Map();
   private _integrations?: IntegrationsClient;
+  private _responses?: ResponsesClient;
 
   constructor(options: OctomilClientOptions) {
     this.apiKey = options.apiKey;
@@ -45,6 +47,13 @@ export class OctomilClient {
       this._integrations = new IntegrationsClient(this.serverUrl, this.apiKey, this.orgId);
     }
     return this._integrations;
+  }
+
+  get responses(): ResponsesClient {
+    if (!this._responses) {
+      this._responses = new ResponsesClient({ serverUrl: this.serverUrl, apiKey: this.apiKey });
+    }
+    return this._responses;
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {
