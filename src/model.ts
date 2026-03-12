@@ -21,16 +21,25 @@ export class Model {
   private _modelParams = 0;
   private _modelSizeMb = 0;
 
+  /** Model version tag (e.g. "latest", "v1.2"). Set during pull. */
+  public readonly version: string;
+  /** Model format (e.g. "onnx", "tflite"). Set during pull. */
+  public readonly format: string;
+
   constructor(
     public readonly modelRef: string,
     public readonly filePath: string,
     engine: InferenceEngine,
     telemetry: TelemetryReporter | null,
     runtime?: ModelRuntime,
+    version?: string,
+    format?: string,
   ) {
     this.engine = engine;
     this.telemetry = telemetry;
     this._runtime = runtime ?? null;
+    this.version = version ?? "";
+    this.format = format ?? "";
   }
 
   /**

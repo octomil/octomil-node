@@ -145,7 +145,10 @@ export class OctomilClient {
       const cachedPath = this.cache.getPath(modelRef);
       if (cachedPath) {
         this._telemetry?.track("cache_hit", { "model.id": modelRef });
-        return new Model(modelRef, cachedPath, new InferenceEngine(), this._telemetry, this.runtime);
+        return new Model(
+          modelRef, cachedPath, new InferenceEngine(), this._telemetry,
+          this.runtime, pullResult.tag, pullResult.format,
+        );
       }
     }
 
@@ -176,7 +179,10 @@ export class OctomilClient {
     });
 
     this._telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
-    return new Model(modelRef, destPath, new InferenceEngine(), this._telemetry, this.runtime);
+    return new Model(
+      modelRef, destPath, new InferenceEngine(), this._telemetry,
+      this.runtime, pullResult.tag, pullResult.format,
+    );
   }
 
   private async getModel(modelRef: string, options?: PullOptions & LoadOptions): Promise<Model> {
