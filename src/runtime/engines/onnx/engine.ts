@@ -1,6 +1,6 @@
-import type { ModelRuntime } from "./model-runtime.js";
-import type { LoadOptions, PredictInput, PredictOutput, NamedTensors, TensorData } from "./types.js";
-import { OctomilError } from "./types.js";
+import type { ModelRuntime } from "../../core/model-runtime.js";
+import type { LoadOptions, PredictInput, PredictOutput, NamedTensors, TensorData } from "../../../types.js";
+import { OctomilError } from "../../../types.js";
 
 export interface SessionResult {
   session: unknown;
