@@ -84,3 +84,8 @@ export type {
   HeartbeatResponse,
   DeviceAssignment,
 } from "./control.js";
+export { ModelsClient } from "./models.js";
+export type {
+  ModelStatus,
+  CachedModelInfo,
+} from "./models.js";

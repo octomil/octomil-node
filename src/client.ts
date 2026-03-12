@@ -11,6 +11,7 @@ import { ResponsesClient } from "./responses.js";
 import { ChatClient } from "./chat.js";
 import { CapabilitiesClient } from "./capabilities.js";
 import { ControlClient } from "./control.js";
+import { ModelsClient } from "./models.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
@@ -29,12 +30,15 @@ export class OctomilClient {
   private readonly downloader: ModelDownloader;
   private readonly cache: FileCache;
   private readonly telemetry: TelemetryReporter | null;
-  private readonly models: Map<string, Model> = new Map();
+  private readonly _loadedModels: Map<string, Model> = new Map();
+  private readonly _activeDownloads: Set<string> = new Set();
+  private readonly _errorModels: Set<string> = new Set();
   private _integrations?: IntegrationsClient;
   private _responses?: ResponsesClient;
   private _chat?: ChatClient;
   private _capabilities?: CapabilitiesClient;
   private _control?: ControlClient;
+  private _models?: ModelsClient;
 
   constructor(options: OctomilClientOptions) {
     this.apiKey = options.apiKey;
@@ -57,14 +61,18 @@ export class OctomilClient {
 
   get responses(): ResponsesClient {
     if (!this._responses) {
-      this._responses = new ResponsesClient({ serverUrl: this.serverUrl, apiKey: this.apiKey });
+      this._responses = new ResponsesClient({
+        serverUrl: this.serverUrl,
+        apiKey: this.apiKey,
+        telemetry: this.telemetry,
+      });
     }
     return this._responses;
   }
 
   get chat(): ChatClient {
     if (!this._chat) {
-      this._chat = new ChatClient(this.serverUrl, this.apiKey);
+      this._chat = new ChatClient(this.serverUrl, this.apiKey, this.telemetry);
     }
     return this._chat;
   }
@@ -81,6 +89,19 @@ export class OctomilClient {
       this._control = new ControlClient(this.serverUrl, this.apiKey, this.orgId);
     }
     return this._control;
+  }
+
+  get models(): ModelsClient {
+    if (!this._models) {
+      this._models = new ModelsClient({
+        cache: this.cache,
+        loadedModels: this._loadedModels,
+        activeDownloads: this._activeDownloads,
+        errorModels: this._errorModels,
+        pullAndLoad: (modelRef, options) => this.getModel(modelRef, options),
+      });
+    }
+    return this._models;
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {
@@ -127,12 +148,12 @@ export class OctomilClient {
   }
 
   private async getModel(modelRef: string, options?: PullOptions & LoadOptions): Promise<Model> {
-    const cached = this.models.get(modelRef);
+    const cached = this._loadedModels.get(modelRef);
     if (cached?.isLoaded) return cached;
 
     const model = await this.pull(modelRef, options);
     await model.load(options);
-    this.models.set(modelRef, model);
+    this._loadedModels.set(modelRef, model);
     return model;
   }
 
@@ -179,14 +200,15 @@ export class OctomilClient {
       modelId,
       input,
       parameters,
+      this.telemetry,
     );
   }
 
   dispose(): void {
-    for (const model of this.models.values()) {
+    for (const model of this._loadedModels.values()) {
       model.dispose();
     }
-    this.models.clear();
+    this._loadedModels.clear();
     this.telemetry?.dispose();
   }
 }
