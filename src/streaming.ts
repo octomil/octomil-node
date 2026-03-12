@@ -1,4 +1,5 @@
 import { OctomilError } from "./types.js";
+import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,6 +84,9 @@ function buildPayload(
  *
  * Returns an `AsyncGenerator` of {@link StreamToken} values.
  *
+ * When a `telemetry` reporter is provided, emits `inference.chunk_produced`
+ * events for each chunk received, per SDK_FACADE_CONTRACT.md.
+ *
  * ```ts
  * for await (const tok of streamInference(cfg, "phi-4-mini", "Hello")) {
  *   process.stdout.write(tok.token);
@@ -94,6 +98,7 @@ export async function* streamInference(
   modelId: string,
   input: StreamInput,
   parameters?: Record<string, unknown>,
+  telemetry?: TelemetryReporter | null,
 ): AsyncGenerator<StreamToken> {
   const url = `${config.serverUrl.replace(/\/+$/, "")}/api/v1/inference/stream`;
   const body = JSON.stringify(buildPayload(modelId, input, parameters));
@@ -135,6 +140,7 @@ export async function* streamInference(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let chunkIndex = 0;
 
   try {
     for (;;) {
@@ -150,6 +156,11 @@ export async function* streamInference(
       for (const line of lines) {
         const token = parseSSELine(line);
         if (token) {
+          telemetry?.track("inference.chunk_produced", {
+            "model.id": modelId,
+            "inference.chunk_index": chunkIndex,
+          });
+          chunkIndex++;
           yield token;
         }
       }
@@ -159,6 +170,11 @@ export async function* streamInference(
     if (buffer.trim()) {
       const token = parseSSELine(buffer);
       if (token) {
+        telemetry?.track("inference.chunk_produced", {
+          "model.id": modelId,
+          "inference.chunk_index": chunkIndex,
+        });
+        chunkIndex++;
         yield token;
       }
     }

@@ -7,6 +7,7 @@
  */
 
 import { OctomilError } from "./types.js";
+import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,6 +91,7 @@ export type ResponseStreamEvent = TextDeltaEvent | ToolCallDeltaEvent | DoneEven
 export interface ResponsesClientOptions {
   serverUrl: string;
   apiKey: string;
+  telemetry?: TelemetryReporter | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,11 +226,13 @@ class ResponseCache {
 export class ResponsesClient {
   private readonly serverUrl: string;
   private readonly apiKey: string;
+  private readonly telemetry: TelemetryReporter | null;
   private readonly cache = new ResponseCache();
 
   constructor(options: ResponsesClientOptions) {
     this.serverUrl = options.serverUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.telemetry = options.telemetry ?? null;
   }
 
   // ---- public API ---------------------------------------------------------
@@ -280,6 +284,7 @@ export class ResponsesClient {
     let currentTextContent = "";
     const toolCallAccumulators = new Map<number, { id: string; name: string; arguments: string }>();
     let usage: ResponseUsage | undefined;
+    let chunkIndex = 0;
 
     try {
       for (;;) {
@@ -313,6 +318,11 @@ export class ResponsesClient {
             // Text delta
             if (choice.delta.content) {
               currentTextContent += choice.delta.content;
+              this.telemetry?.track("inference.chunk_produced", {
+                "model.id": request.model,
+                "inference.chunk_index": chunkIndex,
+              });
+              chunkIndex++;
               yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;
             }
 
@@ -325,6 +335,11 @@ export class ResponsesClient {
                 if (tc.function?.arguments) acc.arguments += tc.function.arguments;
                 toolCallAccumulators.set(tc.index, acc);
 
+                this.telemetry?.track("inference.chunk_produced", {
+                  "model.id": request.model,
+                  "inference.chunk_index": chunkIndex,
+                });
+                chunkIndex++;
                 yield {
                   type: "tool_call_delta",
                   index: tc.index,
@@ -348,6 +363,11 @@ export class ResponsesClient {
             if (choice.finish_reason) finishReason = choice.finish_reason;
             if (choice.delta.content) {
               currentTextContent += choice.delta.content;
+              this.telemetry?.track("inference.chunk_produced", {
+                "model.id": request.model,
+                "inference.chunk_index": chunkIndex,
+              });
+              chunkIndex++;
               yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;
             }
           }
