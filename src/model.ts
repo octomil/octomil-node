@@ -128,11 +128,22 @@ export class Model {
     return results;
   }
 
-  dispose(): void {
+  /**
+   * Close the model, releasing the underlying session and buffers.
+   *
+   * This is the canonical shutdown method. `dispose()` is kept as an alias
+   * for backward compatibility.
+   */
+  close(): void {
     this.session = null;
     this._disposed = true;
     this._inputNames = [];
     this._outputNames = [];
+  }
+
+  /** @deprecated Use `close()` instead. */
+  dispose(): void {
+    this.close();
   }
 
   private async tryCloudInference(input: PredictInput): Promise<PredictOutput | null> {

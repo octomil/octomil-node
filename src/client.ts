@@ -236,11 +236,22 @@ export class OctomilClient {
     );
   }
 
-  dispose(): void {
+  /**
+   * Close the client, releasing all loaded models and flushing telemetry.
+   *
+   * This is the canonical shutdown method. `dispose()` is kept as an alias
+   * for backward compatibility.
+   */
+  close(): void {
     for (const model of this._loadedModels.values()) {
       model.dispose();
     }
     this._loadedModels.clear();
     this._telemetry?.dispose();
+  }
+
+  /** @deprecated Use `close()` instead. */
+  dispose(): void {
+    this.close();
   }
 }
