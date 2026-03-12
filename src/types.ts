@@ -8,7 +8,7 @@ export interface OctomilClientOptions {
   cacheDir?: string;
   telemetry?: boolean;
   /** Optional custom model runtime. When provided, Model instances use it instead of InferenceEngine. */
-  runtime?: import("./model-runtime.js").ModelRuntime;
+  runtime?: import("./runtime/core/model-runtime.js").ModelRuntime;
   /**
    * Optional device identifier.
    *

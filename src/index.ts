@@ -99,9 +99,9 @@ export type {
 // Infrastructure — internal utilities exposed for advanced use
 // ---------------------------------------------------------------------------
 
-export type { ModelRuntime } from "./model-runtime.js";
+export type { ModelRuntime } from "./runtime/core/model-runtime.js";
 export { Model } from "./model.js";
-export { InferenceEngine } from "./inference-engine.js";
+export { InferenceEngine } from "./runtime/engines/onnx/engine.js";
 export { ModelDownloader } from "./model-downloader.js";
 export { FileCache } from "./file-cache.js";
 export { TelemetryReporter } from "./telemetry.js";

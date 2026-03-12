@@ -1,5 +1,5 @@
-import type { InferenceEngine } from "./inference-engine.js";
-import type { ModelRuntime } from "./model-runtime.js";
+import type { InferenceEngine } from "./runtime/engines/onnx/engine.js";
+import type { ModelRuntime } from "./runtime/core/model-runtime.js";
 import type { RoutingClient, DeviceCapabilities } from "./routing.js";
 import type { TelemetryReporter } from "./telemetry.js";
 import type { LoadOptions, PredictInput, PredictOutput } from "./types.js";

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Model } from "../src/model.js";
-import type { InferenceEngine, SessionResult } from "../src/inference-engine.js";
+import type { InferenceEngine, SessionResult } from "../src/runtime/engines/onnx/engine.js";
 import type { TelemetryReporter } from "../src/telemetry.js";
 import { OctomilError } from "../src/types.js";
 

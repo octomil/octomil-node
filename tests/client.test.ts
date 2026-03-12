@@ -27,7 +27,7 @@ vi.mock("../src/file-cache.js", () => ({
   })),
 }));
 
-vi.mock("../src/inference-engine.js", () => ({
+vi.mock("../src/runtime/engines/onnx/engine.js", () => ({
   InferenceEngine: vi.fn().mockImplementation(() => ({
     createSession: vi.fn(),
     run: vi.fn(),
@@ -174,7 +174,7 @@ describe("OctomilClient", () => {
           scores: [0.1, 0.9],
         }),
       };
-      const { InferenceEngine } = await import("../src/inference-engine.js");
+      const { InferenceEngine } = await import("../src/runtime/engines/onnx/engine.js");
       (InferenceEngine as any).mockImplementation(() => sharedEngine);
 
       const result = await client.predict("test-model", { text: "hello" });
@@ -195,7 +195,7 @@ describe("OctomilClient", () => {
           tensors: { output: { data: new Float32Array([0.5]), dims: [1] } },
         }),
       };
-      const { InferenceEngine } = await import("../src/inference-engine.js");
+      const { InferenceEngine } = await import("../src/runtime/engines/onnx/engine.js");
       (InferenceEngine as any).mockImplementation(() => sharedEngine);
 
       await client.predict("test-model", { text: "a" });

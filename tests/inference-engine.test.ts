@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { InferenceEngine } from "../src/inference-engine.js";
+import { InferenceEngine } from "../src/runtime/engines/onnx/engine.js";
 
 // Mock onnxruntime-node
 const mockRun = vi.fn();
