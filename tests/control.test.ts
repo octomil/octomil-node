@@ -29,9 +29,13 @@ const HEARTBEAT_RESPONSE = {
   server_time: "2026-03-12T12:00:00Z",
 };
 
-const ASSIGNMENTS_RESPONSE = [
-  { modelId: "phi-4-mini", version: "1.0", config: {} },
-];
+const ASSIGNMENTS_RESPONSE = {
+  assignments: [
+    { model_id: "phi-4-mini", version: "1.0", config: {} },
+  ],
+  config_version: "v42",
+  rollouts_changed: false,
+};
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -148,7 +152,7 @@ describe("ControlClient", () => {
   // ---- refresh() ----------------------------------------------------------
 
   describe("refresh()", () => {
-    it("fetches device assignments", async () => {
+    it("fetches device assignments and returns ControlSyncResult", async () => {
       client.setDeviceId("dev-123");
 
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -159,8 +163,67 @@ describe("ControlClient", () => {
 
       const [url] = fetchSpy.mock.calls[0]!;
       expect(url).toBe("https://api.test.com/api/v1/devices/dev-123/assignments");
-      expect(result).toHaveLength(1);
-      expect(result[0]!.modelId).toBe("phi-4-mini");
+      expect(result.assignments).toHaveLength(1);
+      expect(result.assignments![0]!.modelId).toBe("phi-4-mini");
+      expect(result.configVersion).toBe("v42");
+      expect(result.fetchedAt).toBeDefined();
+      expect(result.rolloutsChanged).toBe(false);
+      // First call — no previous assignments, so assignmentsChanged is true
+      expect(result.assignmentsChanged).toBe(true);
+      expect(result.updated).toBe(true);
+    });
+
+    it("reports assignmentsChanged=false when assignments are identical", async () => {
+      client.setDeviceId("dev-123");
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse(ASSIGNMENTS_RESPONSE),
+      );
+
+      await client.refresh(); // first call
+      const result = await client.refresh(); // second call, same data
+
+      expect(result.assignmentsChanged).toBe(false);
+      expect(result.updated).toBe(false);
+    });
+
+    it("reports assignmentsChanged=true when assignments differ", async () => {
+      client.setDeviceId("dev-123");
+
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockJsonResponse(ASSIGNMENTS_RESPONSE))
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            assignments: [
+              { model_id: "llama-7b", version: "2.0", config: {} },
+            ],
+            config_version: "v43",
+            rollouts_changed: false,
+          }),
+        );
+
+      await client.refresh();
+      const result = await client.refresh();
+
+      expect(result.assignmentsChanged).toBe(true);
+      expect(result.updated).toBe(true);
+    });
+
+    it("handles legacy array response format", async () => {
+      client.setDeviceId("dev-123");
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse([
+          { modelId: "phi-4-mini", version: "1.0", config: {} },
+        ]),
+      );
+
+      const result = await client.refresh();
+
+      expect(result.assignments).toHaveLength(1);
+      expect(result.assignments![0]!.modelId).toBe("phi-4-mini");
+      expect(result.configVersion).toBe("");
+      expect(result.assignmentsChanged).toBe(true);
     });
 
     it("throws if device is not registered", async () => {

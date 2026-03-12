@@ -83,6 +83,7 @@ export type {
   DeviceRegistration,
   HeartbeatResponse,
   DeviceAssignment,
+  ControlSyncResult,
 } from "./control.js";
 export { ModelsClient } from "./models.js";
 export type {

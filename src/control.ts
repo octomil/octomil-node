@@ -29,6 +29,15 @@ export interface DeviceAssignment {
   config?: Record<string, unknown>;
 }
 
+export interface ControlSyncResult {
+  updated: boolean;
+  configVersion: string;
+  assignmentsChanged: boolean;
+  rolloutsChanged: boolean;
+  fetchedAt: string;
+  assignments?: DeviceAssignment[];
+}
+
 // ---------------------------------------------------------------------------
 // Wire-format types (snake_case from server)
 // ---------------------------------------------------------------------------
@@ -45,6 +54,16 @@ interface WireHeartbeatResponse {
   server_time?: string;
 }
 
+interface WireAssignmentsResponse {
+  assignments?: Array<{
+    model_id: string;
+    version?: string;
+    config?: Record<string, unknown>;
+  }>;
+  config_version?: string;
+  rollouts_changed?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // ControlClient
 // ---------------------------------------------------------------------------
@@ -55,6 +74,7 @@ export class ControlClient {
   private readonly orgId: string;
   private deviceId: string | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private previousAssignments: DeviceAssignment[] | null = null;
 
   constructor(serverUrl: string, apiKey: string, orgId: string) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
@@ -159,7 +179,7 @@ export class ControlClient {
   /**
    * Refresh device assignments from the control plane.
    */
-  async refresh(): Promise<DeviceAssignment[]> {
+  async refresh(): Promise<ControlSyncResult> {
     const id = this.getDeviceIdOrThrow();
 
     let response: Response;
@@ -186,7 +206,54 @@ export class ControlClient {
       );
     }
 
-    return (await response.json()) as DeviceAssignment[];
+    const data = (await response.json()) as WireAssignmentsResponse | DeviceAssignment[];
+
+    // Support both wire formats: new envelope { assignments, config_version } and legacy array
+    let assignments: DeviceAssignment[];
+    let configVersion: string;
+    let rolloutsChanged: boolean;
+
+    if (Array.isArray(data)) {
+      assignments = data;
+      configVersion = "";
+      rolloutsChanged = false;
+    } else {
+      assignments = (data.assignments ?? []).map((a) => ({
+        modelId: a.model_id,
+        version: a.version,
+        config: a.config,
+      }));
+      configVersion = data.config_version ?? "";
+      rolloutsChanged = data.rollouts_changed ?? false;
+    }
+
+    const assignmentsChanged = !this.assignmentsEqual(this.previousAssignments, assignments);
+    const updated = assignmentsChanged || rolloutsChanged;
+
+    this.previousAssignments = assignments;
+
+    return {
+      updated,
+      configVersion,
+      assignmentsChanged,
+      rolloutsChanged,
+      fetchedAt: new Date().toISOString(),
+      assignments,
+    };
+  }
+
+  private assignmentsEqual(
+    a: DeviceAssignment[] | null,
+    b: DeviceAssignment[],
+  ): boolean {
+    if (a === null) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]!.modelId !== b[i]!.modelId || a[i]!.version !== b[i]!.version) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
