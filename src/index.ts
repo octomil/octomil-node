@@ -52,6 +52,17 @@ export type {
   QueryRoutingDecision,
 } from "./query-routing.js";
 export { ResponsesClient } from "./responses.js";
+export { ChatClient } from "./chat.js";
+export type {
+  ChatMessage,
+  ChatRequest,
+  ChatCompletion,
+  ChatChoice,
+  ToolCall,
+  ChatChunk,
+  ChatChunkChoice,
+  ToolCallDelta,
+} from "./chat.js";
 export type {
   ResponseRequest,
   ContentBlock,

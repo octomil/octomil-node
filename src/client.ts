@@ -8,6 +8,7 @@ import { TelemetryReporter } from "./telemetry.js";
 import { computeFileHash } from "./integrity.js";
 import { IntegrationsClient } from "./integrations.js";
 import { ResponsesClient } from "./responses.js";
+import { ChatClient } from "./chat.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
@@ -29,6 +30,7 @@ export class OctomilClient {
   private readonly models: Map<string, Model> = new Map();
   private _integrations?: IntegrationsClient;
   private _responses?: ResponsesClient;
+  private _chat?: ChatClient;
 
   constructor(options: OctomilClientOptions) {
     this.apiKey = options.apiKey;
@@ -54,6 +56,13 @@ export class OctomilClient {
       this._responses = new ResponsesClient({ serverUrl: this.serverUrl, apiKey: this.apiKey });
     }
     return this._responses;
+  }
+
+  get chat(): ChatClient {
+    if (!this._chat) {
+      this._chat = new ChatClient(this.serverUrl, this.apiKey);
+    }
+    return this._chat;
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {
