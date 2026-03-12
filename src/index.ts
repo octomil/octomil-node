@@ -4,6 +4,13 @@ export { InferenceEngine } from "./inference-engine.js";
 export { ModelDownloader } from "./model-downloader.js";
 export { FileCache } from "./file-cache.js";
 export { TelemetryReporter } from "./telemetry.js";
+export type {
+  ExportLogsServiceRequest,
+  OtlpKeyValue,
+  OtlpLogRecord,
+  TelemetryEvent,
+  TelemetryResource,
+} from "./telemetry.js";
 export { computeFileHash } from "./integrity.js";
 export { IntegrationsClient } from "./integrations.js";
 export type {
