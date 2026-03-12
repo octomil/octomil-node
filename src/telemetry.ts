@@ -1,11 +1,8 @@
 /**
- * v2 OTLP-compatible telemetry reporter for the Octomil Node SDK.
+ * OTLP/JSON-compatible telemetry reporter for the Octomil Node SDK.
  *
- * Emits events in the OTLP envelope format to POST /api/v2/telemetry/events:
- * {
- *   resource: { sdk, sdk_version, device_id, platform, org_id },
- *   events: [{ name, timestamp, attributes }]
- * }
+ * Emits events in the OTLP ExportLogsServiceRequest format to
+ * POST /api/v2/telemetry/events.
  */
 
 import { readFileSync } from "node:fs";
@@ -14,7 +11,41 @@ import { fileURLToPath } from "node:url";
 import { platform } from "node:os";
 
 // ---------------------------------------------------------------------------
-// Types
+// OTLP Types
+// ---------------------------------------------------------------------------
+
+export interface OtlpKeyValue {
+  key: string;
+  value: {
+    stringValue?: string;
+    intValue?: string;
+    doubleValue?: number;
+    boolValue?: boolean;
+  };
+}
+
+export interface OtlpLogRecord {
+  timeUnixNano: string;
+  severityNumber?: number;
+  severityText?: string;
+  body?: { stringValue: string };
+  attributes?: OtlpKeyValue[];
+  traceId?: string;
+  spanId?: string;
+}
+
+export interface ExportLogsServiceRequest {
+  resourceLogs: Array<{
+    resource: { attributes: OtlpKeyValue[] };
+    scopeLogs: Array<{
+      scope: { name: string; version?: string };
+      logRecords: OtlpLogRecord[];
+    }>;
+  }>;
+}
+
+// ---------------------------------------------------------------------------
+// Internal types (kept for queue + backward compat)
 // ---------------------------------------------------------------------------
 
 export interface TelemetryEvent {
@@ -29,11 +60,6 @@ export interface TelemetryResource {
   device_id: null;
   platform: string;
   org_id: string;
-}
-
-interface TelemetryEnvelope {
-  resource: TelemetryResource;
-  events: TelemetryEvent[];
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +86,42 @@ function getSdkVersion(): string {
   } catch {
     return "0.0.0";
   }
+}
+
+function toOtlpValue(v: unknown): OtlpKeyValue["value"] {
+  if (typeof v === "string") return { stringValue: v };
+  if (typeof v === "boolean") return { boolValue: v };
+  if (typeof v === "number") {
+    if (Number.isInteger(v)) return { intValue: String(v) };
+    return { doubleValue: v };
+  }
+  return { stringValue: String(v ?? "") };
+}
+
+function resourceToAttributes(resource: TelemetryResource): OtlpKeyValue[] {
+  return [
+    { key: "sdk", value: { stringValue: resource.sdk } },
+    { key: "sdk_version", value: { stringValue: resource.sdk_version } },
+    { key: "device_id", value: { stringValue: "" } },
+    { key: "platform", value: { stringValue: resource.platform } },
+    { key: "org_id", value: { stringValue: resource.org_id } },
+  ];
+}
+
+function eventToLogRecord(event: TelemetryEvent): OtlpLogRecord {
+  const timeMs = new Date(event.timestamp).getTime();
+  const timeUnixNano = String(timeMs * 1_000_000);
+  const attributes: OtlpKeyValue[] = Object.entries(event.attributes).map(
+    ([key, val]) => ({ key, value: toOtlpValue(val) }),
+  );
+
+  return {
+    timeUnixNano,
+    severityNumber: 9, // INFO
+    severityText: "INFO",
+    body: { stringValue: event.name },
+    attributes,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,9 +162,6 @@ export class TelemetryReporter {
    *
    * Accepts a v2 dot-notation name (e.g. "inference.completed") or a legacy
    * v1 type string (e.g. "inference") which will be mapped automatically.
-   *
-   * The attributes dict should use dot-notation keys matching the v2 schema
-   * (e.g. "model.id", "inference.duration_ms").
    */
   track(name: string, attributes: Record<string, unknown> = {}): void {
     const mappedName = EVENT_NAME_MAP[name] ?? name;
@@ -119,10 +178,21 @@ export class TelemetryReporter {
   async flush(): Promise<void> {
     if (this.queue.length === 0) return;
     const batch = this.queue.splice(0, this.maxBatchSize);
-    const envelope: TelemetryEnvelope = {
-      resource: this.resource,
-      events: batch,
+
+    const envelope: ExportLogsServiceRequest = {
+      resourceLogs: [
+        {
+          resource: { attributes: resourceToAttributes(this.resource) },
+          scopeLogs: [
+            {
+              scope: { name: "@octomil/sdk", version: this.resource.sdk_version },
+              logRecords: batch.map(eventToLogRecord),
+            },
+          ],
+        },
+      ],
     };
+
     try {
       await fetch(`${this.serverUrl}/api/v2/telemetry/events`, {
         method: "POST",

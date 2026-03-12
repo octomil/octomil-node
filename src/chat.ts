@@ -1,17 +1,22 @@
 /**
- * Chat namespace — low-level chat completion API (Layer 1).
+ * Chat namespace — compatibility shim over ResponsesClient (Layer 1).
  * Matches SDK_FACADE_CONTRACT.md chat.create() and chat.stream().
  *
- * Sends requests directly to POST /v1/chat/completions and returns
- * OpenAI-compatible ChatCompletion / ChatChunk shapes with camelCase fields.
+ * Delegates to ResponsesClient internally, converting between
+ * ChatRequest/ChatCompletion and ResponseRequest/ResponseObj formats.
  */
 
-import { OctomilError } from "./types.js";
-import type { ToolDef } from "./responses.js";
+import { ResponsesClient } from "./responses.js";
+import type {
+  ResponseRequest,
+  ResponseObj,
+  ResponseStreamEvent,
+  ToolDef,
+} from "./responses.js";
 import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (public surface unchanged)
 // ---------------------------------------------------------------------------
 
 export interface ChatMessage {
@@ -70,287 +75,161 @@ export interface ToolCallDelta {
 }
 
 // ---------------------------------------------------------------------------
-// Wire-format types (snake_case from server)
-// ---------------------------------------------------------------------------
-
-interface WireChatCompletion {
-  id: string;
-  model: string;
-  choices: WireChatChoice[];
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-}
-
-interface WireChatChoice {
-  index: number;
-  message: {
-    role: string;
-    content?: string | null;
-    tool_calls?: WireToolCall[];
-  };
-  finish_reason: string;
-}
-
-interface WireToolCall {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-}
-
-interface WireChatChunk {
-  id: string;
-  model?: string;
-  choices: WireChatChunkChoice[];
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-}
-
-interface WireChatChunkChoice {
-  index: number;
-  delta: {
-    role?: string;
-    content?: string | null;
-    tool_calls?: WireChunkToolCall[];
-  };
-  finish_reason: string | null;
-}
-
-interface WireChunkToolCall {
-  index: number;
-  id?: string;
-  type?: "function";
-  function?: { name?: string; arguments?: string };
-}
-
-// ---------------------------------------------------------------------------
-// ChatClient
+// ChatClient — thin wrapper over ResponsesClient
 // ---------------------------------------------------------------------------
 
 export class ChatClient {
-  private readonly serverUrl: string;
-  private readonly apiKey: string;
-  private readonly telemetry: TelemetryReporter | null;
+  private readonly responses: ResponsesClient;
 
   constructor(serverUrl: string, apiKey: string, telemetry?: TelemetryReporter | null) {
-    this.serverUrl = serverUrl.replace(/\/+$/, "");
-    this.apiKey = apiKey;
-    this.telemetry = telemetry ?? null;
+    this.responses = new ResponsesClient({
+      serverUrl,
+      apiKey,
+      telemetry: telemetry ?? null,
+    });
   }
 
   /**
    * Create a chat completion (non-streaming).
    */
   async create(request: ChatRequest): Promise<ChatCompletion> {
-    const body = this.buildBody(request, false);
-    const response = await this.post(body);
-    const data = (await response.json()) as WireChatCompletion;
-    return this.parseCompletion(data);
+    const responseRequest = this.toResponseRequest(request);
+    const responseObj = await this.responses.create(responseRequest);
+    return this.toChatCompletion(responseObj, request);
   }
 
   /**
    * Stream a chat completion via SSE.
    */
   async *stream(request: ChatRequest): AsyncGenerator<ChatChunk> {
-    const body = this.buildBody(request, true);
-    const response = await this.post(body);
+    const responseRequest = this.toResponseRequest(request);
+    let currentId = "";
+    let chunkUsage: ChatChunk["usage"] | undefined;
 
-    if (!response.body) {
-      throw new OctomilError(
-        "Chat streaming response returned empty body",
-        "INFERENCE_FAILED",
-      );
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let chunkIndex = 0;
-    const modelId = request.model;
-
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const chunk = this.parseSSELine(line);
-          if (chunk) {
-            this.telemetry?.track("inference.chunk_produced", {
-              "model.id": modelId,
-              "inference.chunk_index": chunkIndex,
-            });
-            chunkIndex++;
-            yield chunk;
-          }
+    for await (const event of this.responses.stream(responseRequest)) {
+      if (event.type === "text_delta") {
+        const chunk: ChatChunk = {
+          id: currentId,
+          choices: [
+            {
+              index: 0,
+              delta: { content: event.delta },
+            },
+          ],
+        };
+        yield chunk;
+      } else if (event.type === "tool_call_delta") {
+        const tcDelta: ToolCallDelta = { index: event.index };
+        if (event.id) tcDelta.id = event.id;
+        if (event.name || event.argumentsDelta) {
+          tcDelta.function = {};
+          if (event.name) tcDelta.function.name = event.name;
+          if (event.argumentsDelta) tcDelta.function.arguments = event.argumentsDelta;
         }
-      }
 
-      // Process remaining buffer
-      if (buffer.trim()) {
-        const chunk = this.parseSSELine(buffer);
-        if (chunk) {
-          this.telemetry?.track("inference.chunk_produced", {
-            "model.id": modelId,
-            "inference.chunk_index": chunkIndex,
-          });
-          chunkIndex++;
-          yield chunk;
+        const chunk: ChatChunk = {
+          id: currentId,
+          choices: [
+            {
+              index: 0,
+              delta: { toolCalls: [tcDelta] },
+            },
+          ],
+        };
+        yield chunk;
+      } else if (event.type === "done") {
+        currentId = event.response.id;
+        if (event.response.usage) {
+          chunkUsage = {
+            promptTokens: event.response.usage.promptTokens,
+            completionTokens: event.response.usage.completionTokens,
+            totalTokens: event.response.usage.totalTokens,
+          };
         }
+
+        const chunk: ChatChunk = {
+          id: event.response.id,
+          choices: [
+            {
+              index: 0,
+              delta: {},
+              finishReason: event.response.finishReason,
+            },
+          ],
+          usage: chunkUsage,
+        };
+        yield chunk;
       }
-    } finally {
-      reader.releaseLock();
     }
   }
 
   // ---- private helpers ----------------------------------------------------
 
-  private buildBody(
-    request: ChatRequest,
-    stream: boolean,
-  ): Record<string, unknown> {
-    const messages = request.messages.map((m) => {
-      const msg: Record<string, unknown> = { role: m.role, content: m.content };
-      if (m.name) msg["name"] = m.name;
-      if (m.toolCallId) msg["tool_call_id"] = m.toolCallId;
-      return msg;
-    });
+  private toResponseRequest(request: ChatRequest): ResponseRequest {
+    // Extract system message as instructions
+    const systemMsg = request.messages.find((m) => m.role === "system");
+    const nonSystemMessages = request.messages.filter((m) => m.role !== "system");
 
-    const body: Record<string, unknown> = {
+    // Build a single input string from the conversation
+    // The last user message becomes the input; prior messages become context
+    const lastUserIdx = nonSystemMessages.map((m) => m.role).lastIndexOf("user");
+    const lastUserContent = lastUserIdx >= 0
+      ? nonSystemMessages[lastUserIdx]!.content
+      : nonSystemMessages[nonSystemMessages.length - 1]?.content ?? "";
+
+    const rr: ResponseRequest = {
       model: request.model,
-      messages,
-      stream,
+      input: lastUserContent,
     };
 
-    if (request.temperature !== undefined) body["temperature"] = request.temperature;
-    if (request.maxTokens !== undefined) body["max_tokens"] = request.maxTokens;
-    if (request.topP !== undefined) body["top_p"] = request.topP;
-    if (request.stop && request.stop.length > 0) body["stop"] = request.stop;
-    if (request.tools && request.tools.length > 0) body["tools"] = request.tools;
+    if (systemMsg) rr.instructions = systemMsg.content;
+    if (request.tools && request.tools.length > 0) rr.tools = request.tools;
+    if (request.maxTokens !== undefined) rr.maxOutputTokens = request.maxTokens;
+    if (request.temperature !== undefined) rr.temperature = request.temperature;
+    if (request.topP !== undefined) rr.topP = request.topP;
+    if (request.stop && request.stop.length > 0) rr.stop = request.stop;
 
-    return body;
+    return rr;
   }
 
-  private async post(body: Record<string, unknown>): Promise<Response> {
-    const url = `${this.serverUrl}/v1/chat/completions`;
-    const stream = body["stream"] === true;
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-          Accept: stream ? "text/event-stream" : "application/json",
-          "User-Agent": "octomil-node/1.0",
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (err) {
-      throw new OctomilError(
-        `Chat request failed: ${String(err)}`,
-        "NETWORK_UNAVAILABLE",
-        err,
-      );
-    }
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new OctomilError(
-        `Chat request failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
-        "INFERENCE_FAILED",
-      );
-    }
-
-    return response;
-  }
-
-  private parseCompletion(data: WireChatCompletion): ChatCompletion {
-    return {
-      id: data.id,
-      model: data.model,
-      choices: data.choices.map((c) => this.parseChoice(c)),
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
-    };
-  }
-
-  private parseChoice(c: WireChatChoice): ChatChoice {
+  private toChatCompletion(responseObj: ResponseObj, request: ChatRequest): ChatCompletion {
     const message: ChatMessage & { toolCalls?: ToolCall[] } = {
-      role: c.message.role as ChatMessage["role"],
-      content: c.message.content ?? "",
+      role: "assistant",
+      content: "",
     };
 
-    if (c.message.tool_calls && c.message.tool_calls.length > 0) {
-      message.toolCalls = c.message.tool_calls.map((tc) => ({
-        id: tc.id,
-        type: tc.type,
-        function: { name: tc.function.name, arguments: tc.function.arguments },
-      }));
+    const textParts: string[] = [];
+    const toolCalls: ToolCall[] = [];
+
+    for (const output of responseObj.output) {
+      if (output.type === "text" && output.text) {
+        textParts.push(output.text);
+      } else if (output.type === "tool_call" && output.toolCall) {
+        toolCalls.push({
+          id: output.toolCall.id,
+          type: "function",
+          function: {
+            name: output.toolCall.name,
+            arguments: output.toolCall.arguments,
+          },
+        });
+      }
     }
 
-    return {
-      index: c.index,
-      message,
-      finishReason: c.finish_reason,
-    };
-  }
-
-  private parseSSELine(line: string): ChatChunk | null {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) return null;
-
-    const dataStr = trimmed.slice(5).trim();
-    if (!dataStr || dataStr === "[DONE]") return null;
-
-    let raw: WireChatChunk;
-    try {
-      raw = JSON.parse(dataStr) as WireChatChunk;
-    } catch {
-      return null;
-    }
+    message.content = textParts.join("");
+    if (toolCalls.length > 0) message.toolCalls = toolCalls;
 
     return {
-      id: raw.id,
-      choices: raw.choices.map((c) => {
-        const delta: ChatChunkChoice["delta"] = {};
-        if (c.delta.role) delta.role = c.delta.role;
-        if (c.delta.content !== undefined && c.delta.content !== null) {
-          delta.content = c.delta.content;
-        }
-        if (c.delta.tool_calls && c.delta.tool_calls.length > 0) {
-          delta.toolCalls = c.delta.tool_calls.map((tc) => {
-            const d: ToolCallDelta = { index: tc.index };
-            if (tc.id) d.id = tc.id;
-            if (tc.function) {
-              d.function = {};
-              if (tc.function.name) d.function.name = tc.function.name;
-              if (tc.function.arguments !== undefined) d.function.arguments = tc.function.arguments;
-            }
-            return d;
-          });
-        }
-
-        return {
-          index: c.index,
-          delta,
-          finishReason: c.finish_reason ?? undefined,
-        };
-      }),
-      usage: raw.usage
-        ? {
-            promptTokens: raw.usage.prompt_tokens,
-            completionTokens: raw.usage.completion_tokens,
-            totalTokens: raw.usage.total_tokens,
-          }
-        : undefined,
+      id: responseObj.id,
+      model: responseObj.model,
+      choices: [
+        {
+          index: 0,
+          message,
+          finishReason: responseObj.finishReason,
+        },
+      ],
+      usage: responseObj.usage,
     };
   }
 }

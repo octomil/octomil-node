@@ -243,12 +243,14 @@ describe("ChatClient chunk telemetry", () => {
     vi.restoreAllMocks();
   });
 
-  it("should emit inference.chunk_produced for each chunk", async () => {
+  it("should emit inference.chunk_produced for each text delta chunk", async () => {
+    // ChatClient now delegates to ResponsesClient; empty content deltas are
+    // filtered (no text_delta event), and a done event produces a final chunk.
     const sseResponse = makeSSEResponse([
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}',
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}',
       "data: [DONE]",
     ]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
@@ -260,11 +262,11 @@ describe("ChatClient chunk telemetry", () => {
       client.stream({ model: "gpt-4o", messages: [{ role: "user", content: "Hi" }] }),
     );
 
-    // 4 valid chunks yielded (first has empty content, second "Hello", third " world", fourth finish)
-    expect(chunks).toHaveLength(4);
+    // "Hello" + " world" produce text_delta chunks; done event produces final chunk
+    expect(chunks).toHaveLength(3);
 
-    // Each yielded chunk should produce a telemetry event
-    expect(telemetry.track).toHaveBeenCalledTimes(4);
+    // Telemetry fires for each text_delta (2 deltas)
+    expect(telemetry.track).toHaveBeenCalledTimes(2);
     expect(telemetry.track).toHaveBeenNthCalledWith(1, "inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 0,
@@ -273,19 +275,11 @@ describe("ChatClient chunk telemetry", () => {
       "model.id": "gpt-4o",
       "inference.chunk_index": 1,
     });
-    expect(telemetry.track).toHaveBeenNthCalledWith(3, "inference.chunk_produced", {
-      "model.id": "gpt-4o",
-      "inference.chunk_index": 2,
-    });
-    expect(telemetry.track).toHaveBeenNthCalledWith(4, "inference.chunk_produced", {
-      "model.id": "gpt-4o",
-      "inference.chunk_index": 3,
-    });
   });
 
   it("should not emit telemetry when reporter is null", async () => {
     const sseResponse = makeSSEResponse([
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
       "data: [DONE]",
     ]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
@@ -296,13 +290,14 @@ describe("ChatClient chunk telemetry", () => {
       client.stream({ model: "gpt-4o", messages: [{ role: "user", content: "Hi" }] }),
     );
 
-    expect(chunks).toHaveLength(1);
+    // text_delta chunk + done chunk
+    expect(chunks).toHaveLength(2);
     // No errors thrown, just no telemetry
   });
 
   it("should not emit telemetry when reporter is not provided", async () => {
     const sseResponse = makeSSEResponse([
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
       "data: [DONE]",
     ]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
@@ -313,14 +308,15 @@ describe("ChatClient chunk telemetry", () => {
       client.stream({ model: "gpt-4o", messages: [{ role: "user", content: "Hi" }] }),
     );
 
-    expect(chunks).toHaveLength(1);
+    // text_delta chunk + done chunk
+    expect(chunks).toHaveLength(2);
   });
 
   it("should skip chunk events for malformed SSE lines", async () => {
     const sseResponse = makeSSEResponse([
       "event: heartbeat",
       "data: not-valid-json",
-      'data: {"id":"chatcmpl-s1","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
       "data: [DONE]",
     ]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
@@ -332,7 +328,8 @@ describe("ChatClient chunk telemetry", () => {
       client.stream({ model: "gpt-4o", messages: [{ role: "user", content: "Hi" }] }),
     );
 
-    expect(chunks).toHaveLength(1);
+    // text_delta chunk + done chunk
+    expect(chunks).toHaveLength(2);
     expect(telemetry.track).toHaveBeenCalledTimes(1);
     expect(telemetry.track).toHaveBeenCalledWith("inference.chunk_produced", {
       "model.id": "gpt-4o",

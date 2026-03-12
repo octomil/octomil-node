@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TelemetryReporter } from "../src/telemetry.js";
+import type { ExportLogsServiceRequest, OtlpLogRecord } from "../src/telemetry.js";
 
 // Mock fs/url/os imports used by getSdkVersion()
 vi.mock("node:fs", () => ({
@@ -19,6 +20,15 @@ describe("TelemetryReporter", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
+
+  function parseBody(): ExportLogsServiceRequest {
+    return JSON.parse(fetchMock.mock.calls[0][1].body) as ExportLogsServiceRequest;
+  }
+
+  function getLogRecords(): OtlpLogRecord[] {
+    const body = parseBody();
+    return body.resourceLogs[0]!.scopeLogs[0]!.logRecords;
+  }
 
   it("should track events and queue them", () => {
     const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1");
@@ -49,32 +59,45 @@ describe("TelemetryReporter", () => {
     reporter.dispose();
   });
 
-  it("should send OTLP envelope with resource and events", async () => {
+  it("should send OTLP ExportLogsServiceRequest envelope", async () => {
     const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
     reporter.track("inference", { "model.id": "m:v1", "inference.duration_ms": 42 });
 
     vi.advanceTimersByTime(1000);
     await vi.advanceTimersByTimeAsync(0);
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const body = parseBody();
 
-    // Verify resource envelope
-    expect(body.resource).toMatchObject({
-      sdk: "node",
-      device_id: null,
-      org_id: "org-1",
-    });
-    expect(body.resource.sdk_version).toBeDefined();
-    expect(body.resource.platform).toBeDefined();
+    // Verify OTLP structure
+    expect(body.resourceLogs).toHaveLength(1);
+    const resourceLog = body.resourceLogs[0]!;
 
-    // Verify event structure
-    expect(body.events).toHaveLength(1);
-    expect(body.events[0].name).toBe("inference.completed");
-    expect(body.events[0].timestamp).toBeDefined();
-    expect(body.events[0].attributes).toEqual({
-      "model.id": "m:v1",
-      "inference.duration_ms": 42,
-    });
+    // Resource attributes
+    const attrs = resourceLog.resource.attributes;
+    const attrMap = Object.fromEntries(attrs.map((a) => [a.key, a.value]));
+    expect(attrMap["sdk"]!.stringValue).toBe("node");
+    expect(attrMap["org_id"]!.stringValue).toBe("org-1");
+    expect(attrMap["sdk_version"]!.stringValue).toBeDefined();
+    expect(attrMap["platform"]!.stringValue).toBeDefined();
+
+    // Scope
+    const scopeLog = resourceLog.scopeLogs[0]!;
+    expect(scopeLog.scope.name).toBe("@octomil/sdk");
+
+    // Log records
+    expect(scopeLog.logRecords).toHaveLength(1);
+    const record = scopeLog.logRecords[0]!;
+    expect(record.body!.stringValue).toBe("inference.completed");
+    expect(record.timeUnixNano).toBeDefined();
+    expect(Number(record.timeUnixNano)).toBeGreaterThan(0);
+    expect(record.severityText).toBe("INFO");
+
+    // Attributes as KeyValue[]
+    const recordAttrs = Object.fromEntries(
+      (record.attributes ?? []).map((a) => [a.key, a.value]),
+    );
+    expect(recordAttrs["model.id"]!.stringValue).toBe("m:v1");
+    expect(recordAttrs["inference.duration_ms"]!.intValue).toBe("42");
 
     reporter.dispose();
   });
@@ -90,8 +113,8 @@ describe("TelemetryReporter", () => {
     vi.advanceTimersByTime(1000);
     await vi.advanceTimersByTimeAsync(0);
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const names = body.events.map((e: { name: string }) => e.name);
+    const records = getLogRecords();
+    const names = records.map((r) => r.body!.stringValue);
 
     expect(names).toEqual([
       "inference.completed",
@@ -112,9 +135,40 @@ describe("TelemetryReporter", () => {
     vi.advanceTimersByTime(1000);
     await vi.advanceTimersByTimeAsync(0);
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.events[0].name).toBe("inference.completed");
-    expect(body.events[1].name).toBe("funnel.custom_event");
+    const records = getLogRecords();
+    expect(records[0]!.body!.stringValue).toBe("inference.completed");
+    expect(records[1]!.body!.stringValue).toBe("funnel.custom_event");
+
+    reporter.dispose();
+  });
+
+  it("should support new telemetry event types", async () => {
+    const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
+
+    reporter.track("inference.started", { "model.id": "phi-4" });
+    reporter.track("inference.failed", { "model.id": "phi-4", "error.message": "OOM" });
+    reporter.track("deploy.started", { "model.id": "phi-4" });
+    reporter.track("deploy.completed", { "model.id": "phi-4", "deploy.target": "device" });
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const records = getLogRecords();
+    const names = records.map((r) => r.body!.stringValue);
+
+    expect(names).toEqual([
+      "inference.started",
+      "inference.failed",
+      "deploy.started",
+      "deploy.completed",
+    ]);
+
+    // Verify attributes are properly encoded as OtlpKeyValue
+    const failedRecord = records[1]!;
+    const failedAttrs = Object.fromEntries(
+      (failedRecord.attributes ?? []).map((a) => [a.key, a.value]),
+    );
+    expect(failedAttrs["error.message"]!.stringValue).toBe("OOM");
 
     reporter.dispose();
   });
@@ -178,14 +232,34 @@ describe("TelemetryReporter", () => {
     vi.advanceTimersByTime(1000);
     await vi.advanceTimersByTimeAsync(0);
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const event = body.events[0];
+    const records = getLogRecords();
+    const record = records[0]!;
+    expect(record.body!.stringValue).toBe("inference.completed");
 
-    expect(event.name).toBe("inference.completed");
-    expect(event.attributes["inference.ttft_ms"]).toBe(120);
-    expect(event.attributes["inference.tpot_ms"]).toBe(15.5);
-    expect(event.attributes["inference.throughput_tps"]).toBe(64.5);
-    expect(event.attributes["inference.modality"]).toBe("text");
+    const attrMap = Object.fromEntries(
+      (record.attributes ?? []).map((a) => [a.key, a.value]),
+    );
+    expect(attrMap["inference.ttft_ms"]!.intValue).toBe("120");
+    expect(attrMap["inference.tpot_ms"]!.doubleValue).toBe(15.5);
+    expect(attrMap["inference.throughput_tps"]!.doubleValue).toBe(64.5);
+    expect(attrMap["inference.modality"]!.stringValue).toBe("text");
+
+    reporter.dispose();
+  });
+
+  it("should encode boolean attributes correctly", async () => {
+    const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
+    reporter.track("test.event", { "flag.enabled": true, "flag.disabled": false });
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const records = getLogRecords();
+    const attrMap = Object.fromEntries(
+      (records[0]!.attributes ?? []).map((a) => [a.key, a.value]),
+    );
+    expect(attrMap["flag.enabled"]!.boolValue).toBe(true);
+    expect(attrMap["flag.disabled"]!.boolValue).toBe(false);
 
     reporter.dispose();
   });
