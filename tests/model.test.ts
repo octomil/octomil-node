@@ -150,4 +150,82 @@ describe("Model", () => {
     const result = await modelNoTelemetry.predict({ raw: new Float32Array([1]), dims: [1] });
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
+
+  describe("version and format", () => {
+    it("should default to empty strings", () => {
+      expect(model.version).toBe("");
+      expect(model.format).toBe("");
+    });
+
+    it("should accept version and format in constructor", () => {
+      const m = new Model("test:v2", "/path/model.onnx", mockEngine, null, undefined, "v2", "tflite");
+      expect(m.version).toBe("v2");
+      expect(m.format).toBe("tflite");
+    });
+  });
+
+  describe("close", () => {
+    it("should clear state like dispose", async () => {
+      await model.load();
+      expect(model.isLoaded).toBe(true);
+
+      model.close();
+      expect(model.isLoaded).toBe(false);
+      expect(model.inputNames).toEqual([]);
+      expect(model.outputNames).toEqual([]);
+    });
+
+    it("dispose should delegate to close", async () => {
+      await model.load();
+      const closeSpy = vi.spyOn(model, "close");
+      model.dispose();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("predictStream", () => {
+    it("should yield a single PredictOutput", async () => {
+      await model.load();
+      const results: unknown[] = [];
+      for await (const output of model.predictStream({ raw: new Float32Array([1]), dims: [1] })) {
+        results.push(output);
+      }
+      expect(results).toHaveLength(1);
+      expect((results[0] as any).latencyMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should throw NOT_LOADED when model is not loaded", async () => {
+      const gen = model.predictStream({ raw: new Float32Array([1]), dims: [1] });
+      await expect(gen.next()).rejects.toThrow(OctomilError);
+    });
+  });
+
+  describe("warmup", () => {
+    it("should run dummy inference and track telemetry", async () => {
+      await model.load();
+      await model.warmup();
+
+      // Engine.run should have been called with dummy input
+      expect(mockEngine.run).toHaveBeenCalledTimes(1);
+      expect(mockTelemetry.track).toHaveBeenCalledWith("model_warmup", {
+        "model.id": "test-model:v1",
+      });
+    });
+
+    it("should not throw if dummy inference fails", async () => {
+      (mockEngine.run as any).mockRejectedValue(new Error("shape mismatch"));
+      await model.load();
+      await expect(model.warmup()).resolves.not.toThrow();
+    });
+
+    it("should throw NOT_LOADED when model is not loaded", async () => {
+      await expect(model.warmup()).rejects.toThrow(OctomilError);
+    });
+
+    it("should throw SESSION_DISPOSED when model is disposed", async () => {
+      await model.load();
+      model.dispose();
+      await expect(model.warmup()).rejects.toThrow(OctomilError);
+    });
+  });
 });
