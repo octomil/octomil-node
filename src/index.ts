@@ -76,3 +76,11 @@ export type {
   ResponseStreamEvent,
   ResponsesClientOptions,
 } from "./responses.js";
+export { CapabilitiesClient } from "./capabilities.js";
+export type { CapabilityProfile } from "./capabilities.js";
+export { ControlClient } from "./control.js";
+export type {
+  DeviceRegistration,
+  HeartbeatResponse,
+  DeviceAssignment,
+} from "./control.js";
