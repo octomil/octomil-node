@@ -8,6 +8,9 @@ import { TelemetryReporter } from "./telemetry.js";
 import { computeFileHash } from "./integrity.js";
 import { IntegrationsClient } from "./integrations.js";
 import { ResponsesClient } from "./responses.js";
+import { ChatClient } from "./chat.js";
+import { CapabilitiesClient } from "./capabilities.js";
+import { ControlClient } from "./control.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
@@ -29,6 +32,9 @@ export class OctomilClient {
   private readonly models: Map<string, Model> = new Map();
   private _integrations?: IntegrationsClient;
   private _responses?: ResponsesClient;
+  private _chat?: ChatClient;
+  private _capabilities?: CapabilitiesClient;
+  private _control?: ControlClient;
 
   constructor(options: OctomilClientOptions) {
     this.apiKey = options.apiKey;
@@ -54,6 +60,27 @@ export class OctomilClient {
       this._responses = new ResponsesClient({ serverUrl: this.serverUrl, apiKey: this.apiKey });
     }
     return this._responses;
+  }
+
+  get chat(): ChatClient {
+    if (!this._chat) {
+      this._chat = new ChatClient(this.serverUrl, this.apiKey);
+    }
+    return this._chat;
+  }
+
+  get capabilities(): CapabilitiesClient {
+    if (!this._capabilities) {
+      this._capabilities = new CapabilitiesClient();
+    }
+    return this._capabilities;
+  }
+
+  get control(): ControlClient {
+    if (!this._control) {
+      this._control = new ControlClient(this.serverUrl, this.apiKey, this.orgId);
+    }
+    return this._control;
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {

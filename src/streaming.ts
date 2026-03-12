@@ -113,7 +113,7 @@ export async function* streamInference(
   } catch (err) {
     throw new OctomilError(
       `Cloud streaming request failed: ${String(err)}`,
-      "NETWORK_ERROR",
+      "NETWORK_UNAVAILABLE",
       err,
     );
   }

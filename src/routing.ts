@@ -191,7 +191,7 @@ export class RoutingClient {
     } catch (err) {
       throw new OctomilError(
         `Cloud inference request failed: ${String(err)}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
         err,
       );
     }

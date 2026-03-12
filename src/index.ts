@@ -52,6 +52,17 @@ export type {
   QueryRoutingDecision,
 } from "./query-routing.js";
 export { ResponsesClient } from "./responses.js";
+export { ChatClient } from "./chat.js";
+export type {
+  ChatMessage,
+  ChatRequest,
+  ChatCompletion,
+  ChatChoice,
+  ToolCall,
+  ChatChunk,
+  ChatChunkChoice,
+  ToolCallDelta,
+} from "./chat.js";
 export type {
   ResponseRequest,
   ContentBlock,
@@ -65,3 +76,11 @@ export type {
   ResponseStreamEvent,
   ResponsesClientOptions,
 } from "./responses.js";
+export { CapabilitiesClient } from "./capabilities.js";
+export type { CapabilityProfile } from "./capabilities.js";
+export { ControlClient } from "./control.js";
+export type {
+  DeviceRegistration,
+  HeartbeatResponse,
+  DeviceAssignment,
+} from "./control.js";

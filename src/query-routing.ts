@@ -211,7 +211,7 @@ export class PolicyClient {
     if (!response.ok) {
       throw new OctomilError(
         `Policy fetch failed: HTTP ${response.status}`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
       );
     }
 

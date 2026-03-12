@@ -62,7 +62,7 @@ export class ModelDownloader {
     if (!resp.ok || !resp.body) {
       throw new OctomilError(
         `Download failed (${resp.status})`,
-        "NETWORK_ERROR",
+        "NETWORK_UNAVAILABLE",
       );
     }
 
