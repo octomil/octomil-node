@@ -64,7 +64,10 @@ export class OctomilClient {
     this.downloader = new ModelDownloader(this.serverUrl, this.apiKey, this.orgId);
     this.cache = new FileCache(this.cacheDir);
     this._telemetry = options.telemetry !== false
-      ? new TelemetryReporter(this.serverUrl, this.apiKey, this.orgId)
+      ? new TelemetryReporter(
+          this.serverUrl, this.apiKey, this.orgId,
+          undefined, undefined, options.deviceId,
+        )
       : null;
     this.runtime = options.runtime;
   }
