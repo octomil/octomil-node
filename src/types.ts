@@ -280,4 +280,33 @@ export class OctomilError extends Error {
     const sdkCode = ERROR_CODE_MAP[errorCode];
     return new OctomilError(sdkCode, message, cause);
   }
+
+  /**
+   * Create an OctomilError from a server error response body.
+   *
+   * Extracts the `code` field from the JSON body and maps it to the SDK's
+   * error code enum. Falls back to HTTP status mapping when the `code` field
+   * is absent or unrecognized.
+   */
+  static fromServerResponse(
+    status: number,
+    body: Record<string, unknown> | null,
+  ): OctomilError {
+    const message =
+      (typeof body?.message === "string" ? body.message : null) ??
+      (typeof body?.error === "string" ? body.error : null) ??
+      `HTTP ${status}`;
+
+    // Try to map the server's `code` field to a contract ErrorCode.
+    if (typeof body?.code === "string") {
+      const contractValues = Object.values(ErrorCode) as string[];
+      if (contractValues.includes(body.code)) {
+        const sdkCode = ERROR_CODE_MAP[body.code as ErrorCode];
+        return new OctomilError(sdkCode, message);
+      }
+    }
+
+    // Fall back to HTTP status mapping.
+    return OctomilError.fromHttpStatus(status, message);
+  }
 }
