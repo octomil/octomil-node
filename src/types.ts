@@ -167,6 +167,10 @@ export type OctomilErrorCode =
   | "CONTROL_SYNC_FAILED"
   | "ASSIGNMENT_NOT_FOUND"
   | "APP_BACKGROUNDED"
+  // --- Training codes ---
+  | "TRAINING_FAILED"
+  | "TRAINING_NOT_SUPPORTED"
+  | "WEIGHT_UPLOAD_FAILED"
   // --- Auth lifecycle codes ---
   | "TOKEN_EXPIRED"
   | "DEVICE_REVOKED";
@@ -204,6 +208,9 @@ export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
   [ErrorCode.ControlSyncFailed]: "CONTROL_SYNC_FAILED",
   [ErrorCode.AssignmentNotFound]: "ASSIGNMENT_NOT_FOUND",
   [ErrorCode.AppBackgrounded]: "APP_BACKGROUNDED",
+  [ErrorCode.TrainingFailed]: "TRAINING_FAILED",
+  [ErrorCode.TrainingNotSupported]: "TRAINING_NOT_SUPPORTED",
+  [ErrorCode.WeightUploadFailed]: "WEIGHT_UPLOAD_FAILED",
   [ErrorCode.TokenExpired]: "TOKEN_EXPIRED",
   [ErrorCode.DeviceRevoked]: "DEVICE_REVOKED",
 } as const;

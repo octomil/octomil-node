@@ -12,9 +12,9 @@ import { OTLP_RESOURCE_ATTRIBUTES } from "../../src/_generated/otlp_resource_att
 
 describe("Contract Conformance", () => {
   describe("ErrorCode enum", () => {
-    it("has all 19 canonical error codes", () => {
+    it("has all 36 canonical error codes", () => {
       const codes = Object.values(ErrorCode);
-      expect(codes).toHaveLength(19);
+      expect(codes).toHaveLength(36);
       expect(codes).toContain("network_unavailable");
       expect(codes).toContain("request_timeout");
       expect(codes).toContain("server_error");
@@ -34,6 +34,9 @@ describe("Contract Conformance", () => {
       expect(codes).toContain("invalid_input");
       expect(codes).toContain("cancelled");
       expect(codes).toContain("unknown");
+      expect(codes).toContain("training_failed");
+      expect(codes).toContain("training_not_supported");
+      expect(codes).toContain("weight_upload_failed");
     });
   });
 
