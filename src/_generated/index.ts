@@ -1,6 +1,9 @@
 // Auto-generated barrel file from octomil-contracts. Do not edit.
 export { AcceleratorType } from "./accelerator_type";
 export { ArtifactFormat } from "./artifact_format";
+export { AuthType } from "./auth_type";
+export { PrincipalType } from "./principal_type";
+export { Scope } from "./scope";
 export { CompatibilityLevel } from "./compatibility_level";
 export { DeviceClass } from "./device_class";
 export { DevicePlatform } from "./device_platform";

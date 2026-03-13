@@ -5,24 +5,24 @@ import type { OctomilErrorCode } from "../src/types.js";
 describe("OctomilError", () => {
   describe("constructor", () => {
     it("sets name to OctomilError", () => {
-      const err = new OctomilError("test", "UNKNOWN");
+      const err = new OctomilError("UNKNOWN", "test");
       expect(err.name).toBe("OctomilError");
     });
 
     it("sets message and code", () => {
-      const err = new OctomilError("something broke", "INFERENCE_FAILED");
+      const err = new OctomilError("INFERENCE_FAILED", "something broke");
       expect(err.message).toBe("something broke");
       expect(err.code).toBe("INFERENCE_FAILED");
     });
 
     it("sets optional cause", () => {
       const cause = new TypeError("bad type");
-      const err = new OctomilError("wrapped", "UNKNOWN", cause);
+      const err = new OctomilError("UNKNOWN", "wrapped", cause);
       expect(err.cause).toBe(cause);
     });
 
     it("is an instance of Error", () => {
-      const err = new OctomilError("test", "UNKNOWN");
+      const err = new OctomilError("UNKNOWN", "test");
       expect(err).toBeInstanceOf(Error);
     });
   });
@@ -52,49 +52,34 @@ describe("OctomilError", () => {
 
     it("accepts all 19 canonical error codes", () => {
       for (const code of canonicalCodes) {
-        const err = new OctomilError(`test ${code}`, code);
+        const err = new OctomilError(code, `test ${code}`);
         expect(err.code).toBe(code);
       }
     });
 
-    const extraCodes: OctomilErrorCode[] = [
-      "NOT_LOADED",
-      "SESSION_DISPOSED",
-      "CACHE_ERROR",
-      "INTEGRITY_ERROR",
-      "NETWORK_ERROR",
-    ];
-
-    it("accepts SDK-specific extra codes for backwards-compat", () => {
-      for (const code of extraCodes) {
-        const err = new OctomilError(`test ${code}`, code);
-        expect(err.code).toBe(code);
-      }
-    });
   });
 
   describe("retryable", () => {
     const retryableCodes: OctomilErrorCode[] = [
       "NETWORK_UNAVAILABLE",
-      "NETWORK_ERROR",
       "REQUEST_TIMEOUT",
       "SERVER_ERROR",
       "DOWNLOAD_FAILED",
       "CHECKSUM_MISMATCH",
+      "MODEL_LOAD_FAILED",
       "INFERENCE_FAILED",
       "RATE_LIMITED",
     ];
 
     for (const code of retryableCodes) {
       it(`${code} is retryable`, () => {
-        const err = new OctomilError("test", code);
+        const err = new OctomilError(code, "test");
         expect(err.retryable).toBe(true);
       });
     }
 
     const nonRetryableCodes: OctomilErrorCode[] = [
       "MODEL_NOT_FOUND",
-      "MODEL_LOAD_FAILED",
       "MODEL_DISABLED",
       "INVALID_INPUT",
       "INVALID_API_KEY",
@@ -105,24 +90,25 @@ describe("OctomilError", () => {
       "RUNTIME_UNAVAILABLE",
       "CANCELLED",
       "UNKNOWN",
-      "NOT_LOADED",
-      "SESSION_DISPOSED",
-      "CACHE_ERROR",
-      "INTEGRITY_ERROR",
     ];
 
     for (const code of nonRetryableCodes) {
       it(`${code} is NOT retryable`, () => {
-        const err = new OctomilError("test", code);
+        const err = new OctomilError(code, "test");
         expect(err.retryable).toBe(false);
       });
     }
   });
 
   describe("fromHttpStatus", () => {
-    it("maps 401 to INVALID_API_KEY", () => {
+    it("maps 400 to INVALID_INPUT", () => {
+      const err = OctomilError.fromHttpStatus(400);
+      expect(err.code).toBe("INVALID_INPUT");
+    });
+
+    it("maps 401 to AUTHENTICATION_FAILED", () => {
       const err = OctomilError.fromHttpStatus(401);
-      expect(err.code).toBe("INVALID_API_KEY");
+      expect(err.code).toBe("AUTHENTICATION_FAILED");
       expect(err.message).toBe("HTTP 401");
     });
 
@@ -135,11 +121,6 @@ describe("OctomilError", () => {
     it("maps 404 to MODEL_NOT_FOUND", () => {
       const err = OctomilError.fromHttpStatus(404);
       expect(err.code).toBe("MODEL_NOT_FOUND");
-    });
-
-    it("maps 408 to REQUEST_TIMEOUT", () => {
-      const err = OctomilError.fromHttpStatus(408);
-      expect(err.code).toBe("REQUEST_TIMEOUT");
     });
 
     it("maps 429 to RATE_LIMITED", () => {
@@ -163,7 +144,7 @@ describe("OctomilError", () => {
       expect(err.message).toBe("Service Unavailable");
     });
 
-    it("maps unknown status to UNKNOWN", () => {
+    it("maps unknown 4xx status to UNKNOWN", () => {
       const err = OctomilError.fromHttpStatus(418);
       expect(err.code).toBe("UNKNOWN");
     });
@@ -188,10 +169,51 @@ describe("OctomilError", () => {
     it("returned error has correct retryable property", () => {
       expect(OctomilError.fromHttpStatus(429).retryable).toBe(true);   // RATE_LIMITED
       expect(OctomilError.fromHttpStatus(500).retryable).toBe(true);   // SERVER_ERROR
-      expect(OctomilError.fromHttpStatus(408).retryable).toBe(true);   // REQUEST_TIMEOUT
-      expect(OctomilError.fromHttpStatus(401).retryable).toBe(false);  // INVALID_API_KEY
+      expect(OctomilError.fromHttpStatus(401).retryable).toBe(false);  // AUTHENTICATION_FAILED
       expect(OctomilError.fromHttpStatus(403).retryable).toBe(false);  // FORBIDDEN
       expect(OctomilError.fromHttpStatus(404).retryable).toBe(false);  // MODEL_NOT_FOUND
+    });
+  });
+
+  describe("fromServerResponse", () => {
+    it("maps server code field to SDK error code", () => {
+      const err = OctomilError.fromServerResponse(400, {
+        code: "rate_limited",
+        message: "Too many requests",
+      });
+      expect(err.code).toBe("RATE_LIMITED");
+      expect(err.message).toBe("Too many requests");
+    });
+
+    it("falls back to HTTP status when code is absent", () => {
+      const err = OctomilError.fromServerResponse(404, {
+        message: "Not found",
+      });
+      expect(err.code).toBe("MODEL_NOT_FOUND");
+      expect(err.message).toBe("Not found");
+    });
+
+    it("falls back to HTTP status when code is unrecognized", () => {
+      const err = OctomilError.fromServerResponse(500, {
+        code: "something_unknown",
+        message: "Oops",
+      });
+      expect(err.code).toBe("SERVER_ERROR");
+      expect(err.message).toBe("Oops");
+    });
+
+    it("uses error field as fallback message", () => {
+      const err = OctomilError.fromServerResponse(403, {
+        error: "Forbidden zone",
+      });
+      expect(err.code).toBe("FORBIDDEN");
+      expect(err.message).toBe("Forbidden zone");
+    });
+
+    it("uses HTTP status as message when body is null", () => {
+      const err = OctomilError.fromServerResponse(500, null);
+      expect(err.code).toBe("SERVER_ERROR");
+      expect(err.message).toBe("HTTP 500");
     });
   });
 });

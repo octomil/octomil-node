@@ -69,7 +69,7 @@ export class IntegrationsClient {
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new OctomilError(`Request failed (${resp.status}): ${text}`, "NETWORK_UNAVAILABLE");
+      throw new OctomilError("NETWORK_UNAVAILABLE", `Request failed (${resp.status}): ${text}`);
     }
     if (resp.status === 204 || resp.headers.get("content-length") === "0") {
       return undefined as T;

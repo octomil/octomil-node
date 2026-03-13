@@ -15,7 +15,7 @@ import { ModelsClient } from "./models.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import type { ModelRuntime } from "./runtime/core/model-runtime.js";
-import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
+import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo, AuthConfig } from "./types.js";
 import { OctomilError } from "./types.js";
 import { streamInference } from "./streaming.js";
 import type { StreamToken, StreamInput } from "./streaming.js";
@@ -57,16 +57,24 @@ export class OctomilClient {
   private _models?: ModelsClient;
 
   constructor(options: OctomilClientOptions) {
-    this.apiKey = options.apiKey;
-    this.orgId = options.orgId;
-    this.serverUrl = options.serverUrl ?? DEFAULT_SERVER_URL;
+    const auth = options.auth;
+    if (auth.type === "org_api_key") {
+      this.apiKey = auth.apiKey;
+      this.orgId = auth.orgId;
+    } else {
+      // device_token auth: use bootstrapToken as the bearer credential
+      this.apiKey = auth.bootstrapToken;
+      this.orgId = "";
+    }
+    this.serverUrl = auth.serverUrl ?? DEFAULT_SERVER_URL;
     this.cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
     this.downloader = new ModelDownloader(this.serverUrl, this.apiKey, this.orgId);
     this.cache = new FileCache(this.cacheDir);
+    const deviceId = auth.type === "device_token" ? auth.deviceId : undefined;
     this._telemetry = options.telemetry !== false
       ? new TelemetryReporter(
           this.serverUrl, this.apiKey, this.orgId,
-          undefined, undefined, options.deviceId,
+          undefined, undefined, deviceId,
         )
       : null;
     this.runtime = options.runtime;
@@ -165,8 +173,8 @@ export class OctomilClient {
       const hash = await computeFileHash(destPath);
       if (hash !== pullResult.checksum) {
         throw new OctomilError(
+          "CHECKSUM_MISMATCH",
           `Integrity check failed for ${modelRef}`,
-          "INTEGRITY_ERROR",
         );
       }
     }

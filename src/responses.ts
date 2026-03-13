@@ -267,8 +267,8 @@ export class ResponsesClient {
 
     if (!response.body) {
       throw new OctomilError(
-        "Streaming response returned empty body",
         "INFERENCE_FAILED",
+        "Streaming response returned empty body",
       );
     }
 
@@ -487,8 +487,8 @@ export class ResponsesClient {
       });
     } catch (err) {
       throw new OctomilError(
-        `Responses request failed: ${String(err)}`,
         "NETWORK_UNAVAILABLE",
+        `Responses request failed: ${String(err)}`,
         err,
       );
     }
@@ -496,8 +496,8 @@ export class ResponsesClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        `Responses request failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
         "INFERENCE_FAILED",
+        `Responses request failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
 

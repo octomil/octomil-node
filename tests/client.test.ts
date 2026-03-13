@@ -52,9 +52,12 @@ describe("OctomilClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = new OctomilClient({
-      apiKey: "test-key",
-      orgId: "org-123",
-      serverUrl: "https://api.test.com",
+      auth: {
+        type: "org_api_key",
+        apiKey: "test-key",
+        orgId: "org-123",
+        serverUrl: "https://api.test.com",
+      },
       cacheDir: "/tmp/test-cache",
     });
   });
@@ -90,7 +93,7 @@ describe("OctomilClient", () => {
       expect(mockDownloader.download).toHaveBeenCalled();
     });
 
-    it("should throw INTEGRITY_ERROR on checksum mismatch", async () => {
+    it("should throw CHECKSUM_MISMATCH on checksum mismatch", async () => {
       const { computeFileHash } = await import("../src/integrity.js");
       (computeFileHash as any).mockResolvedValue("wrong-hash");
 
@@ -100,7 +103,7 @@ describe("OctomilClient", () => {
         (computeFileHash as any).mockResolvedValue("wrong-hash");
         await client.pull("test-model:latest");
       } catch (err) {
-        expect((err as OctomilError).code).toBe("INTEGRITY_ERROR");
+        expect((err as OctomilError).code).toBe("CHECKSUM_MISMATCH");
       }
     });
 
@@ -218,8 +221,11 @@ describe("OctomilClient", () => {
 
     it("should not throw when telemetry is disabled", () => {
       const clientNoTelemetry = new OctomilClient({
-        apiKey: "test-key",
-        orgId: "org-123",
+        auth: {
+          type: "org_api_key",
+          apiKey: "test-key",
+          orgId: "org-123",
+        },
         telemetry: false,
       });
 
@@ -268,8 +274,11 @@ describe("OctomilClient", () => {
 
     it("should return no-op facade when telemetry is disabled", () => {
       const clientNoTelemetry = new OctomilClient({
-        apiKey: "test-key",
-        orgId: "org-123",
+        auth: {
+          type: "org_api_key",
+          apiKey: "test-key",
+          orgId: "org-123",
+        },
         telemetry: false,
       });
 
@@ -280,19 +289,21 @@ describe("OctomilClient", () => {
   });
 
   describe("deviceId option", () => {
-    it("should pass deviceId to TelemetryReporter", async () => {
+    it("should pass deviceId to TelemetryReporter for device_token auth", async () => {
       const { TelemetryReporter } = await import("../src/telemetry.js");
 
       new OctomilClient({
-        apiKey: "test-key",
-        orgId: "org-123",
-        deviceId: "device-abc",
+        auth: {
+          type: "device_token",
+          deviceId: "device-abc",
+          bootstrapToken: "bootstrap-token-xyz",
+        },
       });
 
       expect(TelemetryReporter).toHaveBeenCalledWith(
         expect.any(String),
-        "test-key",
-        "org-123",
+        "bootstrap-token-xyz",
+        "",
         undefined,
         undefined,
         "device-abc",

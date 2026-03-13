@@ -5,6 +5,8 @@ export enum ErrorCode {
   AuthenticationFailed = "authentication_failed",
   Forbidden = "forbidden",
   DeviceNotRegistered = "device_not_registered",
+  TokenExpired = "token_expired",
+  DeviceRevoked = "device_revoked",
   NetworkUnavailable = "network_unavailable",
   RequestTimeout = "request_timeout",
   ServerError = "server_error",
@@ -27,6 +29,9 @@ export enum ErrorCode {
   PolicyDenied = "policy_denied",
   CloudFallbackDisallowed = "cloud_fallback_disallowed",
   MaxToolRoundsExceeded = "max_tool_rounds_exceeded",
+  TrainingFailed = "training_failed",
+  TrainingNotSupported = "training_not_supported",
+  WeightUploadFailed = "weight_upload_failed",
   ControlSyncFailed = "control_sync_failed",
   AssignmentNotFound = "assignment_not_found",
   Cancelled = "cancelled",
@@ -43,6 +48,7 @@ export type ErrorCategory =
   | "device"
   | "runtime"
   | "policy"
+  | "training"
   | "control"
   | "lifecycle"
   | "unknown";
@@ -91,6 +97,8 @@ export const ERROR_CLASSIFICATION: Record<ErrorCode, ErrorClassification> = {
   [ErrorCode.AuthenticationFailed]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "reauthenticate" },
   [ErrorCode.Forbidden]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "check_permissions" },
   [ErrorCode.DeviceNotRegistered]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "register_device" },
+  [ErrorCode.TokenExpired]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "reauthenticate" },
+  [ErrorCode.DeviceRevoked]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "register_device" },
   [ErrorCode.NetworkUnavailable]: { category: "network", retryClass: "backoff_safe", fallbackEligible: true, suggestedAction: "retry_or_fallback" },
   [ErrorCode.RequestTimeout]: { category: "network", retryClass: "conditional", fallbackEligible: true, suggestedAction: "retry_or_fallback" },
   [ErrorCode.ServerError]: { category: "network", retryClass: "backoff_safe", fallbackEligible: true, suggestedAction: "retry" },
@@ -113,6 +121,9 @@ export const ERROR_CLASSIFICATION: Record<ErrorCode, ErrorClassification> = {
   [ErrorCode.PolicyDenied]: { category: "policy", retryClass: "never", fallbackEligible: false, suggestedAction: "check_policy" },
   [ErrorCode.CloudFallbackDisallowed]: { category: "policy", retryClass: "never", fallbackEligible: false, suggestedAction: "change_policy_or_fix_local" },
   [ErrorCode.MaxToolRoundsExceeded]: { category: "policy", retryClass: "never", fallbackEligible: false, suggestedAction: "increase_limit_or_simplify" },
+  [ErrorCode.TrainingFailed]: { category: "training", retryClass: "conditional", fallbackEligible: false, suggestedAction: "retry" },
+  [ErrorCode.TrainingNotSupported]: { category: "training", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.WeightUploadFailed]: { category: "training", retryClass: "backoff_safe", fallbackEligible: false, suggestedAction: "retry" },
   [ErrorCode.ControlSyncFailed]: { category: "control", retryClass: "backoff_safe", fallbackEligible: false, suggestedAction: "retry" },
   [ErrorCode.AssignmentNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "check_assignment" },
   [ErrorCode.Cancelled]: { category: "lifecycle", retryClass: "never", fallbackEligible: false, suggestedAction: "none" },

@@ -210,7 +210,7 @@ describe("RoutingClient", () => {
   // -------------------------------------------------------------------------
 
   describe("cloudInfer", () => {
-    it("throws NETWORK_ERROR on fetch failure", async () => {
+    it("throws NETWORK_UNAVAILABLE on fetch failure", async () => {
       fetchSpy.mockRejectedValueOnce(new Error("Connection refused"));
 
       await expect(client.cloudInfer("model-a", {})).rejects.toThrow(

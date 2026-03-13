@@ -87,7 +87,7 @@ describe("Model", () => {
     }));
   });
 
-  it("should throw NOT_LOADED when predicting without load", async () => {
+  it("should throw MODEL_LOAD_FAILED when predicting without load", async () => {
     await expect(
       model.predict({ raw: new Float32Array([1]), dims: [1] }),
     ).rejects.toThrow(OctomilError);
@@ -96,11 +96,11 @@ describe("Model", () => {
       await model.predict({ raw: new Float32Array([1]), dims: [1] });
     } catch (err) {
       expect(err).toBeInstanceOf(OctomilError);
-      expect((err as OctomilError).code).toBe("NOT_LOADED");
+      expect((err as OctomilError).code).toBe("MODEL_LOAD_FAILED");
     }
   });
 
-  it("should throw SESSION_DISPOSED when loading after dispose", async () => {
+  it("should throw CANCELLED when loading after dispose", async () => {
     model.dispose();
 
     await expect(model.load()).rejects.toThrow(OctomilError);
@@ -109,11 +109,11 @@ describe("Model", () => {
       await model.load();
     } catch (err) {
       expect(err).toBeInstanceOf(OctomilError);
-      expect((err as OctomilError).code).toBe("SESSION_DISPOSED");
+      expect((err as OctomilError).code).toBe("CANCELLED");
     }
   });
 
-  it("should throw SESSION_DISPOSED when predicting after dispose", async () => {
+  it("should throw CANCELLED when predicting after dispose", async () => {
     await model.load();
     model.dispose();
 

@@ -169,7 +169,7 @@ describe("ModelDownloader", () => {
       expect(fetchMock).toHaveBeenCalledWith("https://cdn.test.com/model.onnx");
     });
 
-    it("should throw NETWORK_ERROR on failed download", async () => {
+    it("should throw DOWNLOAD_FAILED on failed download", async () => {
       fetchMock.mockResolvedValue({
         ok: false,
         status: 500,
@@ -181,7 +181,7 @@ describe("ModelDownloader", () => {
       ).rejects.toThrow("Download failed (500)");
     });
 
-    it("should throw NETWORK_ERROR when body is null", async () => {
+    it("should throw DOWNLOAD_FAILED when body is null", async () => {
       fetchMock.mockResolvedValue({
         ok: true,
         body: null,

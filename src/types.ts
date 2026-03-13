@@ -1,16 +1,59 @@
 import { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
 export type { ErrorCategory, RetryClass, SuggestedAction, ErrorClassification } from "./_generated/error_code.js";
 export { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
+export { AuthType } from "./_generated/auth_type.js";
+export { PrincipalType } from "./_generated/principal_type.js";
+export { Scope } from "./_generated/scope.js";
+
+// ---------------------------------------------------------------------------
+// Auth Config (discriminated union)
+// ---------------------------------------------------------------------------
+
+/**
+ * Organization-scoped API key authentication.
+ * Used by server-side SDKs, CLI tools, and CI/CD pipelines.
+ */
+export interface OrgApiKeyAuth {
+  type: "org_api_key";
+  apiKey: string;
+  orgId: string;
+  serverUrl?: string;
+}
+
+/**
+ * Short-lived device token authentication.
+ * Used by edge devices that go through a bootstrap/registration flow.
+ */
+export interface DeviceTokenAuth {
+  type: "device_token";
+  deviceId: string;
+  bootstrapToken: string;
+  serverUrl?: string;
+}
+
+/**
+ * Discriminated union of supported authentication configurations.
+ *
+ * @example
+ * ```ts
+ * const auth: AuthConfig = {
+ *   type: "org_api_key",
+ *   apiKey: "edg_...",
+ *   orgId: "org_123",
+ * };
+ * ```
+ */
+export type AuthConfig = OrgApiKeyAuth | DeviceTokenAuth;
 
 // Execution providers for onnxruntime-node
 export type ExecutionProvider = "cpu" | "cuda" | "tensorrt" | "coreml";
 
 export interface OctomilClientOptions {
-  apiKey: string;
-  orgId: string;
-  serverUrl?: string;
+  auth: AuthConfig;
   cacheDir?: string;
   telemetry?: boolean;
+  /** Custom model runtime implementation. */
+  runtime?: import("./runtime/core/model-runtime.js").ModelRuntime;
 }
 
 export interface PullOptions {
@@ -71,59 +114,57 @@ export interface CacheInfo {
 }
 
 /**
- * Canonical error codes (19 codes + SDK-specific extras).
- *
- * The 19 canonical codes shared across all Octomil SDKs:
- *   MODEL_NOT_FOUND, MODEL_LOAD_FAILED, MODEL_DISABLED, INFERENCE_FAILED,
- *   NETWORK_UNAVAILABLE, INVALID_INPUT, INVALID_API_KEY,
- *   AUTHENTICATION_FAILED, FORBIDDEN, REQUEST_TIMEOUT, RATE_LIMITED,
- *   SERVER_ERROR, DOWNLOAD_FAILED, CHECKSUM_MISMATCH,
- *   INSUFFICIENT_STORAGE, INSUFFICIENT_MEMORY, RUNTIME_UNAVAILABLE,
- *   CANCELLED, UNKNOWN
- *
- * SDK-specific extras (kept for Node backwards-compat):
- *   NOT_LOADED, SESSION_DISPOSED, CACHE_ERROR, INTEGRITY_ERROR, NETWORK_ERROR
+ * Canonical error codes — 36 codes from octomil-contracts.
  */
 export type OctomilErrorCode =
-  // --- 19 canonical codes ---
-  | "MODEL_NOT_FOUND"
-  | "MODEL_LOAD_FAILED"
-  | "MODEL_DISABLED"
-  | "INFERENCE_FAILED"
-  | "NETWORK_UNAVAILABLE"
-  | "INVALID_INPUT"
+  // --- Auth / Access ---
   | "INVALID_API_KEY"
   | "AUTHENTICATION_FAILED"
   | "FORBIDDEN"
+  | "DEVICE_NOT_REGISTERED"
+  | "TOKEN_EXPIRED"
+  | "DEVICE_REVOKED"
+  // --- Network / Transport ---
+  | "NETWORK_UNAVAILABLE"
   | "REQUEST_TIMEOUT"
-  | "RATE_LIMITED"
   | "SERVER_ERROR"
+  | "RATE_LIMITED"
+  // --- Input / Validation ---
+  | "INVALID_INPUT"
+  | "UNSUPPORTED_MODALITY"
+  | "CONTEXT_TOO_LARGE"
+  // --- Catalog / Model Resolution ---
+  | "MODEL_NOT_FOUND"
+  | "MODEL_LOAD_FAILED"
+  | "MODEL_DISABLED"
+  | "VERSION_NOT_FOUND"
+  // --- Download / Artifact Integrity ---
   | "DOWNLOAD_FAILED"
   | "CHECKSUM_MISMATCH"
+  // --- Device / Environment ---
   | "INSUFFICIENT_STORAGE"
   | "INSUFFICIENT_MEMORY"
   | "RUNTIME_UNAVAILABLE"
-  | "CANCELLED"
-  | "UNKNOWN"
-  // --- SDK-specific extras (backwards-compat) ---
-  | "NOT_LOADED"
-  | "SESSION_DISPOSED"
-  | "CACHE_ERROR"
-  | "INTEGRITY_ERROR"
-  | "NETWORK_ERROR"
-  // --- Enriched taxonomy codes ---
-  | "DEVICE_NOT_REGISTERED"
-  | "UNSUPPORTED_MODALITY"
-  | "CONTEXT_TOO_LARGE"
-  | "VERSION_NOT_FOUND"
   | "ACCELERATOR_UNAVAILABLE"
+  // --- Runtime / Inference ---
+  | "INFERENCE_FAILED"
   | "STREAM_INTERRUPTED"
+  // --- Policy / Routing ---
   | "POLICY_DENIED"
   | "CLOUD_FALLBACK_DISALLOWED"
   | "MAX_TOOL_ROUNDS_EXCEEDED"
+  // --- Training ---
+  | "TRAINING_FAILED"
+  | "TRAINING_NOT_SUPPORTED"
+  | "WEIGHT_UPLOAD_FAILED"
+  // --- Control Plane / Rollout ---
   | "CONTROL_SYNC_FAILED"
   | "ASSIGNMENT_NOT_FOUND"
-  | "APP_BACKGROUNDED";
+  // --- Cancellation / Lifecycle ---
+  | "CANCELLED"
+  | "APP_BACKGROUNDED"
+  // --- Unknown ---
+  | "UNKNOWN";
 
 /** Map from contract ErrorCode to SDK OctomilErrorCode. */
 export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
@@ -158,6 +199,11 @@ export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
   [ErrorCode.ControlSyncFailed]: "CONTROL_SYNC_FAILED",
   [ErrorCode.AssignmentNotFound]: "ASSIGNMENT_NOT_FOUND",
   [ErrorCode.AppBackgrounded]: "APP_BACKGROUNDED",
+  [ErrorCode.TrainingFailed]: "TRAINING_FAILED",
+  [ErrorCode.TrainingNotSupported]: "TRAINING_NOT_SUPPORTED",
+  [ErrorCode.WeightUploadFailed]: "WEIGHT_UPLOAD_FAILED",
+  [ErrorCode.TokenExpired]: "TOKEN_EXPIRED",
+  [ErrorCode.DeviceRevoked]: "DEVICE_REVOKED",
 } as const;
 
 /** Reverse map: SDK error code -> contract ErrorCode. */
@@ -167,8 +213,8 @@ const SDK_TO_CONTRACT: Readonly<Partial<Record<OctomilErrorCode, ErrorCode>>> = 
 
 export class OctomilError extends Error {
   constructor(
-    message: string,
     public readonly code: OctomilErrorCode,
+    message: string,
     public readonly cause?: unknown,
   ) {
     super(message);
@@ -209,27 +255,56 @@ export class OctomilError extends Error {
    * Create an OctomilError from an HTTP status code.
    *
    * Maps common HTTP statuses to canonical error codes:
-   *   401 -> INVALID_API_KEY
+   *   400 -> INVALID_INPUT
+   *   401 -> AUTHENTICATION_FAILED
    *   403 -> FORBIDDEN
-   *   404 -> MODEL_NOT_FOUND
-   *   408 -> REQUEST_TIMEOUT
+   *   404 -> MODEL_NOT_FOUND (on model endpoints; UNKNOWN elsewhere)
    *   429 -> RATE_LIMITED
    *   5xx -> SERVER_ERROR
    */
   static fromHttpStatus(status: number, message?: string): OctomilError {
     const msg = message ?? `HTTP ${status}`;
-    if (status === 401) return new OctomilError(msg, "INVALID_API_KEY");
-    if (status === 403) return new OctomilError(msg, "FORBIDDEN");
-    if (status === 404) return new OctomilError(msg, "MODEL_NOT_FOUND");
-    if (status === 408) return new OctomilError(msg, "REQUEST_TIMEOUT");
-    if (status === 429) return new OctomilError(msg, "RATE_LIMITED");
-    if (status >= 500) return new OctomilError(msg, "SERVER_ERROR");
-    return new OctomilError(msg, "UNKNOWN");
+    if (status === 400) return new OctomilError("INVALID_INPUT", msg);
+    if (status === 401) return new OctomilError("AUTHENTICATION_FAILED", msg);
+    if (status === 403) return new OctomilError("FORBIDDEN", msg);
+    if (status === 404) return new OctomilError("MODEL_NOT_FOUND", msg);
+    if (status === 429) return new OctomilError("RATE_LIMITED", msg);
+    if (status >= 500) return new OctomilError("SERVER_ERROR", msg);
+    return new OctomilError("UNKNOWN", msg);
   }
 
   /** Create an OctomilError from a contract ErrorCode. */
   static fromErrorCode(errorCode: ErrorCode, message: string, cause?: unknown): OctomilError {
     const sdkCode = ERROR_CODE_MAP[errorCode];
-    return new OctomilError(message, sdkCode, cause);
+    return new OctomilError(sdkCode, message, cause);
+  }
+
+  /**
+   * Create an OctomilError from a server error response body.
+   *
+   * Extracts the `code` field from the JSON body and maps it to the SDK's
+   * error code enum. Falls back to HTTP status mapping when the `code` field
+   * is absent or unrecognized.
+   */
+  static fromServerResponse(
+    status: number,
+    body: Record<string, unknown> | null,
+  ): OctomilError {
+    const message =
+      (typeof body?.message === "string" ? body.message : null) ??
+      (typeof body?.error === "string" ? body.error : null) ??
+      `HTTP ${status}`;
+
+    // Try to map the server's `code` field to a contract ErrorCode.
+    if (typeof body?.code === "string") {
+      const contractValues = Object.values(ErrorCode) as string[];
+      if (contractValues.includes(body.code)) {
+        const sdkCode = ERROR_CODE_MAP[body.code as ErrorCode];
+        return new OctomilError(sdkCode, message);
+      }
+    }
+
+    // Fall back to HTTP status mapping.
+    return OctomilError.fromHttpStatus(status, message);
   }
 }

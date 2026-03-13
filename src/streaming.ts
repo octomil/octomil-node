@@ -117,23 +117,23 @@ export async function* streamInference(
     });
   } catch (err) {
     throw new OctomilError(
-      `Cloud streaming request failed: ${String(err)}`,
       "NETWORK_UNAVAILABLE",
+      `Cloud streaming request failed: ${String(err)}`,
       err,
     );
   }
 
   if (!response.ok) {
     throw new OctomilError(
-      `Cloud streaming inference failed: HTTP ${response.status}`,
       "INFERENCE_FAILED",
+      `Cloud streaming inference failed: HTTP ${response.status}`,
     );
   }
 
   if (!response.body) {
     throw new OctomilError(
-      "Cloud streaming inference returned empty body",
       "INFERENCE_FAILED",
+      "Cloud streaming inference returned empty body",
     );
   }
 

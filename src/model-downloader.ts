@@ -35,8 +35,8 @@ export class ModelDownloader {
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       throw new OctomilError(
-        `Registry resolve failed (${resp.status}): ${text}`,
         "MODEL_NOT_FOUND",
+        `Registry resolve failed (${resp.status}): ${text}`,
       );
     }
 
@@ -61,8 +61,8 @@ export class ModelDownloader {
     const resp = await fetch(url);
     if (!resp.ok || !resp.body) {
       throw new OctomilError(
+        "DOWNLOAD_FAILED",
         `Download failed (${resp.status})`,
-        "NETWORK_UNAVAILABLE",
       );
     }
 
