@@ -190,16 +190,16 @@ export class RoutingClient {
       });
     } catch (err) {
       throw new OctomilError(
-        `Cloud inference request failed: ${String(err)}`,
         "NETWORK_UNAVAILABLE",
+        `Cloud inference request failed: ${String(err)}`,
         err,
       );
     }
 
     if (!response.ok) {
       throw new OctomilError(
-        `Cloud inference failed: HTTP ${response.status}`,
         "INFERENCE_FAILED",
+        `Cloud inference failed: HTTP ${response.status}`,
       );
     }
 

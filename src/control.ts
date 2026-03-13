@@ -111,8 +111,8 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        `Device registration failed: ${String(err)}`,
         "NETWORK_UNAVAILABLE",
+        `Device registration failed: ${String(err)}`,
         err,
       );
     }
@@ -120,8 +120,8 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        `Device registration failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
         "NETWORK_UNAVAILABLE",
+        `Device registration failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
 
@@ -155,8 +155,8 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        `Heartbeat failed: ${String(err)}`,
         "NETWORK_UNAVAILABLE",
+        `Heartbeat failed: ${String(err)}`,
         err,
       );
     }
@@ -164,8 +164,8 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        `Heartbeat failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
         "NETWORK_UNAVAILABLE",
+        `Heartbeat failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
 
@@ -192,8 +192,8 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        `Assignment refresh failed: ${String(err)}`,
         "NETWORK_UNAVAILABLE",
+        `Assignment refresh failed: ${String(err)}`,
         err,
       );
     }
@@ -201,8 +201,8 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        `Assignment refresh failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
         "NETWORK_UNAVAILABLE",
+        `Assignment refresh failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
 
@@ -302,8 +302,8 @@ export class ControlClient {
   private getDeviceIdOrThrow(): string {
     if (!this.deviceId) {
       throw new OctomilError(
+        "DEVICE_NOT_REGISTERED",
         "Device not registered. Call register() first.",
-        "INVALID_INPUT",
       );
     }
     return this.deviceId;

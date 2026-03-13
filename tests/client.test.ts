@@ -93,7 +93,7 @@ describe("OctomilClient", () => {
       expect(mockDownloader.download).toHaveBeenCalled();
     });
 
-    it("should throw INTEGRITY_ERROR on checksum mismatch", async () => {
+    it("should throw CHECKSUM_MISMATCH on checksum mismatch", async () => {
       const { computeFileHash } = await import("../src/integrity.js");
       (computeFileHash as any).mockResolvedValue("wrong-hash");
 
@@ -103,7 +103,7 @@ describe("OctomilClient", () => {
         (computeFileHash as any).mockResolvedValue("wrong-hash");
         await client.pull("test-model:latest");
       } catch (err) {
-        expect((err as OctomilError).code).toBe("INTEGRITY_ERROR");
+        expect((err as OctomilError).code).toBe("CHECKSUM_MISMATCH");
       }
     });
 

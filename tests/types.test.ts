@@ -5,24 +5,24 @@ import type { OctomilErrorCode } from "../src/types.js";
 describe("OctomilError", () => {
   describe("constructor", () => {
     it("sets name to OctomilError", () => {
-      const err = new OctomilError("test", "UNKNOWN");
+      const err = new OctomilError("UNKNOWN", "test");
       expect(err.name).toBe("OctomilError");
     });
 
     it("sets message and code", () => {
-      const err = new OctomilError("something broke", "INFERENCE_FAILED");
+      const err = new OctomilError("INFERENCE_FAILED", "something broke");
       expect(err.message).toBe("something broke");
       expect(err.code).toBe("INFERENCE_FAILED");
     });
 
     it("sets optional cause", () => {
       const cause = new TypeError("bad type");
-      const err = new OctomilError("wrapped", "UNKNOWN", cause);
+      const err = new OctomilError("UNKNOWN", "wrapped", cause);
       expect(err.cause).toBe(cause);
     });
 
     it("is an instance of Error", () => {
-      const err = new OctomilError("test", "UNKNOWN");
+      const err = new OctomilError("UNKNOWN", "test");
       expect(err).toBeInstanceOf(Error);
     });
   });
@@ -52,7 +52,7 @@ describe("OctomilError", () => {
 
     it("accepts all 19 canonical error codes", () => {
       for (const code of canonicalCodes) {
-        const err = new OctomilError(`test ${code}`, code);
+        const err = new OctomilError(code, `test ${code}`);
         expect(err.code).toBe(code);
       }
     });
@@ -67,7 +67,7 @@ describe("OctomilError", () => {
 
     it("accepts SDK-specific extra codes for backwards-compat", () => {
       for (const code of extraCodes) {
-        const err = new OctomilError(`test ${code}`, code);
+        const err = new OctomilError(code, `test ${code}`);
         expect(err.code).toBe(code);
       }
     });
@@ -76,7 +76,6 @@ describe("OctomilError", () => {
   describe("retryable", () => {
     const retryableCodes: OctomilErrorCode[] = [
       "NETWORK_UNAVAILABLE",
-      "NETWORK_ERROR",
       "REQUEST_TIMEOUT",
       "SERVER_ERROR",
       "DOWNLOAD_FAILED",
@@ -87,7 +86,7 @@ describe("OctomilError", () => {
 
     for (const code of retryableCodes) {
       it(`${code} is retryable`, () => {
-        const err = new OctomilError("test", code);
+        const err = new OctomilError(code, "test");
         expect(err.retryable).toBe(true);
       });
     }
@@ -109,11 +108,12 @@ describe("OctomilError", () => {
       "SESSION_DISPOSED",
       "CACHE_ERROR",
       "INTEGRITY_ERROR",
+      "NETWORK_ERROR",
     ];
 
     for (const code of nonRetryableCodes) {
       it(`${code} is NOT retryable`, () => {
-        const err = new OctomilError("test", code);
+        const err = new OctomilError(code, "test");
         expect(err.retryable).toBe(false);
       });
     }

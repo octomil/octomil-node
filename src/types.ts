@@ -215,8 +215,8 @@ const SDK_TO_CONTRACT: Readonly<Partial<Record<OctomilErrorCode, ErrorCode>>> = 
 
 export class OctomilError extends Error {
   constructor(
-    message: string,
     public readonly code: OctomilErrorCode,
+    message: string,
     public readonly cause?: unknown,
   ) {
     super(message);
@@ -266,18 +266,18 @@ export class OctomilError extends Error {
    */
   static fromHttpStatus(status: number, message?: string): OctomilError {
     const msg = message ?? `HTTP ${status}`;
-    if (status === 401) return new OctomilError(msg, "INVALID_API_KEY");
-    if (status === 403) return new OctomilError(msg, "FORBIDDEN");
-    if (status === 404) return new OctomilError(msg, "MODEL_NOT_FOUND");
-    if (status === 408) return new OctomilError(msg, "REQUEST_TIMEOUT");
-    if (status === 429) return new OctomilError(msg, "RATE_LIMITED");
-    if (status >= 500) return new OctomilError(msg, "SERVER_ERROR");
-    return new OctomilError(msg, "UNKNOWN");
+    if (status === 401) return new OctomilError("INVALID_API_KEY", msg);
+    if (status === 403) return new OctomilError("FORBIDDEN", msg);
+    if (status === 404) return new OctomilError("MODEL_NOT_FOUND", msg);
+    if (status === 408) return new OctomilError("REQUEST_TIMEOUT", msg);
+    if (status === 429) return new OctomilError("RATE_LIMITED", msg);
+    if (status >= 500) return new OctomilError("SERVER_ERROR", msg);
+    return new OctomilError("UNKNOWN", msg);
   }
 
   /** Create an OctomilError from a contract ErrorCode. */
   static fromErrorCode(errorCode: ErrorCode, message: string, cause?: unknown): OctomilError {
     const sdkCode = ERROR_CODE_MAP[errorCode];
-    return new OctomilError(message, sdkCode, cause);
+    return new OctomilError(sdkCode, message, cause);
   }
 }

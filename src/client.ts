@@ -173,8 +173,8 @@ export class OctomilClient {
       const hash = await computeFileHash(destPath);
       if (hash !== pullResult.checksum) {
         throw new OctomilError(
+          "CHECKSUM_MISMATCH",
           `Integrity check failed for ${modelRef}`,
-          "INTEGRITY_ERROR",
         );
       }
     }

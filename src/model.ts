@@ -85,7 +85,7 @@ export class Model {
 
   async load(options?: LoadOptions): Promise<this> {
     if (this._disposed) {
-      throw new OctomilError("Model has been disposed", "SESSION_DISPOSED");
+      throw new OctomilError("SESSION_DISPOSED", "Model has been disposed");
     }
     const start = performance.now();
     const result = await this.engine.createSession(this.filePath, options);
@@ -104,10 +104,10 @@ export class Model {
 
   async predict(input: PredictInput): Promise<PredictOutput> {
     if (!this.isLoaded) {
-      throw new OctomilError("Model not loaded. Call load() first.", "NOT_LOADED");
+      throw new OctomilError("NOT_LOADED", "Model not loaded. Call load() first.");
     }
     if (this._disposed) {
-      throw new OctomilError("Model has been disposed", "SESSION_DISPOSED");
+      throw new OctomilError("SESSION_DISPOSED", "Model has been disposed");
     }
 
     // Attempt cloud routing if configured.
@@ -140,10 +140,10 @@ export class Model {
    */
   async warmup(): Promise<void> {
     if (!this.isLoaded) {
-      throw new OctomilError("Model not loaded. Call load() first.", "NOT_LOADED");
+      throw new OctomilError("NOT_LOADED", "Model not loaded. Call load() first.");
     }
     if (this._disposed) {
-      throw new OctomilError("Model has been disposed", "SESSION_DISPOSED");
+      throw new OctomilError("SESSION_DISPOSED", "Model has been disposed");
     }
 
     // Build a minimal dummy input using the session's declared input names.

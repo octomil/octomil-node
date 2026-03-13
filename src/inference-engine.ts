@@ -1,6 +1,5 @@
-import type { ModelRuntime } from "../../core/model-runtime.js";
-import type { LoadOptions, PredictInput, PredictOutput, NamedTensors, TensorData } from "../../../types.js";
-import { OctomilError } from "../../../types.js";
+import type { LoadOptions, PredictInput, PredictOutput, NamedTensors, TensorData } from "./types.js";
+import { OctomilError } from "./types.js";
 
 export interface SessionResult {
   session: unknown;
@@ -22,9 +21,7 @@ const PROVIDER_MAP: Record<string, string[]> = {
 // don't map cleanly to InstanceType<> or literal string unions. Keeping
 // the public API fully typed while casting at the boundary is the pragmatic choice.
 
-export class InferenceEngine implements ModelRuntime {
-  private _session: unknown = null;
-  private _disposed = false;
+export class InferenceEngine {
   async createSession(filePath: string, options?: LoadOptions): Promise<SessionResult> {
     let ort: any;
     try {
@@ -81,8 +78,6 @@ export class InferenceEngine implements ModelRuntime {
 
     const inputNames: string[] = session.inputNames ?? [];
     const outputNames: string[] = session.outputNames ?? [];
-
-    this._session = session;
 
     return { session, inputNames, outputNames, activeProvider };
   }
@@ -162,32 +157,6 @@ export class InferenceEngine implements ModelRuntime {
     }
 
     return { tensors, label, score, scores };
-  }
-
-  // ---------------------------------------------------------------------------
-  // ModelRuntime interface methods
-  // ---------------------------------------------------------------------------
-
-  /**
-   * ModelRuntime.run() — simplified interface for running inference.
-   * Uses the session stored from the last createSession() call.
-   */
-  async runSimple(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    if (!this._session) {
-      throw new OctomilError("NOT_LOADED", "No active session. Call createSession() first.");
-    }
-    if (this._disposed) {
-      throw new OctomilError("SESSION_DISPOSED", "Engine has been disposed.");
-    }
-
-    const predictInput = input as unknown as PredictInput;
-    const result = await this.run(this._session, predictInput);
-    return result as unknown as Record<string, unknown>;
-  }
-
-  dispose(): void {
-    this._session = null;
-    this._disposed = true;
   }
 }
 
