@@ -1,3 +1,7 @@
+import { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
+export type { ErrorCategory, RetryClass, SuggestedAction, ErrorClassification } from "./_generated/error_code.js";
+export { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
+
 // Execution providers for onnxruntime-node
 export type ExecutionProvider = "cpu" | "cuda" | "tensorrt" | "coreml";
 
@@ -7,16 +11,6 @@ export interface OctomilClientOptions {
   serverUrl?: string;
   cacheDir?: string;
   telemetry?: boolean;
-  /** Optional custom model runtime. When provided, Model instances use it instead of InferenceEngine. */
-  runtime?: import("./runtime/core/model-runtime.js").ModelRuntime;
-  /**
-   * Optional device identifier.
-   *
-   * When provided, this value is attached to all telemetry events as the
-   * `device_id` resource attribute, enabling per-device filtering in
-   * analytics dashboards.
-   */
-  deviceId?: string;
 }
 
 export interface PullOptions {
@@ -116,19 +110,60 @@ export type OctomilErrorCode =
   | "SESSION_DISPOSED"
   | "CACHE_ERROR"
   | "INTEGRITY_ERROR"
-  | "NETWORK_ERROR";
+  | "NETWORK_ERROR"
+  // --- Enriched taxonomy codes ---
+  | "DEVICE_NOT_REGISTERED"
+  | "UNSUPPORTED_MODALITY"
+  | "CONTEXT_TOO_LARGE"
+  | "VERSION_NOT_FOUND"
+  | "ACCELERATOR_UNAVAILABLE"
+  | "STREAM_INTERRUPTED"
+  | "POLICY_DENIED"
+  | "CLOUD_FALLBACK_DISALLOWED"
+  | "MAX_TOOL_ROUNDS_EXCEEDED"
+  | "CONTROL_SYNC_FAILED"
+  | "ASSIGNMENT_NOT_FOUND"
+  | "APP_BACKGROUNDED";
 
-/** Codes that are safe to retry automatically. */
-const RETRYABLE_CODES: ReadonlySet<OctomilErrorCode> = new Set([
-  "NETWORK_UNAVAILABLE",
-  "NETWORK_ERROR",
-  "REQUEST_TIMEOUT",
-  "SERVER_ERROR",
-  "DOWNLOAD_FAILED",
-  "CHECKSUM_MISMATCH",
-  "INFERENCE_FAILED",
-  "RATE_LIMITED",
-]);
+/** Map from contract ErrorCode to SDK OctomilErrorCode. */
+export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
+  [ErrorCode.NetworkUnavailable]: "NETWORK_UNAVAILABLE",
+  [ErrorCode.RequestTimeout]: "REQUEST_TIMEOUT",
+  [ErrorCode.ServerError]: "SERVER_ERROR",
+  [ErrorCode.InvalidApiKey]: "INVALID_API_KEY",
+  [ErrorCode.AuthenticationFailed]: "AUTHENTICATION_FAILED",
+  [ErrorCode.Forbidden]: "FORBIDDEN",
+  [ErrorCode.ModelNotFound]: "MODEL_NOT_FOUND",
+  [ErrorCode.ModelDisabled]: "MODEL_DISABLED",
+  [ErrorCode.DownloadFailed]: "DOWNLOAD_FAILED",
+  [ErrorCode.ChecksumMismatch]: "CHECKSUM_MISMATCH",
+  [ErrorCode.InsufficientStorage]: "INSUFFICIENT_STORAGE",
+  [ErrorCode.RuntimeUnavailable]: "RUNTIME_UNAVAILABLE",
+  [ErrorCode.ModelLoadFailed]: "MODEL_LOAD_FAILED",
+  [ErrorCode.InferenceFailed]: "INFERENCE_FAILED",
+  [ErrorCode.InsufficientMemory]: "INSUFFICIENT_MEMORY",
+  [ErrorCode.RateLimited]: "RATE_LIMITED",
+  [ErrorCode.InvalidInput]: "INVALID_INPUT",
+  [ErrorCode.Cancelled]: "CANCELLED",
+  [ErrorCode.Unknown]: "UNKNOWN",
+  [ErrorCode.DeviceNotRegistered]: "DEVICE_NOT_REGISTERED",
+  [ErrorCode.UnsupportedModality]: "UNSUPPORTED_MODALITY",
+  [ErrorCode.ContextTooLarge]: "CONTEXT_TOO_LARGE",
+  [ErrorCode.VersionNotFound]: "VERSION_NOT_FOUND",
+  [ErrorCode.AcceleratorUnavailable]: "ACCELERATOR_UNAVAILABLE",
+  [ErrorCode.StreamInterrupted]: "STREAM_INTERRUPTED",
+  [ErrorCode.PolicyDenied]: "POLICY_DENIED",
+  [ErrorCode.CloudFallbackDisallowed]: "CLOUD_FALLBACK_DISALLOWED",
+  [ErrorCode.MaxToolRoundsExceeded]: "MAX_TOOL_ROUNDS_EXCEEDED",
+  [ErrorCode.ControlSyncFailed]: "CONTROL_SYNC_FAILED",
+  [ErrorCode.AssignmentNotFound]: "ASSIGNMENT_NOT_FOUND",
+  [ErrorCode.AppBackgrounded]: "APP_BACKGROUNDED",
+} as const;
+
+/** Reverse map: SDK error code -> contract ErrorCode. */
+const SDK_TO_CONTRACT: Readonly<Partial<Record<OctomilErrorCode, ErrorCode>>> = Object.fromEntries(
+  Object.entries(ERROR_CODE_MAP).map(([k, v]) => [v, k as unknown as ErrorCode]),
+) as Partial<Record<OctomilErrorCode, ErrorCode>>;
 
 export class OctomilError extends Error {
   constructor(
@@ -142,7 +177,32 @@ export class OctomilError extends Error {
 
   /** Whether this error is safe to retry. */
   get retryable(): boolean {
-    return RETRYABLE_CODES.has(this.code);
+    const cc = SDK_TO_CONTRACT[this.code];
+    return cc != null && ERROR_CLASSIFICATION[cc].retryClass !== "never";
+  }
+
+  /** The error category from the contract taxonomy. */
+  get category(): import("./_generated/error_code.js").ErrorCategory | undefined {
+    const cc = SDK_TO_CONTRACT[this.code];
+    return cc != null ? ERROR_CLASSIFICATION[cc].category : undefined;
+  }
+
+  /** The retry classification from the contract taxonomy. */
+  get retryClass(): import("./_generated/error_code.js").RetryClass | undefined {
+    const cc = SDK_TO_CONTRACT[this.code];
+    return cc != null ? ERROR_CLASSIFICATION[cc].retryClass : undefined;
+  }
+
+  /** Whether this error is eligible for cloud fallback. */
+  get fallbackEligible(): boolean {
+    const cc = SDK_TO_CONTRACT[this.code];
+    return cc != null ? ERROR_CLASSIFICATION[cc].fallbackEligible : false;
+  }
+
+  /** The suggested remediation action. */
+  get suggestedAction(): import("./_generated/error_code.js").SuggestedAction | undefined {
+    const cc = SDK_TO_CONTRACT[this.code];
+    return cc != null ? ERROR_CLASSIFICATION[cc].suggestedAction : undefined;
   }
 
   /**
@@ -165,5 +225,11 @@ export class OctomilError extends Error {
     if (status === 429) return new OctomilError(msg, "RATE_LIMITED");
     if (status >= 500) return new OctomilError(msg, "SERVER_ERROR");
     return new OctomilError(msg, "UNKNOWN");
+  }
+
+  /** Create an OctomilError from a contract ErrorCode. */
+  static fromErrorCode(errorCode: ErrorCode, message: string, cause?: unknown): OctomilError {
+    const sdkCode = ERROR_CODE_MAP[errorCode];
+    return new OctomilError(message, sdkCode, cause);
   }
 }
