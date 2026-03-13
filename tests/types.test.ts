@@ -120,9 +120,14 @@ describe("OctomilError", () => {
   });
 
   describe("fromHttpStatus", () => {
-    it("maps 401 to INVALID_API_KEY", () => {
+    it("maps 400 to INVALID_INPUT", () => {
+      const err = OctomilError.fromHttpStatus(400);
+      expect(err.code).toBe("INVALID_INPUT");
+    });
+
+    it("maps 401 to AUTHENTICATION_FAILED", () => {
       const err = OctomilError.fromHttpStatus(401);
-      expect(err.code).toBe("INVALID_API_KEY");
+      expect(err.code).toBe("AUTHENTICATION_FAILED");
       expect(err.message).toBe("HTTP 401");
     });
 
@@ -135,11 +140,6 @@ describe("OctomilError", () => {
     it("maps 404 to MODEL_NOT_FOUND", () => {
       const err = OctomilError.fromHttpStatus(404);
       expect(err.code).toBe("MODEL_NOT_FOUND");
-    });
-
-    it("maps 408 to REQUEST_TIMEOUT", () => {
-      const err = OctomilError.fromHttpStatus(408);
-      expect(err.code).toBe("REQUEST_TIMEOUT");
     });
 
     it("maps 429 to RATE_LIMITED", () => {
@@ -163,7 +163,7 @@ describe("OctomilError", () => {
       expect(err.message).toBe("Service Unavailable");
     });
 
-    it("maps unknown status to UNKNOWN", () => {
+    it("maps unknown 4xx status to UNKNOWN", () => {
       const err = OctomilError.fromHttpStatus(418);
       expect(err.code).toBe("UNKNOWN");
     });
@@ -188,8 +188,7 @@ describe("OctomilError", () => {
     it("returned error has correct retryable property", () => {
       expect(OctomilError.fromHttpStatus(429).retryable).toBe(true);   // RATE_LIMITED
       expect(OctomilError.fromHttpStatus(500).retryable).toBe(true);   // SERVER_ERROR
-      expect(OctomilError.fromHttpStatus(408).retryable).toBe(true);   // REQUEST_TIMEOUT
-      expect(OctomilError.fromHttpStatus(401).retryable).toBe(false);  // INVALID_API_KEY
+      expect(OctomilError.fromHttpStatus(401).retryable).toBe(false);  // AUTHENTICATION_FAILED
       expect(OctomilError.fromHttpStatus(403).retryable).toBe(false);  // FORBIDDEN
       expect(OctomilError.fromHttpStatus(404).retryable).toBe(false);  // MODEL_NOT_FOUND
     });

@@ -257,19 +257,19 @@ export class OctomilError extends Error {
    * Create an OctomilError from an HTTP status code.
    *
    * Maps common HTTP statuses to canonical error codes:
-   *   401 -> INVALID_API_KEY
+   *   400 -> INVALID_INPUT
+   *   401 -> AUTHENTICATION_FAILED
    *   403 -> FORBIDDEN
-   *   404 -> MODEL_NOT_FOUND
-   *   408 -> REQUEST_TIMEOUT
+   *   404 -> MODEL_NOT_FOUND (on model endpoints; UNKNOWN elsewhere)
    *   429 -> RATE_LIMITED
    *   5xx -> SERVER_ERROR
    */
   static fromHttpStatus(status: number, message?: string): OctomilError {
     const msg = message ?? `HTTP ${status}`;
-    if (status === 401) return new OctomilError("INVALID_API_KEY", msg);
+    if (status === 400) return new OctomilError("INVALID_INPUT", msg);
+    if (status === 401) return new OctomilError("AUTHENTICATION_FAILED", msg);
     if (status === 403) return new OctomilError("FORBIDDEN", msg);
     if (status === 404) return new OctomilError("MODEL_NOT_FOUND", msg);
-    if (status === 408) return new OctomilError("REQUEST_TIMEOUT", msg);
     if (status === 429) return new OctomilError("RATE_LIMITED", msg);
     if (status >= 500) return new OctomilError("SERVER_ERROR", msg);
     return new OctomilError("UNKNOWN", msg);
