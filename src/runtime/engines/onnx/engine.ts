@@ -174,10 +174,10 @@ export class InferenceEngine implements ModelRuntime {
    */
   async runSimple(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (!this._session) {
-      throw new OctomilError("NOT_LOADED", "No active session. Call createSession() first.");
+      throw new OctomilError("MODEL_LOAD_FAILED", "No active session. Call createSession() first.");
     }
     if (this._disposed) {
-      throw new OctomilError("SESSION_DISPOSED", "Engine has been disposed.");
+      throw new OctomilError("CANCELLED", "Engine has been disposed.");
     }
 
     const predictInput = input as unknown as PredictInput;

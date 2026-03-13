@@ -57,20 +57,6 @@ describe("OctomilError", () => {
       }
     });
 
-    const extraCodes: OctomilErrorCode[] = [
-      "NOT_LOADED",
-      "SESSION_DISPOSED",
-      "CACHE_ERROR",
-      "INTEGRITY_ERROR",
-      "NETWORK_ERROR",
-    ];
-
-    it("accepts SDK-specific extra codes for backwards-compat", () => {
-      for (const code of extraCodes) {
-        const err = new OctomilError(code, `test ${code}`);
-        expect(err.code).toBe(code);
-      }
-    });
   });
 
   describe("retryable", () => {
@@ -104,11 +90,6 @@ describe("OctomilError", () => {
       "RUNTIME_UNAVAILABLE",
       "CANCELLED",
       "UNKNOWN",
-      "NOT_LOADED",
-      "SESSION_DISPOSED",
-      "CACHE_ERROR",
-      "INTEGRITY_ERROR",
-      "NETWORK_ERROR",
     ];
 
     for (const code of nonRetryableCodes) {

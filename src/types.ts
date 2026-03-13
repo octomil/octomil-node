@@ -114,66 +114,57 @@ export interface CacheInfo {
 }
 
 /**
- * Canonical error codes (19 codes + SDK-specific extras).
- *
- * The 19 canonical codes shared across all Octomil SDKs:
- *   MODEL_NOT_FOUND, MODEL_LOAD_FAILED, MODEL_DISABLED, INFERENCE_FAILED,
- *   NETWORK_UNAVAILABLE, INVALID_INPUT, INVALID_API_KEY,
- *   AUTHENTICATION_FAILED, FORBIDDEN, REQUEST_TIMEOUT, RATE_LIMITED,
- *   SERVER_ERROR, DOWNLOAD_FAILED, CHECKSUM_MISMATCH,
- *   INSUFFICIENT_STORAGE, INSUFFICIENT_MEMORY, RUNTIME_UNAVAILABLE,
- *   CANCELLED, UNKNOWN
- *
- * SDK-specific extras (kept for Node backwards-compat):
- *   NOT_LOADED, SESSION_DISPOSED, CACHE_ERROR, INTEGRITY_ERROR, NETWORK_ERROR
+ * Canonical error codes — 36 codes from octomil-contracts.
  */
 export type OctomilErrorCode =
-  // --- 19 canonical codes ---
-  | "MODEL_NOT_FOUND"
-  | "MODEL_LOAD_FAILED"
-  | "MODEL_DISABLED"
-  | "INFERENCE_FAILED"
-  | "NETWORK_UNAVAILABLE"
-  | "INVALID_INPUT"
+  // --- Auth / Access ---
   | "INVALID_API_KEY"
   | "AUTHENTICATION_FAILED"
   | "FORBIDDEN"
+  | "DEVICE_NOT_REGISTERED"
+  | "TOKEN_EXPIRED"
+  | "DEVICE_REVOKED"
+  // --- Network / Transport ---
+  | "NETWORK_UNAVAILABLE"
   | "REQUEST_TIMEOUT"
-  | "RATE_LIMITED"
   | "SERVER_ERROR"
+  | "RATE_LIMITED"
+  // --- Input / Validation ---
+  | "INVALID_INPUT"
+  | "UNSUPPORTED_MODALITY"
+  | "CONTEXT_TOO_LARGE"
+  // --- Catalog / Model Resolution ---
+  | "MODEL_NOT_FOUND"
+  | "MODEL_LOAD_FAILED"
+  | "MODEL_DISABLED"
+  | "VERSION_NOT_FOUND"
+  // --- Download / Artifact Integrity ---
   | "DOWNLOAD_FAILED"
   | "CHECKSUM_MISMATCH"
+  // --- Device / Environment ---
   | "INSUFFICIENT_STORAGE"
   | "INSUFFICIENT_MEMORY"
   | "RUNTIME_UNAVAILABLE"
-  | "CANCELLED"
-  | "UNKNOWN"
-  // --- SDK-specific extras (backwards-compat) ---
-  | "NOT_LOADED"
-  | "SESSION_DISPOSED"
-  | "CACHE_ERROR"
-  | "INTEGRITY_ERROR"
-  | "NETWORK_ERROR"
-  // --- Enriched taxonomy codes ---
-  | "DEVICE_NOT_REGISTERED"
-  | "UNSUPPORTED_MODALITY"
-  | "CONTEXT_TOO_LARGE"
-  | "VERSION_NOT_FOUND"
   | "ACCELERATOR_UNAVAILABLE"
+  // --- Runtime / Inference ---
+  | "INFERENCE_FAILED"
   | "STREAM_INTERRUPTED"
+  // --- Policy / Routing ---
   | "POLICY_DENIED"
   | "CLOUD_FALLBACK_DISALLOWED"
   | "MAX_TOOL_ROUNDS_EXCEEDED"
-  | "CONTROL_SYNC_FAILED"
-  | "ASSIGNMENT_NOT_FOUND"
-  | "APP_BACKGROUNDED"
-  // --- Training codes ---
+  // --- Training ---
   | "TRAINING_FAILED"
   | "TRAINING_NOT_SUPPORTED"
   | "WEIGHT_UPLOAD_FAILED"
-  // --- Auth lifecycle codes ---
-  | "TOKEN_EXPIRED"
-  | "DEVICE_REVOKED";
+  // --- Control Plane / Rollout ---
+  | "CONTROL_SYNC_FAILED"
+  | "ASSIGNMENT_NOT_FOUND"
+  // --- Cancellation / Lifecycle ---
+  | "CANCELLED"
+  | "APP_BACKGROUNDED"
+  // --- Unknown ---
+  | "UNKNOWN";
 
 /** Map from contract ErrorCode to SDK OctomilErrorCode. */
 export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
