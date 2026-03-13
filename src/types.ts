@@ -1,16 +1,59 @@
 import { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
 export type { ErrorCategory, RetryClass, SuggestedAction, ErrorClassification } from "./_generated/error_code.js";
 export { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
+export { AuthType } from "./_generated/auth_type.js";
+export { PrincipalType } from "./_generated/principal_type.js";
+export { Scope } from "./_generated/scope.js";
+
+// ---------------------------------------------------------------------------
+// Auth Config (discriminated union)
+// ---------------------------------------------------------------------------
+
+/**
+ * Organization-scoped API key authentication.
+ * Used by server-side SDKs, CLI tools, and CI/CD pipelines.
+ */
+export interface OrgApiKeyAuth {
+  type: "org_api_key";
+  apiKey: string;
+  orgId: string;
+  serverUrl?: string;
+}
+
+/**
+ * Short-lived device token authentication.
+ * Used by edge devices that go through a bootstrap/registration flow.
+ */
+export interface DeviceTokenAuth {
+  type: "device_token";
+  deviceId: string;
+  bootstrapToken: string;
+  serverUrl?: string;
+}
+
+/**
+ * Discriminated union of supported authentication configurations.
+ *
+ * @example
+ * ```ts
+ * const auth: AuthConfig = {
+ *   type: "org_api_key",
+ *   apiKey: "edg_...",
+ *   orgId: "org_123",
+ * };
+ * ```
+ */
+export type AuthConfig = OrgApiKeyAuth | DeviceTokenAuth;
 
 // Execution providers for onnxruntime-node
 export type ExecutionProvider = "cpu" | "cuda" | "tensorrt" | "coreml";
 
 export interface OctomilClientOptions {
-  apiKey: string;
-  orgId: string;
-  serverUrl?: string;
+  auth: AuthConfig;
   cacheDir?: string;
   telemetry?: boolean;
+  /** Custom model runtime implementation. */
+  runtime?: import("./runtime/core/model-runtime.js").ModelRuntime;
 }
 
 export interface PullOptions {
@@ -123,7 +166,10 @@ export type OctomilErrorCode =
   | "MAX_TOOL_ROUNDS_EXCEEDED"
   | "CONTROL_SYNC_FAILED"
   | "ASSIGNMENT_NOT_FOUND"
-  | "APP_BACKGROUNDED";
+  | "APP_BACKGROUNDED"
+  // --- Auth lifecycle codes ---
+  | "TOKEN_EXPIRED"
+  | "DEVICE_REVOKED";
 
 /** Map from contract ErrorCode to SDK OctomilErrorCode. */
 export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
@@ -158,6 +204,8 @@ export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
   [ErrorCode.ControlSyncFailed]: "CONTROL_SYNC_FAILED",
   [ErrorCode.AssignmentNotFound]: "ASSIGNMENT_NOT_FOUND",
   [ErrorCode.AppBackgrounded]: "APP_BACKGROUNDED",
+  [ErrorCode.TokenExpired]: "TOKEN_EXPIRED",
+  [ErrorCode.DeviceRevoked]: "DEVICE_REVOKED",
 } as const;
 
 /** Reverse map: SDK error code -> contract ErrorCode. */

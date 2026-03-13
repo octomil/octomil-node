@@ -58,6 +58,9 @@ export type {
 export type {
   ExecutionProvider,
   OctomilClientOptions,
+  AuthConfig,
+  OrgApiKeyAuth,
+  DeviceTokenAuth,
   PullOptions,
   LoadOptions,
   PredictInput,
@@ -69,6 +72,9 @@ export type {
   CacheInfo,
   OctomilErrorCode,
 } from "./types.js";
+export { AuthType } from "./_generated/auth_type.js";
+export { PrincipalType } from "./_generated/principal_type.js";
+export { Scope } from "./_generated/scope.js";
 
 // ---------------------------------------------------------------------------
 // Advanced tier (MAY) — optional, for power users
