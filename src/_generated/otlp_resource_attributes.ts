@@ -3,8 +3,14 @@
 export const OTLP_RESOURCE_ATTRIBUTES = {
   serviceName: "service.name",
   serviceVersion: "service.version",
-  octomilSdk: "octomil.sdk",
-  octomilOrgId: "octomil.org_id",
-  octomilDeviceId: "octomil.device_id",
-  osType: "os.type",
+  telemetrySdkName: "telemetry.sdk.name",
+  telemetrySdkLanguage: "telemetry.sdk.language",
+  telemetrySdkVersion: "telemetry.sdk.version",
+  octomilOrgId: "octomil.org.id",
+  octomilDeviceId: "octomil.device.id",
+  octomilPlatform: "octomil.platform",
+  octomilSdkSurface: "octomil.sdk.surface",
+  octomilDeviceClass: "octomil.device.class",
+  octomilAvailableRuntimes: "octomil.available_runtimes",
+  octomilAccelerators: "octomil.accelerators",
 } as const;
