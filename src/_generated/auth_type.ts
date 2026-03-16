@@ -4,4 +4,5 @@ export enum AuthType {
   OrgApiKey = "org_api_key",
   DeviceToken = "device_token",
   ServiceToken = "service_token",
+  PublishableKey = "publishable_key",
 }

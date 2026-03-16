@@ -37,6 +37,7 @@ export const SPAN_EVENT_NAMES = {
   desiredStateFetched: "desired_state_fetched",
   observedStateReported: "observed_state_reported",
   stateDriftDetected: "state_drift_detected",
+  deviceRegistered: "device.registered",
 } as const;
 
 export const EVENT_PARENT_SPAN: Record<string, string> = {
@@ -76,4 +77,5 @@ export const EVENT_PARENT_SPAN: Record<string, string> = {
   "desired_state_fetched": "octomil.device.sync",
   "observed_state_reported": "octomil.device.sync",
   "state_drift_detected": "octomil.device.sync",
+  "device.registered": "octomil.control.register",
 };
