@@ -321,6 +321,7 @@ export class ResponsesClient {
               this.telemetry?.track("inference.chunk_produced", {
                 "model.id": request.model,
                 "inference.chunk_index": chunkIndex,
+                "locality": "cloud",
               });
               chunkIndex++;
               yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;
@@ -338,6 +339,7 @@ export class ResponsesClient {
                 this.telemetry?.track("inference.chunk_produced", {
                   "model.id": request.model,
                   "inference.chunk_index": chunkIndex,
+                  "locality": "cloud",
                 });
                 chunkIndex++;
                 yield {
@@ -366,6 +368,7 @@ export class ResponsesClient {
               this.telemetry?.track("inference.chunk_produced", {
                 "model.id": request.model,
                 "inference.chunk_index": chunkIndex,
+                "locality": "cloud",
               });
               chunkIndex++;
               yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;

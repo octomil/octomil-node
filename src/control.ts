@@ -6,6 +6,9 @@
 
 import { OctomilError } from "./types.js";
 import { hostname, platform, arch, release } from "node:os";
+import { SPAN_NAMES } from "./_generated/span_names.js";
+import { SPAN_ATTRIBUTES } from "./_generated/span_attributes.js";
+import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,11 +78,14 @@ export class ControlClient {
   private deviceId: string | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private previousAssignments: DeviceAssignment[] | null = null;
+  private heartbeatSequence = 0;
+  private readonly telemetry: TelemetryReporter | null;
 
-  constructor(serverUrl: string, apiKey: string, orgId: string) {
+  constructor(serverUrl: string, apiKey: string, orgId: string, telemetry?: TelemetryReporter | null) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
     this.orgId = orgId;
+    this.telemetry = telemetry ?? null;
   }
 
   /**
@@ -142,6 +148,11 @@ export class ControlClient {
    */
   async heartbeat(): Promise<HeartbeatResponse> {
     const id = this.getDeviceIdOrThrow();
+    const seq = this.heartbeatSequence++;
+
+    this.telemetry?.track(SPAN_NAMES.octomilControlHeartbeat, {
+      [SPAN_ATTRIBUTES.heartbeatSequence]: seq,
+    });
 
     let response: Response;
     try {
