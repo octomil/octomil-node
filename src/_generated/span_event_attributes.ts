@@ -18,6 +18,8 @@ export const SPAN_EVENT_ATTRIBUTES = {
   octomilChecksumAlgorithm: "octomil.checksum.algorithm",
   octomilRuntimeExecutor: "octomil.runtime.executor",
   octomilRuntimeInitMs: "octomil.runtime.init_ms",
+  octomilToolExtractionStrategy: "octomil.tool.extraction_strategy",
+  octomilToolRawTextPreview: "octomil.tool.raw_text_preview",
 } as const;
 
 export const EVENT_REQUIRED_ATTRIBUTES: Record<string, string[]> = {
@@ -30,4 +32,6 @@ export const EVENT_REQUIRED_ATTRIBUTES: Record<string, string[]> = {
   "download_completed": ["octomil.download.duration_ms", "octomil.download.bytes"],
   "checksum_verified": [],
   "runtime_initialized": ["octomil.runtime.executor", "octomil.runtime.init_ms"],
+  "tool_call_parse_succeeded": ["octomil.tool.name", "octomil.tool.extraction_strategy"],
+  "tool_call_parse_failed": ["octomil.tool.extraction_strategy"],
 };

@@ -12,6 +12,7 @@ export const SPAN_ATTRIBUTES = {
   deviceClass: "device.class",
   fallbackReason: "fallback.reason",
   errorType: "error.type",
+  toolCallTier: "tool.call_tier",
   modelSourceFormat: "model.source_format",
   modelSizeBytes: "model.size_bytes",
   toolName: "tool.name",
