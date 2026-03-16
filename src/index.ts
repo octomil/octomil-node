@@ -114,7 +114,7 @@ export type { RegistrationState, TokenState } from "./device-context.js";
 export { configure, getDeviceContext } from "./configure.js";
 export type { ConfigureOptions } from "./configure.js";
 export type { SilentAuthConfig, PublishableKeyEnvironment } from "./auth-config.js";
-export { validatePublishableKey, getPublishableKeyEnvironment } from "./auth-config.js";
+export { validatePublishableKey, getPublishableKeyEnvironment, PublishableKeyAuth } from "./auth-config.js";
 export type { MonitoringConfig } from "./monitoring-config.js";
 
 // Contract-generated enums (new)
