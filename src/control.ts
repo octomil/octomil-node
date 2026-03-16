@@ -41,6 +41,37 @@ export interface ControlSyncResult {
   assignments?: DeviceAssignment[];
 }
 
+/** Per-artifact status in an observed state report. */
+export interface ArtifactStatus {
+  artifactId: string;
+  status: string;
+  bytesDownloaded?: number;
+  totalBytes?: number;
+  errorCode?: string;
+}
+
+/** Observed state payload sent to the server. */
+export interface ObservedStatePayload {
+  schemaVersion: string;
+  deviceId: string;
+  reportedAt: string;
+  artifactStatuses: ArtifactStatus[];
+  sdkVersion?: string;
+  osVersion?: string;
+}
+
+/** Server-authoritative desired state for this device. */
+export interface DesiredState {
+  schemaVersion: string;
+  deviceId: string;
+  generatedAt: string;
+  activeBinding?: Record<string, unknown>;
+  artifacts?: Array<Record<string, unknown>>;
+  policyConfig?: Record<string, unknown>;
+  federationOffers?: Array<{ roundId: string; jobId: string; expiresAt: string }>;
+  gcEligibleArtifactIds?: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Wire-format types (snake_case from server)
 // ---------------------------------------------------------------------------
@@ -265,6 +296,85 @@ export class ControlClient {
       }
     }
     return true;
+  }
+
+  /**
+   * Report observed device state to the server (GAP-05).
+   * POSTs artifact statuses, SDK version, and OS info to
+   * `/api/v1/devices/{id}/observed-state`.
+   */
+  async reportObservedState(artifactStatuses: ArtifactStatus[] = []): Promise<void> {
+    const id = this.getDeviceIdOrThrow();
+
+    const payload: ObservedStatePayload = {
+      schemaVersion: "1.4.0",
+      deviceId: id,
+      reportedAt: new Date().toISOString(),
+      artifactStatuses,
+      sdkVersion: "1.0.0",
+      osVersion: `${platform()} ${release()}`,
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/observed-state`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Report observed state failed: ${String(err)}`,
+        err,
+      );
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Report observed state failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
+      );
+    }
+  }
+
+  /**
+   * Fetch desired state from the server (GAP-13).
+   * GETs `/api/v1/devices/{id}/desired-state` for the server-authoritative
+   * target state (active binding, artifacts, policy, federation offers).
+   */
+  async fetchDesiredState(): Promise<DesiredState> {
+    const id = this.getDeviceIdOrThrow();
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/desired-state`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+    } catch (err) {
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Fetch desired state failed: ${String(err)}`,
+        err,
+      );
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Fetch desired state failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
+      );
+    }
+
+    return (await response.json()) as DesiredState;
   }
 
   /**
