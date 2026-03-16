@@ -10,6 +10,7 @@ export const OTLP_RESOURCE_ATTRIBUTES = {
   octomilDeviceId: "octomil.device.id",
   octomilPlatform: "octomil.platform",
   octomilSdkSurface: "octomil.sdk.surface",
+  octomilInstallId: "octomil.install.id",
   octomilDeviceClass: "octomil.device.class",
   octomilAvailableRuntimes: "octomil.available_runtimes",
   octomilAccelerators: "octomil.accelerators",

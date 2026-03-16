@@ -12,5 +12,6 @@ export enum ArtifactResourceKind {
   Adapter = "adapter",
   Manifest = "manifest",
   Signature = "signature",
+  Projector = "projector",
   Metadata = "metadata",
 }
