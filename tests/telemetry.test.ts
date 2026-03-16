@@ -263,4 +263,39 @@ describe("TelemetryReporter", () => {
 
     reporter.dispose();
   });
+
+  it("should include octomil.install.id in resource attributes when installId is provided", async () => {
+    const reporter = new TelemetryReporter(
+      "https://api.test.com", "key123", "org-1",
+      1000, 50, undefined, "install-uuid-abc",
+    );
+    reporter.track("test.event", {});
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const body = parseBody();
+    const attrs = body.resourceLogs[0]!.resource.attributes;
+    const attrMap = Object.fromEntries(attrs.map((a) => [a.key, a.value]));
+    expect(attrMap["octomil.install.id"]!.stringValue).toBe("install-uuid-abc");
+
+    reporter.dispose();
+  });
+
+  it("should omit octomil.install.id when installId is not provided", async () => {
+    const reporter = new TelemetryReporter(
+      "https://api.test.com", "key123", "org-1", 1000,
+    );
+    reporter.track("test.event", {});
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const body = parseBody();
+    const attrs = body.resourceLogs[0]!.resource.attributes;
+    const attrMap = Object.fromEntries(attrs.map((a) => [a.key, a.value]));
+    expect(attrMap["octomil.install.id"]).toBeUndefined();
+
+    reporter.dispose();
+  });
 });

@@ -90,9 +90,10 @@ describe("Contract Conformance", () => {
   });
 
   describe("OTLP resource attributes", () => {
-    it("has all 12 keys", () => {
+    it("has all 13 keys", () => {
       const keys = Object.values(OTLP_RESOURCE_ATTRIBUTES);
-      expect(keys).toHaveLength(12);
+      expect(keys).toHaveLength(13);
+      expect(keys).toContain("octomil.install.id");
     });
   });
 });

@@ -91,6 +91,12 @@ describe("DeviceContext", () => {
       expect(resource["platform"]).toBe("node");
     });
 
+    it("should include octomil.install.id with the installation ID", () => {
+      const ctx = new DeviceContext({ installationId: "inst-123" });
+      const resource = ctx.telemetryResource();
+      expect(resource["octomil.install.id"]).toBe("inst-123");
+    });
+
     it("should include org.id when set", () => {
       const ctx = new DeviceContext({
         installationId: "inst-123",

@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { OTLP_RESOURCE_ATTRIBUTES } from "./_generated/otlp_resource_attributes.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +74,7 @@ export class DeviceContext {
   telemetryResource(): Record<string, string> {
     const resource: Record<string, string> = {
       "device.id": this.installationId,
+      [OTLP_RESOURCE_ATTRIBUTES.octomilInstallId]: this.installationId,
       platform: "node",
     };
     if (this.orgId) resource["org.id"] = this.orgId;

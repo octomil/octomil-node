@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform } from "node:os";
+import { OTLP_RESOURCE_ATTRIBUTES } from "./_generated/otlp_resource_attributes.js";
 
 // ---------------------------------------------------------------------------
 // OTLP Types
@@ -58,6 +59,7 @@ export interface TelemetryResource {
   sdk: "node";
   sdk_version: string;
   device_id: string | null;
+  install_id: string | null;
   platform: string;
   org_id: string;
 }
@@ -99,13 +101,20 @@ function toOtlpValue(v: unknown): OtlpKeyValue["value"] {
 }
 
 function resourceToAttributes(resource: TelemetryResource): OtlpKeyValue[] {
-  return [
+  const attrs: OtlpKeyValue[] = [
     { key: "sdk", value: { stringValue: resource.sdk } },
     { key: "sdk_version", value: { stringValue: resource.sdk_version } },
     { key: "device_id", value: { stringValue: resource.device_id ?? "" } },
     { key: "platform", value: { stringValue: resource.platform } },
     { key: "org_id", value: { stringValue: resource.org_id } },
   ];
+  if (resource.install_id) {
+    attrs.push({
+      key: OTLP_RESOURCE_ATTRIBUTES.octomilInstallId,
+      value: { stringValue: resource.install_id },
+    });
+  }
+  return attrs;
 }
 
 function eventToLogRecord(event: TelemetryEvent): OtlpLogRecord {
@@ -142,6 +151,7 @@ export class TelemetryReporter {
     flushInterval = 30_000,
     maxBatchSize = 50,
     deviceId?: string,
+    installId?: string,
   ) {
     this.flushInterval = flushInterval;
     this.maxBatchSize = maxBatchSize;
@@ -149,6 +159,7 @@ export class TelemetryReporter {
       sdk: "node",
       sdk_version: getSdkVersion(),
       device_id: deviceId ?? null,
+      install_id: installId ?? null,
       platform: platform(),
       org_id: orgId,
     };

@@ -25,6 +25,7 @@ import { ModelCatalogService } from "./manifest/catalog-service.js";
 import { ModelReadinessManager } from "./manifest/readiness-manager.js";
 import type { AppManifest } from "./manifest/types.js";
 import type { ModelRef } from "./model-ref.js";
+import { DeviceContext } from "./device-context.js";
 
 const DEFAULT_SERVER_URL = "https://api.octomil.com";
 const DEFAULT_CACHE_DIR = join(homedir(), ".octomil", "models");
@@ -81,10 +82,11 @@ export class OctomilClient {
     this.downloader = new ModelDownloader(this.serverUrl, this.apiKey, this.orgId);
     this.cache = new FileCache(this.cacheDir);
     const deviceId = auth.type === "device_token" ? auth.deviceId : undefined;
+    const installId = DeviceContext.getOrCreateInstallationId();
     this._telemetry = options.telemetry !== false
       ? new TelemetryReporter(
           this.serverUrl, this.apiKey, this.orgId,
-          undefined, undefined, deviceId,
+          undefined, undefined, deviceId, installId,
         )
       : null;
     this.runtime = options.runtime;

@@ -46,6 +46,12 @@ vi.mock("../src/integrity.js", () => ({
   computeFileHash: vi.fn().mockResolvedValue("sha256hash"),
 }));
 
+vi.mock("../src/device-context.js", () => ({
+  DeviceContext: {
+    getOrCreateInstallationId: vi.fn().mockReturnValue("mock-install-id-for-client"),
+  },
+}));
+
 describe("OctomilClient", () => {
   let client: OctomilClient;
 
@@ -289,7 +295,7 @@ describe("OctomilClient", () => {
   });
 
   describe("deviceId option", () => {
-    it("should pass deviceId to TelemetryReporter for device_token auth", async () => {
+    it("should pass deviceId and installId to TelemetryReporter for device_token auth", async () => {
       const { TelemetryReporter } = await import("../src/telemetry.js");
 
       new OctomilClient({
@@ -307,7 +313,26 @@ describe("OctomilClient", () => {
         undefined,
         undefined,
         "device-abc",
+        "mock-install-id-for-client",
       );
+    });
+
+    it("should pass installId to TelemetryReporter for org_api_key auth", async () => {
+      const { TelemetryReporter } = await import("../src/telemetry.js");
+
+      new OctomilClient({
+        auth: {
+          type: "org_api_key",
+          apiKey: "test-key",
+          orgId: "org-123",
+          serverUrl: "https://api.test.com",
+        },
+      });
+
+      // installId should be the last argument
+      const calls = (TelemetryReporter as any).mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(lastCall[6]).toBe("mock-install-id-for-client");
     });
   });
 
