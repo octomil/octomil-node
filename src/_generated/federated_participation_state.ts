@@ -1,0 +1,26 @@
+// Auto-generated from octomil-contracts. Do not edit.
+
+export enum FederatedParticipationState {
+  NotEnrolled = "not_enrolled",
+  Offered = "offered",
+  Accepted = "accepted",
+  PlanFetching = "plan_fetching",
+  PlanReady = "plan_ready",
+  WaitingForWindow = "waiting_for_window",
+  LocalTraining = "local_training",
+  LocalEval = "local_eval",
+  UpdatePreparing = "update_preparing",
+  Clipping = "clipping",
+  Noising = "noising",
+  Encrypting = "encrypting",
+  Uploading = "uploading",
+  Uploaded = "uploaded",
+  Acknowledged = "acknowledged",
+  Completed = "completed",
+  DeclinedPolicy = "declined_policy",
+  FailedRetryable = "failed_retryable",
+  AbortedPolicy = "aborted_policy",
+  RejectedLocal = "rejected_local",
+  UploadDeferred = "upload_deferred",
+  ExpiredRound = "expired_round",
+}
