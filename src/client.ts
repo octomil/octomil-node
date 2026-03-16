@@ -19,6 +19,12 @@ import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, Pred
 import { OctomilError } from "./types.js";
 import { streamInference } from "./streaming.js";
 import type { StreamToken, StreamInput } from "./streaming.js";
+import { OctomilAudio } from "./audio/octomil-audio.js";
+import { OctomilText } from "./text/octomil-text.js";
+import { ModelCatalogService } from "./manifest/catalog-service.js";
+import { ModelReadinessManager } from "./manifest/readiness-manager.js";
+import type { AppManifest } from "./manifest/types.js";
+import type { ModelRef } from "./model-ref.js";
 
 const DEFAULT_SERVER_URL = "https://api.octomil.com";
 const DEFAULT_CACHE_DIR = join(homedir(), ".octomil", "models");
@@ -55,6 +61,10 @@ export class OctomilClient {
   private _capabilities?: CapabilitiesClient;
   private _control?: ControlClient;
   private _models?: ModelsClient;
+  private _audio?: OctomilAudio;
+  private _text?: OctomilText;
+  private _catalog?: ModelCatalogService;
+  private _readiness?: ModelReadinessManager;
 
   constructor(options: OctomilClientOptions) {
     const auth = options.auth;
@@ -145,6 +155,42 @@ export class OctomilClient {
       });
     }
     return this._models;
+  }
+
+  get audio(): OctomilAudio {
+    if (!this._audio) {
+      this._audio = new OctomilAudio((ref: ModelRef) =>
+        this._catalog?.runtimeForRef(ref),
+      );
+    }
+    return this._audio;
+  }
+
+  get text(): OctomilText {
+    if (!this._text) {
+      this._text = new OctomilText((ref: ModelRef) =>
+        this._catalog?.runtimeForRef(ref),
+      );
+    }
+    return this._text;
+  }
+
+  get catalog(): ModelCatalogService | undefined {
+    return this._catalog;
+  }
+
+  /**
+   * Bootstrap a manifest, creating a ModelCatalogService and
+   * ModelReadinessManager. Call this once at startup.
+   */
+  async bootstrapManifest(manifest: AppManifest): Promise<ModelCatalogService> {
+    this._readiness = new ModelReadinessManager();
+    this._catalog = new ModelCatalogService({
+      manifest,
+      readiness: this._readiness,
+    });
+    await this._catalog.bootstrap();
+    return this._catalog;
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {

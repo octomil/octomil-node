@@ -77,6 +77,52 @@ export { PrincipalType } from "./_generated/principal_type.js";
 export { Scope } from "./_generated/scope.js";
 
 // ---------------------------------------------------------------------------
+// Manifest-driven runtime (Phase 1)
+// ---------------------------------------------------------------------------
+
+export { ModelRef } from "./model-ref.js";
+export type { ModelRefById, ModelRefByCapability } from "./model-ref.js";
+
+export { ModelCatalogService } from "./manifest/catalog-service.js";
+export type { CloudRuntimeFactory, CatalogServiceOptions } from "./manifest/catalog-service.js";
+export { ModelReadinessManager } from "./manifest/readiness-manager.js";
+export type { ReadinessEvent, ReadinessListener } from "./manifest/readiness-manager.js";
+export type {
+  AppManifest,
+  AppModelEntry,
+  AppRoutingPolicy,
+} from "./manifest/types.js";
+export { effectiveRoutingPolicy, manifestEntryForCapability, manifestEntryForModelId } from "./manifest/types.js";
+export { LocalFileModelRuntime } from "./runtime/engines/local-file-runtime.js";
+
+// Audio namespace
+export { OctomilAudio } from "./audio/octomil-audio.js";
+export { AudioTranscriptions } from "./audio/audio-transcriptions.js";
+export type { TranscriptionRequest } from "./audio/audio-transcriptions.js";
+export type { TranscriptionResult, TranscriptionSegment } from "./audio/transcription-types.js";
+
+// Text namespace
+export { OctomilText } from "./text/octomil-text.js";
+export { OctomilPredictor } from "./text/octomil-predictor.js";
+
+// ---------------------------------------------------------------------------
+// Device registration (Phase 2)
+// ---------------------------------------------------------------------------
+
+export { DeviceContext } from "./device-context.js";
+export type { RegistrationState, TokenState } from "./device-context.js";
+export { configure, getDeviceContext } from "./configure.js";
+export type { ConfigureOptions } from "./configure.js";
+export type { SilentAuthConfig, PublishableKeyEnvironment } from "./auth-config.js";
+export { validatePublishableKey, getPublishableKeyEnvironment } from "./auth-config.js";
+export type { MonitoringConfig } from "./monitoring-config.js";
+
+// Contract-generated enums (new)
+export { ModelCapability } from "./_generated/model_capability.js";
+export { DeliveryMode } from "./_generated/delivery_mode.js";
+export { RoutingPolicy as RoutingPolicyEnum } from "./_generated/routing_policy.js";
+
+// ---------------------------------------------------------------------------
 // Advanced tier (MAY) — optional, for power users
 // ---------------------------------------------------------------------------
 

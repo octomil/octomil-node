@@ -44,7 +44,7 @@ describe("Contract Conformance", () => {
     it("has all 4 statuses", () => {
       const statuses = Object.values(ModelStatus);
       expect(statuses).toHaveLength(4);
-      expect(statuses).toContain("not_downloaded");
+      expect(statuses).toContain("not_cached");
       expect(statuses).toContain("downloading");
       expect(statuses).toContain("ready");
       expect(statuses).toContain("error");
@@ -90,9 +90,9 @@ describe("Contract Conformance", () => {
   });
 
   describe("OTLP resource attributes", () => {
-    it("has all 6 keys", () => {
+    it("has all 12 keys", () => {
       const keys = Object.values(OTLP_RESOURCE_ATTRIBUTES);
-      expect(keys).toHaveLength(6);
+      expect(keys).toHaveLength(12);
     });
   });
 });
