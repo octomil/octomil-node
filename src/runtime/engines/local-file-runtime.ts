@@ -1,5 +1,9 @@
 /**
- * LocalFileModelRuntime — wraps a local model file on disk.
+ * LocalFileModelRuntime — wraps local model files on disk.
+ *
+ * Supports multi-resource packages via ResourceBindings. The primary
+ * weights file is available via `filePath`, and additional resources
+ * (projector, tokenizer, etc.) are accessible through `resourceBindings`.
  *
  * Delegates actual inference to the engine registry or a provided
  * ModelRuntime. This is the runtime created for BUNDLED and cached
@@ -7,20 +11,59 @@
  */
 
 import type { ModelRuntime } from "../core/model-runtime.js";
+import type { ResourceBindings } from "../../manifest/types.js";
+import { ArtifactResourceKind } from "../../_generated/artifact_resource_kind.js";
 
 export class LocalFileModelRuntime implements ModelRuntime {
   readonly modelId: string;
   readonly filePath: string;
+  readonly resourceBindings: ResourceBindings;
   private delegate: ModelRuntime | null = null;
 
-  constructor(modelId: string, filePath: string) {
+  constructor(
+    modelId: string,
+    filePath: string,
+    resourceBindings?: ResourceBindings,
+  ) {
     this.modelId = modelId;
     this.filePath = filePath;
+    this.resourceBindings = resourceBindings ?? {
+      [ArtifactResourceKind.Weights]: filePath,
+    };
   }
 
   /** Inject the actual engine delegate after construction. */
   setDelegate(runtime: ModelRuntime): void {
     this.delegate = runtime;
+  }
+
+  /**
+   * Get a resource file path by kind.
+   * Returns undefined if the resource is not present in bindings.
+   */
+  getResource(kind: ArtifactResourceKind): string | undefined {
+    return this.resourceBindings[kind];
+  }
+
+  /**
+   * Get a required resource file path by kind.
+   * Throws if the resource is not present.
+   */
+  requireResource(kind: ArtifactResourceKind): string {
+    const path = this.resourceBindings[kind];
+    if (!path) {
+      throw new Error(
+        `LocalFileModelRuntime(${this.modelId}): missing required resource: ${kind}`,
+      );
+    }
+    return path;
+  }
+
+  /**
+   * Check if this runtime has a specific resource kind.
+   */
+  hasResource(kind: ArtifactResourceKind): boolean {
+    return this.resourceBindings[kind] !== undefined;
   }
 
   async createSession(
