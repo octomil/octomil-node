@@ -140,7 +140,9 @@ export interface ClientManifest {
 // Parsing helpers — convert snake_case JSON to camelCase types
 // ---------------------------------------------------------------------------
 
-export function parseManifestResource(raw: Record<string, unknown>): ManifestResource {
+export function parseManifestResource(
+  raw: Record<string, unknown>,
+): ManifestResource {
   return {
     kind: raw["kind"] as ArtifactResourceKind,
     uri: raw["uri"] as string,
@@ -154,8 +156,11 @@ export function parseManifestResource(raw: Record<string, unknown>): ManifestRes
   };
 }
 
-export function parseManifestPackage(raw: Record<string, unknown>): ManifestPackage {
-  const rawResources = (raw["resources"] as Record<string, unknown>[] | undefined) ?? [];
+export function parseManifestPackage(
+  raw: Record<string, unknown>,
+): ManifestPackage {
+  const rawResources =
+    (raw["resources"] as Record<string, unknown>[] | undefined) ?? [];
   return {
     id: raw["id"] as string,
     artifactFormat: raw["artifact_format"] as string,
@@ -172,8 +177,11 @@ export function parseManifestPackage(raw: Record<string, unknown>): ManifestPack
   };
 }
 
-export function parseManifestModel(raw: Record<string, unknown>): ManifestModel {
-  const rawPackages = (raw["packages"] as Record<string, unknown>[] | undefined) ?? [];
+export function parseManifestModel(
+  raw: Record<string, unknown>,
+): ManifestModel {
+  const rawPackages =
+    (raw["packages"] as Record<string, unknown>[] | undefined) ?? [];
   return {
     id: raw["id"] as string,
     family: raw["family"] as string,
@@ -186,7 +194,9 @@ export function parseManifestModel(raw: Record<string, unknown>): ManifestModel 
   };
 }
 
-export function parseClientManifest(raw: Record<string, unknown>): ClientManifest {
+export function parseClientManifest(
+  raw: Record<string, unknown>,
+): ClientManifest {
   const rawModels = (raw["models"] as Record<string, unknown>[]) ?? [];
   return {
     version: raw["version"] as string,
@@ -223,7 +233,9 @@ export function isVisionLanguagePackage(pkg: ManifestPackage): boolean {
 /**
  * Get the default package from a model's package list.
  */
-export function defaultPackage(model: ManifestModel): ManifestPackage | undefined {
+export function defaultPackage(
+  model: ManifestModel,
+): ManifestPackage | undefined {
   return model.packages.find((p) => p.isDefault) ?? model.packages[0];
 }
 

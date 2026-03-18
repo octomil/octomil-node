@@ -67,7 +67,8 @@ const vlWeightsResource: ManifestResource = {
   uri: "https://cdn.octomil.com/models/llava-1.6/mistral-7b-q4km.gguf",
   path: "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
   sizeBytes: 4368438272,
-  checksumSha256: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  checksumSha256:
+    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   required: true,
   loadOrder: 0,
 };
@@ -77,7 +78,8 @@ const vlProjectorResource: ManifestResource = {
   uri: "https://cdn.octomil.com/models/llava-1.6/mmproj-model-f16.gguf",
   path: "mmproj-model-f16.gguf",
   sizeBytes: 624787456,
-  checksumSha256: "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+  checksumSha256:
+    "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
   required: true,
   loadOrder: 1,
 };
@@ -177,7 +179,10 @@ describe("effectiveRoutingPolicy", () => {
 
 describe("manifestEntryForCapability", () => {
   it("should find entry by capability", () => {
-    const entry = manifestEntryForCapability(manifest, ModelCapability.Transcription);
+    const entry = manifestEntryForCapability(
+      manifest,
+      ModelCapability.Transcription,
+    );
     expect(entry?.id).toBe("whisper-base");
   });
 
@@ -187,7 +192,10 @@ describe("manifestEntryForCapability", () => {
   });
 
   it("should return undefined for missing capability", () => {
-    const entry = manifestEntryForCapability(manifest, ModelCapability.Embedding);
+    const entry = manifestEntryForCapability(
+      manifest,
+      ModelCapability.Embedding,
+    );
     expect(entry).toBeUndefined();
   });
 });
@@ -269,7 +277,9 @@ describe("packageSupportsInputModality", () => {
 
   it("should return false for unsupported modality", () => {
     expect(packageSupportsInputModality(vlPackage, Modality.Audio)).toBe(false);
-    expect(packageSupportsInputModality(textOnlyPackage, Modality.Image)).toBe(false);
+    expect(packageSupportsInputModality(textOnlyPackage, Modality.Image)).toBe(
+      false,
+    );
   });
 });
 
@@ -329,7 +339,10 @@ describe("resourcesOfKind", () => {
     expect(weights).toHaveLength(1);
     expect(weights[0]!.kind).toBe(ArtifactResourceKind.Weights);
 
-    const projectors = resourcesOfKind(vlPackage, ArtifactResourceKind.Projector);
+    const projectors = resourcesOfKind(
+      vlPackage,
+      ArtifactResourceKind.Projector,
+    );
     expect(projectors).toHaveLength(1);
     expect(projectors[0]!.kind).toBe(ArtifactResourceKind.Projector);
   });
@@ -387,7 +400,11 @@ describe("parseManifestPackage", () => {
     expect(pkg.platform).toBe("macos");
     expect(pkg.inputModalities).toEqual([Modality.Text, Modality.Image]);
     expect(pkg.outputModalities).toEqual([Modality.Text]);
-    expect(pkg.engineConfig).toEqual({ n_gpu_layers: -1, ctx_size: 4096, use_mmap: true });
+    expect(pkg.engineConfig).toEqual({
+      n_gpu_layers: -1,
+      ctx_size: 4096,
+      use_mmap: true,
+    });
     expect(pkg.resources).toHaveLength(2);
     expect(pkg.resources[0]!.kind).toBe(ArtifactResourceKind.Weights);
     expect(pkg.resources[0]!.sizeBytes).toBe(4368438272);
@@ -441,8 +458,20 @@ describe("parseClientManifest", () => {
               output_modalities: ["text"],
               engine_config: { n_gpu_layers: -1 },
               resources: [
-                { kind: "weights", uri: "https://cdn.octomil.com/weights.gguf", path: "weights.gguf", required: true, load_order: 0 },
-                { kind: "projector", uri: "https://cdn.octomil.com/mmproj.gguf", path: "mmproj.gguf", required: true, load_order: 1 },
+                {
+                  kind: "weights",
+                  uri: "https://cdn.octomil.com/weights.gguf",
+                  path: "weights.gguf",
+                  required: true,
+                  load_order: 0,
+                },
+                {
+                  kind: "projector",
+                  uri: "https://cdn.octomil.com/mmproj.gguf",
+                  path: "mmproj.gguf",
+                  required: true,
+                  load_order: 1,
+                },
               ],
             },
           ],
@@ -523,7 +552,11 @@ describe("VL model entry parsing", () => {
               capabilities: ["chat"],
               input_modalities: ["text", "image"],
               output_modalities: ["text"],
-              engine_config: { n_gpu_layers: -1, ctx_size: 4096, use_mmap: true },
+              engine_config: {
+                n_gpu_layers: -1,
+                ctx_size: 4096,
+                use_mmap: true,
+              },
               is_default: true,
               resources: [
                 {

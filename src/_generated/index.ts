@@ -16,4 +16,7 @@ export { ModelSourceFormat } from "./model_source_format";
 export { ModelStatus } from "./model_status";
 export { RuntimeExecutor } from "./runtime_executor";
 export { OTLP_RESOURCE_ATTRIBUTES } from "./otlp_resource_attributes";
-export { TELEMETRY_EVENTS, EVENT_REQUIRED_ATTRIBUTES } from "./telemetry_events";
+export {
+  TELEMETRY_EVENTS,
+  EVENT_REQUIRED_ATTRIBUTES,
+} from "./telemetry_events";

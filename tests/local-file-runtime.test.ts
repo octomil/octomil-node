@@ -13,7 +13,9 @@ describe("LocalFileModelRuntime", () => {
 
   it("should throw on run without delegate", async () => {
     const rt = new LocalFileModelRuntime("phi-4-mini", "/tmp/model.onnx");
-    await expect(rt.run({ prompt: "hello" })).rejects.toThrow("no delegate engine set");
+    await expect(rt.run({ prompt: "hello" })).rejects.toThrow(
+      "no delegate engine set",
+    );
   });
 
   it("should delegate run to injected runtime", async () => {
@@ -42,7 +44,9 @@ describe("LocalFileModelRuntime", () => {
     rt.setDelegate(delegate);
 
     await rt.createSession("/tmp/model.onnx", { graphOpt: "all" });
-    expect(delegate.createSession).toHaveBeenCalledWith("/tmp/model.onnx", { graphOpt: "all" });
+    expect(delegate.createSession).toHaveBeenCalledWith("/tmp/model.onnx", {
+      graphOpt: "all",
+    });
   });
 
   it("should not throw on createSession without delegate", async () => {
@@ -76,7 +80,9 @@ describe("LocalFileModelRuntime", () => {
     rt.dispose();
 
     // After dispose, delegate is null so it should throw
-    await expect(rt.run({ prompt: "hello" })).rejects.toThrow("no delegate engine set");
+    await expect(rt.run({ prompt: "hello" })).rejects.toThrow(
+      "no delegate engine set",
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -86,7 +92,9 @@ describe("LocalFileModelRuntime", () => {
   describe("resource bindings", () => {
     it("should auto-populate weights binding from filePath when no bindings given", () => {
       const rt = new LocalFileModelRuntime("phi-4-mini", "/tmp/model.gguf");
-      expect(rt.resourceBindings[ArtifactResourceKind.Weights]).toBe("/tmp/model.gguf");
+      expect(rt.resourceBindings[ArtifactResourceKind.Weights]).toBe(
+        "/tmp/model.gguf",
+      );
     });
 
     it("should accept explicit resource bindings", () => {
@@ -94,10 +102,18 @@ describe("LocalFileModelRuntime", () => {
         [ArtifactResourceKind.Weights]: "/cache/weights.gguf",
         [ArtifactResourceKind.Projector]: "/cache/mmproj.gguf",
       };
-      const rt = new LocalFileModelRuntime("llava-7b", "/cache/weights.gguf", bindings);
+      const rt = new LocalFileModelRuntime(
+        "llava-7b",
+        "/cache/weights.gguf",
+        bindings,
+      );
 
-      expect(rt.resourceBindings[ArtifactResourceKind.Weights]).toBe("/cache/weights.gguf");
-      expect(rt.resourceBindings[ArtifactResourceKind.Projector]).toBe("/cache/mmproj.gguf");
+      expect(rt.resourceBindings[ArtifactResourceKind.Weights]).toBe(
+        "/cache/weights.gguf",
+      );
+      expect(rt.resourceBindings[ArtifactResourceKind.Projector]).toBe(
+        "/cache/mmproj.gguf",
+      );
     });
 
     it("getResource should return path for present resource", () => {
@@ -105,10 +121,18 @@ describe("LocalFileModelRuntime", () => {
         [ArtifactResourceKind.Weights]: "/cache/weights.gguf",
         [ArtifactResourceKind.Projector]: "/cache/mmproj.gguf",
       };
-      const rt = new LocalFileModelRuntime("llava-7b", "/cache/weights.gguf", bindings);
+      const rt = new LocalFileModelRuntime(
+        "llava-7b",
+        "/cache/weights.gguf",
+        bindings,
+      );
 
-      expect(rt.getResource(ArtifactResourceKind.Weights)).toBe("/cache/weights.gguf");
-      expect(rt.getResource(ArtifactResourceKind.Projector)).toBe("/cache/mmproj.gguf");
+      expect(rt.getResource(ArtifactResourceKind.Weights)).toBe(
+        "/cache/weights.gguf",
+      );
+      expect(rt.getResource(ArtifactResourceKind.Projector)).toBe(
+        "/cache/mmproj.gguf",
+      );
     });
 
     it("getResource should return undefined for absent resource", () => {
@@ -120,8 +144,14 @@ describe("LocalFileModelRuntime", () => {
       const bindings: ResourceBindings = {
         [ArtifactResourceKind.Weights]: "/cache/weights.gguf",
       };
-      const rt = new LocalFileModelRuntime("phi-4-mini", "/cache/weights.gguf", bindings);
-      expect(rt.requireResource(ArtifactResourceKind.Weights)).toBe("/cache/weights.gguf");
+      const rt = new LocalFileModelRuntime(
+        "phi-4-mini",
+        "/cache/weights.gguf",
+        bindings,
+      );
+      expect(rt.requireResource(ArtifactResourceKind.Weights)).toBe(
+        "/cache/weights.gguf",
+      );
     });
 
     it("requireResource should throw for absent resource", () => {
@@ -136,7 +166,11 @@ describe("LocalFileModelRuntime", () => {
         [ArtifactResourceKind.Weights]: "/cache/weights.gguf",
         [ArtifactResourceKind.Projector]: "/cache/mmproj.gguf",
       };
-      const rt = new LocalFileModelRuntime("llava-7b", "/cache/weights.gguf", bindings);
+      const rt = new LocalFileModelRuntime(
+        "llava-7b",
+        "/cache/weights.gguf",
+        bindings,
+      );
 
       expect(rt.hasResource(ArtifactResourceKind.Weights)).toBe(true);
       expect(rt.hasResource(ArtifactResourceKind.Projector)).toBe(true);

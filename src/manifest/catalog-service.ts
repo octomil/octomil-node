@@ -34,7 +34,10 @@ export class ModelCatalogService {
   private readonly cloudRuntimeFactory: CloudRuntimeFactory | undefined;
 
   /** Resolved runtimes keyed by capability. */
-  private readonly capabilityRuntimes = new Map<ModelCapability, ModelRuntime>();
+  private readonly capabilityRuntimes = new Map<
+    ModelCapability,
+    ModelRuntime
+  >();
 
   /** Resolved runtimes keyed by model ID. */
   private readonly idRuntimes = new Map<string, ModelRuntime>();
@@ -78,7 +81,11 @@ export class ModelCatalogService {
     filePath: string,
     resourceBindings?: ResourceBindings,
   ): void {
-    const runtime = new LocalFileModelRuntime(entry.id, filePath, resourceBindings);
+    const runtime = new LocalFileModelRuntime(
+      entry.id,
+      filePath,
+      resourceBindings,
+    );
     this.capabilityRuntimes.set(entry.capability, runtime);
     this.idRuntimes.set(entry.id, runtime);
   }
