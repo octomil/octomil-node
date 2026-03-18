@@ -51,10 +51,7 @@ export type {
   ControlSyncResult,
 } from "./control.js";
 export type { CapabilityProfile } from "./capabilities.js";
-export type {
-  ModelStatus,
-  CachedModelInfo,
-} from "./models.js";
+export type { ModelStatus, CachedModelInfo } from "./models.js";
 export type {
   ExecutionProvider,
   OctomilClientOptions,
@@ -84,22 +81,55 @@ export { ModelRef } from "./model-ref.js";
 export type { ModelRefById, ModelRefByCapability } from "./model-ref.js";
 
 export { ModelCatalogService } from "./manifest/catalog-service.js";
-export type { CloudRuntimeFactory, CatalogServiceOptions } from "./manifest/catalog-service.js";
+export type {
+  CloudRuntimeFactory,
+  CatalogServiceOptions,
+} from "./manifest/catalog-service.js";
 export { ModelReadinessManager } from "./manifest/readiness-manager.js";
-export type { ReadinessEvent, ReadinessListener } from "./manifest/readiness-manager.js";
+export type {
+  ReadinessEvent,
+  ReadinessListener,
+} from "./manifest/readiness-manager.js";
 export type {
   AppManifest,
   AppModelEntry,
   AppRoutingPolicy,
+  TaskTaxonomy,
+  ManifestResource,
+  ResourceCompression,
+  ManifestPackage,
+  ManifestModel,
+  ClientManifest,
+  ResourceBindings,
 } from "./manifest/types.js";
-export { effectiveRoutingPolicy, manifestEntryForCapability, manifestEntryForModelId } from "./manifest/types.js";
+export {
+  ArtifactResourceKind,
+  Modality,
+  effectiveRoutingPolicy,
+  manifestEntryForCapability,
+  manifestEntryForModelId,
+  resolveResourceBindings,
+  requireResourceBinding,
+  parseManifestResource,
+  parseManifestPackage,
+  parseManifestModel,
+  parseClientManifest,
+  packageSupportsInputModality,
+  isVisionLanguagePackage,
+  defaultPackage,
+  packagesForPlatform,
+  resourcesOfKind,
+} from "./manifest/types.js";
 export { LocalFileModelRuntime } from "./runtime/engines/local-file-runtime.js";
 
 // Audio namespace
 export { OctomilAudio } from "./audio/octomil-audio.js";
 export { AudioTranscriptions } from "./audio/audio-transcriptions.js";
 export type { TranscriptionRequest } from "./audio/audio-transcriptions.js";
-export type { TranscriptionResult, TranscriptionSegment } from "./audio/transcription-types.js";
+export type {
+  TranscriptionResult,
+  TranscriptionSegment,
+} from "./audio/transcription-types.js";
 
 // Text namespace
 export { OctomilText } from "./text/octomil-text.js";
@@ -113,8 +143,15 @@ export { DeviceContext } from "./device-context.js";
 export type { RegistrationState, TokenState } from "./device-context.js";
 export { configure, getDeviceContext } from "./configure.js";
 export type { ConfigureOptions } from "./configure.js";
-export type { SilentAuthConfig, PublishableKeyEnvironment } from "./auth-config.js";
-export { validatePublishableKey, getPublishableKeyEnvironment, PublishableKeyAuth } from "./auth-config.js";
+export type {
+  SilentAuthConfig,
+  PublishableKeyEnvironment,
+} from "./auth-config.js";
+export {
+  validatePublishableKey,
+  getPublishableKeyEnvironment,
+  PublishableKeyAuth,
+} from "./auth-config.js";
 export type { MonitoringConfig } from "./monitoring-config.js";
 
 // Contract-generated enums (new)
@@ -195,4 +232,7 @@ export {
   OTLP_RESOURCE_ATTRIBUTES,
   TELEMETRY_EVENTS,
   EVENT_REQUIRED_ATTRIBUTES,
+  ArtifactResourceKind as ContractArtifactResourceKind,
+  Modality as ContractModality,
+  InputModality,
 } from "./_generated/index.js";

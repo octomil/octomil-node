@@ -8,7 +8,7 @@ import { DeliveryMode } from "../_generated/delivery_mode.js";
 import type { ModelRuntime } from "../runtime/core/model-runtime.js";
 import { LocalFileModelRuntime } from "../runtime/engines/local-file-runtime.js";
 import { ModelReadinessManager } from "./readiness-manager.js";
-import type { AppManifest, AppModelEntry } from "./types.js";
+import type { AppManifest, AppModelEntry, ResourceBindings } from "./types.js";
 import type { ModelRef } from "../model-ref.js";
 import { OctomilError } from "../types.js";
 
@@ -34,7 +34,10 @@ export class ModelCatalogService {
   private readonly cloudRuntimeFactory: CloudRuntimeFactory | undefined;
 
   /** Resolved runtimes keyed by capability. */
-  private readonly capabilityRuntimes = new Map<ModelCapability, ModelRuntime>();
+  private readonly capabilityRuntimes = new Map<
+    ModelCapability,
+    ModelRuntime
+  >();
 
   /** Resolved runtimes keyed by model ID. */
   private readonly idRuntimes = new Map<string, ModelRuntime>();
@@ -73,8 +76,16 @@ export class ModelCatalogService {
   }
 
   /** Called when a managed model download completes. */
-  onModelReady(entry: AppModelEntry, filePath: string): void {
-    const runtime = new LocalFileModelRuntime(entry.id, filePath);
+  onModelReady(
+    entry: AppModelEntry,
+    filePath: string,
+    resourceBindings?: ResourceBindings,
+  ): void {
+    const runtime = new LocalFileModelRuntime(
+      entry.id,
+      filePath,
+      resourceBindings,
+    );
     this.capabilityRuntimes.set(entry.capability, runtime);
     this.idRuntimes.set(entry.id, runtime);
   }
