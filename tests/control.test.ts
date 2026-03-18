@@ -300,6 +300,130 @@ describe("ControlClient", () => {
     });
   });
 
+  // ---- fetchDesiredState() ------------------------------------------------
+
+  describe("fetchDesiredState()", () => {
+    const DESIRED_STATE_RESPONSE = {
+      schemaVersion: "1.4.0",
+      deviceId: "dev-123",
+      generatedAt: "2026-03-18T12:00:00Z",
+      activeBinding: { modelId: "phi-4-mini", version: "1.0" },
+      artifacts: [{ artifactId: "phi-4-mini-q4", downloadUrl: "https://cdn.test/phi.onnx" }],
+      policyConfig: { syncInterval: 300 },
+      federationOffers: [{ roundId: "r1", jobId: "j1", expiresAt: "2026-03-19T00:00:00Z" }],
+      gcEligibleArtifactIds: ["old-artifact-1"],
+    };
+
+    it("fetches desired state and returns typed response", async () => {
+      client.setDeviceId("dev-123");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse(DESIRED_STATE_RESPONSE),
+      );
+
+      const result = await client.fetchDesiredState();
+
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      const [url, init] = fetchSpy.mock.calls[0]!;
+      expect(url).toBe("https://api.test.com/api/v1/devices/dev-123/desired-state");
+      expect(init!.method).toBe("GET");
+      expect(init!.headers).toHaveProperty("Authorization", "Bearer test-key");
+
+      expect(result.schemaVersion).toBe("1.4.0");
+      expect(result.deviceId).toBe("dev-123");
+      expect(result.generatedAt).toBe("2026-03-18T12:00:00Z");
+      expect(result.activeBinding).toEqual({ modelId: "phi-4-mini", version: "1.0" });
+      expect(result.artifacts).toHaveLength(1);
+      expect(result.federationOffers).toHaveLength(1);
+      expect(result.gcEligibleArtifactIds).toEqual(["old-artifact-1"]);
+    });
+
+    it("throws if device is not registered", async () => {
+      await expect(client.fetchDesiredState()).rejects.toThrow("Device not registered");
+    });
+
+    it("throws OctomilError on HTTP error", async () => {
+      client.setDeviceId("dev-123");
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("Forbidden", { status: 403 }),
+      );
+
+      await expect(client.fetchDesiredState()).rejects.toThrow(OctomilError);
+    });
+
+    it("throws OctomilError on network error", async () => {
+      client.setDeviceId("dev-123");
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
+
+      await expect(client.fetchDesiredState()).rejects.toThrow(OctomilError);
+    });
+  });
+
+  // ---- reportObservedState() ----------------------------------------------
+
+  describe("reportObservedState()", () => {
+    it("sends observed state payload to the server", async () => {
+      client.setDeviceId("dev-123");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse({}, 200),
+      );
+
+      const statuses = [
+        { artifactId: "phi-4-mini-q4", status: "active" },
+        { artifactId: "llama-7b-q8", status: "downloading", bytesDownloaded: 500, totalBytes: 1000 },
+      ];
+
+      await client.reportObservedState(statuses);
+
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      const [url, init] = fetchSpy.mock.calls[0]!;
+      expect(url).toBe("https://api.test.com/api/v1/devices/dev-123/observed-state");
+      expect(init!.method).toBe("POST");
+
+      const body = JSON.parse(init!.body as string);
+      expect(body.schemaVersion).toBe("1.4.0");
+      expect(body.deviceId).toBe("dev-123");
+      expect(body.artifactStatuses).toHaveLength(2);
+      expect(body.artifactStatuses[0].artifactId).toBe("phi-4-mini-q4");
+      expect(body.sdkVersion).toBe("1.0.0");
+      expect(body.reportedAt).toBeDefined();
+    });
+
+    it("sends empty artifact statuses by default", async () => {
+      client.setDeviceId("dev-123");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse({}, 200),
+      );
+
+      await client.reportObservedState();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.artifactStatuses).toEqual([]);
+    });
+
+    it("throws if device is not registered", async () => {
+      await expect(client.reportObservedState()).rejects.toThrow("Device not registered");
+    });
+
+    it("throws OctomilError on HTTP error", async () => {
+      client.setDeviceId("dev-123");
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("Internal Server Error", { status: 500 }),
+      );
+
+      await expect(client.reportObservedState()).rejects.toThrow(OctomilError);
+    });
+
+    it("throws OctomilError on network error", async () => {
+      client.setDeviceId("dev-123");
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
+
+      await expect(client.reportObservedState()).rejects.toThrow(OctomilError);
+    });
+  });
+
   // ---- URL handling -------------------------------------------------------
 
   describe("URL handling", () => {

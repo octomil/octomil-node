@@ -2,6 +2,18 @@
  * Control namespace — device registration, heartbeat, and assignment refresh.
  * Matches SDK_FACADE_CONTRACT.md control.register(), control.heartbeat(),
  * control.refresh(), control.startHeartbeat(), control.stopHeartbeat().
+ *
+ * **Reconciliation scope**: The Node SDK is a server-side SDK. Server-side
+ * deployments are managed by infrastructure (K8s, Docker, etc.) rather than
+ * by an on-device OTA reconcile loop. Model versions are pinned by the
+ * deployment — not dynamically assigned per-device.
+ *
+ * Therefore this module exposes `fetchDesiredState()` and
+ * `reportObservedState()` as standalone methods for manual or scripted use
+ * (e.g. CI pipelines, deployment hooks, monitoring agents) but does NOT
+ * implement automatic periodic reconciliation. For device-level OTA
+ * reconciliation, see the Python SDK's device agent or the Browser SDK's
+ * SyncManager.
  */
 
 import { OctomilError } from "./types.js";
@@ -302,6 +314,16 @@ export class ControlClient {
    * Report observed device state to the server (GAP-05).
    * POSTs artifact statuses, SDK version, and OS info to
    * `/api/v1/devices/{id}/observed-state`.
+   *
+   * For server-side deployments, call this after deploying or loading a
+   * model to report its status back to the control plane:
+   *
+   * @example
+   * ```ts
+   * await control.reportObservedState([
+   *   { artifactId: "phi-4-mini-q4", status: "active" },
+   * ]);
+   * ```
    */
   async reportObservedState(artifactStatuses: ArtifactStatus[] = []): Promise<void> {
     const id = this.getDeviceIdOrThrow();
@@ -346,6 +368,20 @@ export class ControlClient {
    * Fetch desired state from the server (GAP-13).
    * GETs `/api/v1/devices/{id}/desired-state` for the server-authoritative
    * target state (active binding, artifacts, policy, federation offers).
+   *
+   * The Node SDK does not run an automatic reconcile loop (see module-level
+   * comment). Call this method manually to inspect what the server expects:
+   *
+   * @example
+   * ```ts
+   * const control = new ControlClient(serverUrl, apiKey, orgId);
+   * await control.register("deploy-node-1");
+   *
+   * const desired = await control.fetchDesiredState();
+   * for (const artifact of desired.artifacts ?? []) {
+   *   console.log("Server wants artifact:", artifact);
+   * }
+   * ```
    */
   async fetchDesiredState(): Promise<DesiredState> {
     const id = this.getDeviceIdOrThrow();
