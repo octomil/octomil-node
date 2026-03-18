@@ -91,8 +91,32 @@ export type {
   AppManifest,
   AppModelEntry,
   AppRoutingPolicy,
+  TaskTaxonomy,
+  ManifestResource,
+  ResourceCompression,
+  ManifestPackage,
+  ManifestModel,
+  ClientManifest,
+  ResourceBindings,
 } from "./manifest/types.js";
-export { effectiveRoutingPolicy, manifestEntryForCapability, manifestEntryForModelId } from "./manifest/types.js";
+export {
+  ArtifactResourceKind,
+  Modality,
+  effectiveRoutingPolicy,
+  manifestEntryForCapability,
+  manifestEntryForModelId,
+  resolveResourceBindings,
+  requireResourceBinding,
+  parseManifestResource,
+  parseManifestPackage,
+  parseManifestModel,
+  parseClientManifest,
+  packageSupportsInputModality,
+  isVisionLanguagePackage,
+  defaultPackage,
+  packagesForPlatform,
+  resourcesOfKind,
+} from "./manifest/types.js";
 export { LocalFileModelRuntime } from "./runtime/engines/local-file-runtime.js";
 
 // Audio namespace
@@ -195,4 +219,7 @@ export {
   OTLP_RESOURCE_ATTRIBUTES,
   TELEMETRY_EVENTS,
   EVENT_REQUIRED_ATTRIBUTES,
+  ArtifactResourceKind as ContractArtifactResourceKind,
+  Modality as ContractModality,
+  InputModality,
 } from "./_generated/index.js";
