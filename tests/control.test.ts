@@ -209,23 +209,6 @@ describe("ControlClient", () => {
       expect(result.updated).toBe(true);
     });
 
-    it("handles legacy array response format", async () => {
-      client.setDeviceId("dev-123");
-
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse([
-          { modelId: "phi-4-mini", version: "1.0", config: {} },
-        ]),
-      );
-
-      const result = await client.refresh();
-
-      expect(result.assignments).toHaveLength(1);
-      expect(result.assignments![0]!.modelId).toBe("phi-4-mini");
-      expect(result.configVersion).toBe("");
-      expect(result.assignmentsChanged).toBe(true);
-    });
-
     it("throws if device is not registered", async () => {
       await expect(client.refresh()).rejects.toThrow("Device not registered");
     });
@@ -308,7 +291,7 @@ describe("ControlClient", () => {
       deviceId: "dev-123",
       generatedAt: "2026-03-18T12:00:00Z",
       activeBinding: { modelId: "phi-4-mini", version: "1.0" },
-      artifacts: [{ artifactId: "phi-4-mini-q4", downloadUrl: "https://cdn.test/phi.onnx" }],
+      models: [{ modelId: "phi-4-mini-q4", desiredVersion: "1.0", artifactManifest: { downloadUrl: "https://cdn.test/phi.onnx" } }],
       policyConfig: { syncInterval: 300 },
       federationOffers: [{ roundId: "r1", jobId: "j1", expiresAt: "2026-03-19T00:00:00Z" }],
       gcEligibleArtifactIds: ["old-artifact-1"],
@@ -333,7 +316,7 @@ describe("ControlClient", () => {
       expect(result.deviceId).toBe("dev-123");
       expect(result.generatedAt).toBe("2026-03-18T12:00:00Z");
       expect(result.activeBinding).toEqual({ modelId: "phi-4-mini", version: "1.0" });
-      expect(result.artifacts).toHaveLength(1);
+      expect(result.models).toHaveLength(1);
       expect(result.federationOffers).toHaveLength(1);
       expect(result.gcEligibleArtifactIds).toEqual(["old-artifact-1"]);
     });
@@ -369,12 +352,12 @@ describe("ControlClient", () => {
         mockJsonResponse({}, 200),
       );
 
-      const statuses = [
-        { artifactId: "phi-4-mini-q4", status: "active" },
-        { artifactId: "llama-7b-q8", status: "downloading", bytesDownloaded: 500, totalBytes: 1000 },
+      const models = [
+        { modelId: "phi-4-mini-q4", status: "active", version: "1.0" },
+        { modelId: "llama-7b-q8", status: "downloading", bytesDownloaded: 500, totalBytes: 1000 },
       ];
 
-      await client.reportObservedState(statuses);
+      await client.reportObservedState(models);
 
       expect(fetchSpy).toHaveBeenCalledOnce();
       const [url, init] = fetchSpy.mock.calls[0]!;
@@ -384,13 +367,13 @@ describe("ControlClient", () => {
       const body = JSON.parse(init!.body as string);
       expect(body.schemaVersion).toBe("1.4.0");
       expect(body.deviceId).toBe("dev-123");
-      expect(body.artifactStatuses).toHaveLength(2);
-      expect(body.artifactStatuses[0].artifactId).toBe("phi-4-mini-q4");
+      expect(body.models).toHaveLength(2);
+      expect(body.models[0].modelId).toBe("phi-4-mini-q4");
       expect(body.sdkVersion).toBe("1.0.0");
       expect(body.reportedAt).toBeDefined();
     });
 
-    it("sends empty artifact statuses by default", async () => {
+    it("sends empty models by default", async () => {
       client.setDeviceId("dev-123");
 
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -400,7 +383,7 @@ describe("ControlClient", () => {
       await client.reportObservedState();
 
       const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
-      expect(body.artifactStatuses).toEqual([]);
+      expect(body.models).toEqual([]);
     });
 
     it("throws if device is not registered", async () => {

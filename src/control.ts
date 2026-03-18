@@ -53,13 +53,33 @@ export interface ControlSyncResult {
   assignments?: DeviceAssignment[];
 }
 
-/** Per-artifact status in an observed state report. */
-export interface ArtifactStatus {
-  artifactId: string;
+/** Per-model status in an observed state report. */
+export interface ObservedModelStatus {
+  modelId: string;
   status: string;
+  version?: string;
   bytesDownloaded?: number;
   totalBytes?: number;
   errorCode?: string;
+}
+
+/** Per-model entry in server-authoritative desired state. */
+export interface DesiredModelEntry {
+  modelId: string;
+  desiredVersion: string;
+  currentChannel?: string;
+  deliveryMode?: string;
+  activationPolicy?: string;
+  enginePolicy?: {
+    allowed?: string[];
+    forced?: string;
+  };
+  artifactManifest?: {
+    downloadUrl: string;
+    sizeBytes?: number;
+    sha256?: string;
+  };
+  rolloutId?: string;
 }
 
 /** Observed state payload sent to the server. */
@@ -67,7 +87,7 @@ export interface ObservedStatePayload {
   schemaVersion: string;
   deviceId: string;
   reportedAt: string;
-  artifactStatuses: ArtifactStatus[];
+  models: ObservedModelStatus[];
   sdkVersion?: string;
   osVersion?: string;
 }
@@ -78,7 +98,7 @@ export interface DesiredState {
   deviceId: string;
   generatedAt: string;
   activeBinding?: Record<string, unknown>;
-  artifacts?: Array<Record<string, unknown>>;
+  models: DesiredModelEntry[];
   policyConfig?: Record<string, unknown>;
   federationOffers?: Array<{ roundId: string; jobId: string; expiresAt: string }>;
   gcEligibleArtifactIds?: string[];
@@ -260,26 +280,15 @@ export class ControlClient {
       );
     }
 
-    const data = (await response.json()) as WireAssignmentsResponse | DeviceAssignment[];
+    const data = (await response.json()) as WireAssignmentsResponse;
 
-    // Support both wire formats: new envelope { assignments, config_version } and legacy array
-    let assignments: DeviceAssignment[];
-    let configVersion: string;
-    let rolloutsChanged: boolean;
-
-    if (Array.isArray(data)) {
-      assignments = data;
-      configVersion = "";
-      rolloutsChanged = false;
-    } else {
-      assignments = (data.assignments ?? []).map((a) => ({
-        modelId: a.model_id,
-        version: a.version,
-        config: a.config,
-      }));
-      configVersion = data.config_version ?? "";
-      rolloutsChanged = data.rollouts_changed ?? false;
-    }
+    const assignments: DeviceAssignment[] = (data.assignments ?? []).map((a) => ({
+      modelId: a.model_id,
+      version: a.version,
+      config: a.config,
+    }));
+    const configVersion = data.config_version ?? "";
+    const rolloutsChanged = data.rollouts_changed ?? false;
 
     const assignmentsChanged = !this.assignmentsEqual(this.previousAssignments, assignments);
     const updated = assignmentsChanged || rolloutsChanged;
@@ -312,7 +321,7 @@ export class ControlClient {
 
   /**
    * Report observed device state to the server (GAP-05).
-   * POSTs artifact statuses, SDK version, and OS info to
+   * POSTs per-model statuses, SDK version, and OS info to
    * `/api/v1/devices/{id}/observed-state`.
    *
    * For server-side deployments, call this after deploying or loading a
@@ -321,18 +330,18 @@ export class ControlClient {
    * @example
    * ```ts
    * await control.reportObservedState([
-   *   { artifactId: "phi-4-mini-q4", status: "active" },
+   *   { modelId: "phi-4-mini-q4", status: "active", version: "1.0" },
    * ]);
    * ```
    */
-  async reportObservedState(artifactStatuses: ArtifactStatus[] = []): Promise<void> {
+  async reportObservedState(models: ObservedModelStatus[] = []): Promise<void> {
     const id = this.getDeviceIdOrThrow();
 
     const payload: ObservedStatePayload = {
       schemaVersion: "1.4.0",
       deviceId: id,
       reportedAt: new Date().toISOString(),
-      artifactStatuses,
+      models,
       sdkVersion: "1.0.0",
       osVersion: `${platform()} ${release()}`,
     };
