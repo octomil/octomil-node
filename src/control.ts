@@ -2,6 +2,18 @@
  * Control namespace — device registration, heartbeat, and assignment refresh.
  * Matches SDK_FACADE_CONTRACT.md control.register(), control.heartbeat(),
  * control.refresh(), control.startHeartbeat(), control.stopHeartbeat().
+ *
+ * **Reconciliation scope**: The Node SDK is a server-side SDK. Server-side
+ * deployments are managed by infrastructure (K8s, Docker, etc.) rather than
+ * by an on-device OTA reconcile loop. Model versions are pinned by the
+ * deployment — not dynamically assigned per-device.
+ *
+ * Therefore this module exposes `fetchDesiredState()` and
+ * `reportObservedState()` as standalone methods for manual or scripted use
+ * (e.g. CI pipelines, deployment hooks, monitoring agents) but does NOT
+ * implement automatic periodic reconciliation. For device-level OTA
+ * reconciliation, see the Python SDK's device agent or the Browser SDK's
+ * SyncManager.
  */
 
 import { OctomilError } from "./types.js";
@@ -41,13 +53,33 @@ export interface ControlSyncResult {
   assignments?: DeviceAssignment[];
 }
 
-/** Per-artifact status in an observed state report. */
-export interface ArtifactStatus {
-  artifactId: string;
+/** Per-model status in an observed state report. */
+export interface ObservedModelStatus {
+  modelId: string;
   status: string;
+  version?: string;
   bytesDownloaded?: number;
   totalBytes?: number;
   errorCode?: string;
+}
+
+/** Per-model entry in server-authoritative desired state. */
+export interface DesiredModelEntry {
+  modelId: string;
+  desiredVersion: string;
+  currentChannel?: string;
+  deliveryMode?: string;
+  activationPolicy?: string;
+  enginePolicy?: {
+    allowed?: string[];
+    forced?: string;
+  };
+  artifactManifest?: {
+    downloadUrl: string;
+    sizeBytes?: number;
+    sha256?: string;
+  };
+  rolloutId?: string;
 }
 
 /** Observed state payload sent to the server. */
@@ -55,7 +87,7 @@ export interface ObservedStatePayload {
   schemaVersion: string;
   deviceId: string;
   reportedAt: string;
-  artifactStatuses: ArtifactStatus[];
+  models: ObservedModelStatus[];
   sdkVersion?: string;
   osVersion?: string;
 }
@@ -66,7 +98,7 @@ export interface DesiredState {
   deviceId: string;
   generatedAt: string;
   activeBinding?: Record<string, unknown>;
-  artifacts?: Array<Record<string, unknown>>;
+  models: DesiredModelEntry[];
   policyConfig?: Record<string, unknown>;
   federationOffers?: Array<{ roundId: string; jobId: string; expiresAt: string }>;
   gcEligibleArtifactIds?: string[];
@@ -248,26 +280,15 @@ export class ControlClient {
       );
     }
 
-    const data = (await response.json()) as WireAssignmentsResponse | DeviceAssignment[];
+    const data = (await response.json()) as WireAssignmentsResponse;
 
-    // Support both wire formats: new envelope { assignments, config_version } and legacy array
-    let assignments: DeviceAssignment[];
-    let configVersion: string;
-    let rolloutsChanged: boolean;
-
-    if (Array.isArray(data)) {
-      assignments = data;
-      configVersion = "";
-      rolloutsChanged = false;
-    } else {
-      assignments = (data.assignments ?? []).map((a) => ({
-        modelId: a.model_id,
-        version: a.version,
-        config: a.config,
-      }));
-      configVersion = data.config_version ?? "";
-      rolloutsChanged = data.rollouts_changed ?? false;
-    }
+    const assignments: DeviceAssignment[] = (data.assignments ?? []).map((a) => ({
+      modelId: a.model_id,
+      version: a.version,
+      config: a.config,
+    }));
+    const configVersion = data.config_version ?? "";
+    const rolloutsChanged = data.rollouts_changed ?? false;
 
     const assignmentsChanged = !this.assignmentsEqual(this.previousAssignments, assignments);
     const updated = assignmentsChanged || rolloutsChanged;
@@ -300,17 +321,27 @@ export class ControlClient {
 
   /**
    * Report observed device state to the server (GAP-05).
-   * POSTs artifact statuses, SDK version, and OS info to
+   * POSTs per-model statuses, SDK version, and OS info to
    * `/api/v1/devices/{id}/observed-state`.
+   *
+   * For server-side deployments, call this after deploying or loading a
+   * model to report its status back to the control plane:
+   *
+   * @example
+   * ```ts
+   * await control.reportObservedState([
+   *   { modelId: "phi-4-mini-q4", status: "active", version: "1.0" },
+   * ]);
+   * ```
    */
-  async reportObservedState(artifactStatuses: ArtifactStatus[] = []): Promise<void> {
+  async reportObservedState(models: ObservedModelStatus[] = []): Promise<void> {
     const id = this.getDeviceIdOrThrow();
 
     const payload: ObservedStatePayload = {
       schemaVersion: "1.4.0",
       deviceId: id,
       reportedAt: new Date().toISOString(),
-      artifactStatuses,
+      models,
       sdkVersion: "1.0.0",
       osVersion: `${platform()} ${release()}`,
     };
@@ -346,6 +377,20 @@ export class ControlClient {
    * Fetch desired state from the server (GAP-13).
    * GETs `/api/v1/devices/{id}/desired-state` for the server-authoritative
    * target state (active binding, artifacts, policy, federation offers).
+   *
+   * The Node SDK does not run an automatic reconcile loop (see module-level
+   * comment). Call this method manually to inspect what the server expects:
+   *
+   * @example
+   * ```ts
+   * const control = new ControlClient(serverUrl, apiKey, orgId);
+   * await control.register("deploy-node-1");
+   *
+   * const desired = await control.fetchDesiredState();
+   * for (const artifact of desired.artifacts ?? []) {
+   *   console.log("Server wants artifact:", artifact);
+   * }
+   * ```
    */
   async fetchDesiredState(): Promise<DesiredState> {
     const id = this.getDeviceIdOrThrow();
