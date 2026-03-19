@@ -118,18 +118,23 @@ describe("ResponsesClient", () => {
 
   describe("create()", () => {
     it("sends correct request for string input", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient(OPTS);
 
-      const result = await client.create({ model: "gpt-4o-mini", input: "Hello" });
+      const result = await client.create({
+        model: "gpt-4o-mini",
+        input: "Hello",
+      });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
       const [url, init] = fetchSpy.mock.calls[0]!;
       expect(url).toBe("https://api.test.com/v1/chat/completions");
       expect(init!.method).toBe("POST");
-      expect((init!.headers as Record<string, string>)["Authorization"]).toBe("Bearer test-key");
+      expect((init!.headers as Record<string, string>)["Authorization"]).toBe(
+        "Bearer test-key",
+      );
 
       const body = JSON.parse(init!.body as string);
       expect(body.model).toBe("gpt-4o-mini");
@@ -143,7 +148,10 @@ describe("ResponsesClient", () => {
       );
       const client = new ResponsesClient(OPTS);
 
-      const result = await client.create({ model: "gpt-4o-mini", input: "Hello" });
+      const result = await client.create({
+        model: "gpt-4o-mini",
+        input: "Hello",
+      });
 
       expect(result.id).toBe("chatcmpl-abc123");
       expect(result.model).toBe("gpt-4o-mini");
@@ -159,9 +167,9 @@ describe("ResponsesClient", () => {
     });
 
     it("maps instructions to system message", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient(OPTS);
 
       await client.create({
@@ -192,7 +200,10 @@ describe("ResponsesClient", () => {
             function: {
               name: "get_weather",
               description: "Get weather for a city",
-              parameters: { type: "object", properties: { city: { type: "string" } } },
+              parameters: {
+                type: "object",
+                properties: { city: { type: "string" } },
+              },
             },
           },
         ],
@@ -209,13 +220,16 @@ describe("ResponsesClient", () => {
     });
 
     it("chains conversation via previousResponseId", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient(OPTS);
 
       // First call — creates the initial response
-      const first = await client.create({ model: "gpt-4o-mini", input: "Hello" });
+      const first = await client.create({
+        model: "gpt-4o-mini",
+        input: "Hello",
+      });
       expect(first.id).toBe("chatcmpl-abc123");
 
       // Second response for chained call
@@ -225,7 +239,10 @@ describe("ResponsesClient", () => {
         choices: [
           {
             index: 0,
-            message: { role: "assistant", content: "Sure, I remember our chat." },
+            message: {
+              role: "assistant",
+              content: "Sure, I remember our chat.",
+            },
             finish_reason: "stop",
           },
         ],
@@ -248,13 +265,16 @@ describe("ResponsesClient", () => {
         role: "assistant",
         content: "Hello! How can I help you today?",
       });
-      expect(body.messages[2]).toEqual({ role: "user", content: "Do you remember?" });
+      expect(body.messages[2]).toEqual({
+        role: "user",
+        content: "Do you remember?",
+      });
     });
 
     it("includes optional parameters in request body", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient(OPTS);
 
       await client.create({
@@ -274,9 +294,9 @@ describe("ResponsesClient", () => {
     });
 
     it("handles ContentBlock[] input", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient(OPTS);
 
       await client.create({
@@ -290,7 +310,276 @@ describe("ResponsesClient", () => {
       const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
       expect(body.messages[0].content).toEqual([
         { type: "text", text: "What is in this image?" },
-        { type: "image_url", image_url: { url: "https://example.com/img.png" } },
+        {
+          type: "image_url",
+          image_url: { url: "https://example.com/img.png" },
+        },
+      ]);
+    });
+
+    it("handles image ContentBlock with base64 data", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [
+          { type: "text", text: "Describe this" },
+          { type: "image", data: "iVBOR...base64", mediaType: "image/png" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "Describe this" },
+        {
+          type: "image_url",
+          image_url: { url: "data:image/png;base64,iVBOR...base64" },
+        },
+      ]);
+    });
+
+    it("handles image ContentBlock with no url or data as unresolved", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [{ type: "image" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "[image: unresolved]" },
+      ]);
+    });
+
+    it("handles audio ContentBlock with data and mediaType", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o-audio-preview",
+        input: [
+          { type: "text", text: "Transcribe this audio" },
+          { type: "audio", data: "UklGR...base64", mediaType: "audio/wav" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "Transcribe this audio" },
+        {
+          type: "input_audio",
+          input_audio: { data: "UklGR...base64", format: "wav" },
+        },
+      ]);
+    });
+
+    it("handles audio ContentBlock without mediaType (defaults to wav)", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o-audio-preview",
+        input: [{ type: "audio", data: "UklGR...base64" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        {
+          type: "input_audio",
+          input_audio: { data: "UklGR...base64", format: "wav" },
+        },
+      ]);
+    });
+
+    it("handles audio ContentBlock without data as unresolved", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o-audio-preview",
+        input: [{ type: "audio" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "[audio: unresolved]" },
+      ]);
+    });
+
+    it("handles video ContentBlock as data URI in image_url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [
+          { type: "text", text: "What is in this video?" },
+          { type: "video", data: "AAAB...base64", mediaType: "video/mp4" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "What is in this video?" },
+        {
+          type: "image_url",
+          image_url: { url: "data:video/mp4;base64,AAAB...base64" },
+        },
+      ]);
+    });
+
+    it("handles video ContentBlock without data as unresolved", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [{ type: "video" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "[video: unresolved]" },
+      ]);
+    });
+
+    it("handles file ContentBlock with image/* mediaType as image_url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [
+          { type: "file", data: "iVBOR...base64", mediaType: "image/jpeg" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        {
+          type: "image_url",
+          image_url: { url: "data:image/jpeg;base64,iVBOR...base64" },
+        },
+      ]);
+    });
+
+    it("handles file ContentBlock with audio/* mediaType as input_audio", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o-audio-preview",
+        input: [
+          { type: "file", data: "UklGR...base64", mediaType: "audio/mp3" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        {
+          type: "input_audio",
+          input_audio: { data: "UklGR...base64", format: "mp3" },
+        },
+      ]);
+    });
+
+    it("handles file ContentBlock with unsupported mediaType as fallback text", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [
+          {
+            type: "file",
+            data: "PDFDATA...base64",
+            mediaType: "application/pdf",
+          },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "[file: unsupported]" },
+      ]);
+    });
+
+    it("handles file ContentBlock with no data as unsupported", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [{ type: "file" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "[file: unsupported]" },
+      ]);
+    });
+
+    it("handles mixed multimodal ContentBlock[] input", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
+      const client = new ResponsesClient(OPTS);
+
+      await client.create({
+        model: "gpt-4o",
+        input: [
+          { type: "text", text: "Analyze these" },
+          { type: "image", imageUrl: "https://example.com/photo.jpg" },
+          { type: "audio", data: "AUDIO_B64", mediaType: "audio/mp3" },
+          { type: "video", data: "VIDEO_B64", mediaType: "video/webm" },
+          { type: "file", data: "IMG_B64", mediaType: "image/png" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.messages[0].content).toEqual([
+        { type: "text", text: "Analyze these" },
+        {
+          type: "image_url",
+          image_url: { url: "https://example.com/photo.jpg" },
+        },
+        {
+          type: "input_audio",
+          input_audio: { data: "AUDIO_B64", format: "mp3" },
+        },
+        {
+          type: "image_url",
+          image_url: { url: "data:video/webm;base64,VIDEO_B64" },
+        },
+        {
+          type: "image_url",
+          image_url: { url: "data:image/png;base64,IMG_B64" },
+        },
       ]);
     });
 
@@ -306,7 +595,9 @@ describe("ResponsesClient", () => {
     });
 
     it("throws OctomilError on network error", async () => {
-      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(
+        new Error("ECONNREFUSED"),
+      );
       const client = new ResponsesClient(OPTS);
 
       await expect(
@@ -315,9 +606,9 @@ describe("ResponsesClient", () => {
     });
 
     it("strips trailing slashes from serverUrl", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        mockJsonResponse(COMPLETION_RESPONSE),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(mockJsonResponse(COMPLETION_RESPONSE));
       const client = new ResponsesClient({
         serverUrl: "https://api.test.com///",
         apiKey: "key",
@@ -344,15 +635,21 @@ describe("ResponsesClient", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
 
       const client = new ResponsesClient(OPTS);
-      const events = await collect(client.stream({ model: "gpt-4o", input: "Hi" }));
+      const events = await collect(
+        client.stream({ model: "gpt-4o", input: "Hi" }),
+      );
 
       // Should have: text_delta("Hello"), text_delta(" world"), done
-      const textDeltas = events.filter((e): e is TextDeltaEvent => e.type === "text_delta");
+      const textDeltas = events.filter(
+        (e): e is TextDeltaEvent => e.type === "text_delta",
+      );
       expect(textDeltas).toHaveLength(2);
       expect(textDeltas[0]!.delta).toBe("Hello");
       expect(textDeltas[1]!.delta).toBe(" world");
 
-      const doneEvents = events.filter((e): e is DoneEvent => e.type === "done");
+      const doneEvents = events.filter(
+        (e): e is DoneEvent => e.type === "done",
+      );
       expect(doneEvents).toHaveLength(1);
       expect(doneEvents[0]!.response.id).toBe("chatcmpl-s1");
       expect(doneEvents[0]!.response.output).toHaveLength(1);
@@ -376,7 +673,9 @@ describe("ResponsesClient", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
 
       const client = new ResponsesClient(OPTS);
-      const events = await collect(client.stream({ model: "gpt-4o", input: "Weather in London?" }));
+      const events = await collect(
+        client.stream({ model: "gpt-4o", input: "Weather in London?" }),
+      );
 
       const toolDeltas = events.filter(
         (e): e is ToolCallDeltaEvent => e.type === "tool_call_delta",
@@ -385,10 +684,14 @@ describe("ResponsesClient", () => {
       expect(toolDeltas[0]!.id).toBe("call_xyz");
       expect(toolDeltas[0]!.name).toBe("get_weather");
 
-      const doneEvents = events.filter((e): e is DoneEvent => e.type === "done");
+      const doneEvents = events.filter(
+        (e): e is DoneEvent => e.type === "done",
+      );
       expect(doneEvents).toHaveLength(1);
 
-      const toolOutput = doneEvents[0]!.response.output.find((o) => o.type === "tool_call");
+      const toolOutput = doneEvents[0]!.response.output.find(
+        (o) => o.type === "tool_call",
+      );
       expect(toolOutput).toBeDefined();
       expect(toolOutput!.toolCall!.id).toBe("call_xyz");
       expect(toolOutput!.toolCall!.name).toBe("get_weather");
@@ -400,7 +703,9 @@ describe("ResponsesClient", () => {
         'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":null}',
         "data: [DONE]",
       ]);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(sseResponse);
 
       const client = new ResponsesClient(OPTS);
       await collect(client.stream({ model: "gpt-4o", input: "Hi" }));
@@ -414,7 +719,9 @@ describe("ResponsesClient", () => {
         'data: {"id":"chatcmpl-s1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":null}',
         "data: [DONE]",
       ]);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(sseResponse);
 
       const client = new ResponsesClient(OPTS);
       await collect(
@@ -426,7 +733,10 @@ describe("ResponsesClient", () => {
       );
 
       const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
-      expect(body.messages[0]).toEqual({ role: "system", content: "Be concise." });
+      expect(body.messages[0]).toEqual({
+        role: "system",
+        content: "Be concise.",
+      });
       expect(body.messages[1]).toEqual({ role: "user", content: "Hi" });
     });
 
@@ -436,14 +746,19 @@ describe("ResponsesClient", () => {
         mockJsonResponse(COMPLETION_RESPONSE),
       );
       const client = new ResponsesClient(OPTS);
-      const first = await client.create({ model: "gpt-4o-mini", input: "Hello" });
+      const first = await client.create({
+        model: "gpt-4o-mini",
+        input: "Hello",
+      });
 
       // Second call — streaming with previousResponseId
       const sseResponse = mockSSEResponse([
         'data: {"id":"chatcmpl-s2","model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"I remember!"},"finish_reason":"stop"}],"usage":null}',
         "data: [DONE]",
       ]);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(sseResponse);
 
       await collect(
         client.stream({
@@ -497,9 +812,13 @@ describe("ResponsesClient", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
 
       const client = new ResponsesClient(OPTS);
-      const events = await collect(client.stream({ model: "gpt-4o", input: "Hi" }));
+      const events = await collect(
+        client.stream({ model: "gpt-4o", input: "Hi" }),
+      );
 
-      const textDeltas = events.filter((e): e is TextDeltaEvent => e.type === "text_delta");
+      const textDeltas = events.filter(
+        (e): e is TextDeltaEvent => e.type === "text_delta",
+      );
       expect(textDeltas).toHaveLength(1);
       expect(textDeltas[0]!.delta).toBe("ok");
     });

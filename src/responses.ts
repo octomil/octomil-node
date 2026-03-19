@@ -14,9 +14,14 @@ import type { TelemetryReporter } from "./telemetry.js";
 // ---------------------------------------------------------------------------
 
 export interface ContentBlock {
-  type: "text" | "image";
+  type: "text" | "image" | "audio" | "video" | "file";
   text?: string;
+  /** Image URL for cloud inference */
   imageUrl?: string;
+  /** Base64-encoded binary data */
+  data?: string;
+  /** MIME type (e.g. "image/png", "audio/wav", "video/mp4") */
+  mediaType?: string;
 }
 
 export interface ToolDef {
@@ -86,7 +91,10 @@ export interface DoneEvent {
   response: ResponseObj;
 }
 
-export type ResponseStreamEvent = TextDeltaEvent | ToolCallDeltaEvent | DoneEvent;
+export type ResponseStreamEvent =
+  | TextDeltaEvent
+  | ToolCallDeltaEvent
+  | DoneEvent;
 
 export interface ResponsesClientOptions {
   serverUrl: string;
@@ -104,9 +112,10 @@ interface ChatMessage {
 }
 
 interface ChatContentPart {
-  type: "text" | "image_url";
+  type: "text" | "image_url" | "input_audio";
   text?: string;
   image_url?: { url: string };
+  input_audio?: { data: string; format: string };
 }
 
 interface ChatCompletionRequest {
@@ -282,7 +291,10 @@ export class ResponsesClient {
     let finishReason = "";
     const outputParts: ResponseOutput[] = [];
     let currentTextContent = "";
-    const toolCallAccumulators = new Map<number, { id: string; name: string; arguments: string }>();
+    const toolCallAccumulators = new Map<
+      number,
+      { id: string; name: string; arguments: string }
+    >();
     let usage: ResponseUsage | undefined;
     let chunkIndex = 0;
 
@@ -321,25 +333,33 @@ export class ResponsesClient {
               this.telemetry?.track("inference.chunk_produced", {
                 "model.id": request.model,
                 "inference.chunk_index": chunkIndex,
-                "locality": "cloud",
+                locality: "cloud",
               });
               chunkIndex++;
-              yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;
+              yield {
+                type: "text_delta",
+                delta: choice.delta.content,
+              } satisfies TextDeltaEvent;
             }
 
             // Tool call deltas
             if (choice.delta.tool_calls) {
               for (const tc of choice.delta.tool_calls) {
-                const acc = toolCallAccumulators.get(tc.index) ?? { id: "", name: "", arguments: "" };
+                const acc = toolCallAccumulators.get(tc.index) ?? {
+                  id: "",
+                  name: "",
+                  arguments: "",
+                };
                 if (tc.id) acc.id = tc.id;
                 if (tc.function?.name) acc.name = tc.function.name;
-                if (tc.function?.arguments) acc.arguments += tc.function.arguments;
+                if (tc.function?.arguments)
+                  acc.arguments += tc.function.arguments;
                 toolCallAccumulators.set(tc.index, acc);
 
                 this.telemetry?.track("inference.chunk_produced", {
                   "model.id": request.model,
                   "inference.chunk_index": chunkIndex,
-                  "locality": "cloud",
+                  locality: "cloud",
                 });
                 chunkIndex++;
                 yield {
@@ -368,10 +388,13 @@ export class ResponsesClient {
               this.telemetry?.track("inference.chunk_produced", {
                 "model.id": request.model,
                 "inference.chunk_index": chunkIndex,
-                "locality": "cloud",
+                locality: "cloud",
               });
               chunkIndex++;
-              yield { type: "text_delta", delta: choice.delta.content } satisfies TextDeltaEvent;
+              yield {
+                type: "text_delta",
+                delta: choice.delta.content,
+              } satisfies TextDeltaEvent;
             }
           }
         }
@@ -381,7 +404,9 @@ export class ResponsesClient {
       if (currentTextContent) {
         outputParts.push({ type: "text", text: currentTextContent });
       }
-      for (const [, acc] of [...toolCallAccumulators.entries()].sort((a, b) => a[0] - b[0])) {
+      for (const [, acc] of [...toolCallAccumulators.entries()].sort(
+        (a, b) => a[0] - b[0],
+      )) {
         outputParts.push({
           type: "tool_call",
           toolCall: { id: acc.id, name: acc.name, arguments: acc.arguments },
@@ -432,10 +457,70 @@ export class ResponsesClient {
       messages.push({ role: "user", content: request.input });
     } else {
       const parts: ChatContentPart[] = request.input.map((block) => {
-        if (block.type === "image" && block.imageUrl) {
-          return { type: "image_url" as const, image_url: { url: block.imageUrl } };
+        switch (block.type) {
+          case "image":
+            if (block.imageUrl) {
+              return {
+                type: "image_url" as const,
+                image_url: { url: block.imageUrl },
+              };
+            }
+            if (block.data && block.mediaType) {
+              return {
+                type: "image_url" as const,
+                image_url: {
+                  url: `data:${block.mediaType};base64,${block.data}`,
+                },
+              };
+            }
+            return { type: "text" as const, text: "[image: unresolved]" };
+
+          case "audio":
+            if (block.data) {
+              const format = block.mediaType?.split("/")[1] ?? "wav";
+              return {
+                type: "input_audio" as const,
+                input_audio: { data: block.data, format },
+              };
+            }
+            return { type: "text" as const, text: "[audio: unresolved]" };
+
+          case "video":
+            // OpenAI API doesn't have native video support; send as data URI in image_url
+            if (block.data && block.mediaType) {
+              return {
+                type: "image_url" as const,
+                image_url: {
+                  url: `data:${block.mediaType};base64,${block.data}`,
+                },
+              };
+            }
+            return { type: "text" as const, text: "[video: unresolved]" };
+
+          case "file":
+            if (block.data && block.mediaType) {
+              const mt = block.mediaType.toLowerCase();
+              if (mt.startsWith("image/")) {
+                return {
+                  type: "image_url" as const,
+                  image_url: {
+                    url: `data:${block.mediaType};base64,${block.data}`,
+                  },
+                };
+              }
+              if (mt.startsWith("audio/")) {
+                const fmt = mt.split("/")[1] ?? "wav";
+                return {
+                  type: "input_audio" as const,
+                  input_audio: { data: block.data, format: fmt },
+                };
+              }
+            }
+            return { type: "text" as const, text: "[file: unsupported]" };
+
+          default:
+            return { type: "text" as const, text: block.text ?? "" };
         }
-        return { type: "text" as const, text: block.text ?? "" };
       });
       messages.push({ role: "user", content: parts });
     }
