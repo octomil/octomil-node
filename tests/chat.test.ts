@@ -275,6 +275,78 @@ describe("ChatClient", () => {
 
       expect(result.usage).toBeUndefined();
     });
+
+    it("sends single user message as plain string input (backward compat)", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse(WIRE_COMPLETION),
+      );
+
+      await client.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "Hello there" }],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      // Single user message should produce a single user message in the wire format
+      const userMsgs = body.messages.filter((m: { role: string }) => m.role === "user");
+      expect(userMsgs).toHaveLength(1);
+      expect(userMsgs[0].content).toBe("Hello there");
+    });
+
+    it("preserves full multi-turn context (user, assistant, user)", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse(WIRE_COMPLETION),
+      );
+
+      await client.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "user", content: "What is 2+2?" },
+          { role: "assistant", content: "4" },
+          { role: "user", content: "And 3+3?" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      // All three messages should be present in wire format
+      const nonSystem = body.messages.filter((m: { role: string }) => m.role !== "system");
+      expect(nonSystem).toHaveLength(3);
+      expect(nonSystem[0].role).toBe("user");
+      expect(nonSystem[0].content).toBe("What is 2+2?");
+      expect(nonSystem[1].role).toBe("assistant");
+      expect(nonSystem[1].content).toBe("4");
+      expect(nonSystem[2].role).toBe("user");
+      expect(nonSystem[2].content).toBe("And 3+3?");
+    });
+
+    it("extracts system message as instructions while preserving multi-turn", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse(WIRE_COMPLETION),
+      );
+
+      await client.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You are a math tutor." },
+          { role: "user", content: "What is 2+2?" },
+          { role: "assistant", content: "4" },
+          { role: "user", content: "And 3+3?" },
+        ],
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      // System message should appear as a system message
+      const systemMsg = body.messages.find((m: { role: string }) => m.role === "system");
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg.content).toBe("You are a math tutor.");
+
+      // Non-system messages should all be present
+      const nonSystem = body.messages.filter((m: { role: string }) => m.role !== "system");
+      expect(nonSystem).toHaveLength(3);
+      expect(nonSystem[0].role).toBe("user");
+      expect(nonSystem[1].role).toBe("assistant");
+      expect(nonSystem[2].role).toBe("user");
+    });
   });
 
   // ---- stream() -----------------------------------------------------------

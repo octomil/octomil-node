@@ -35,7 +35,7 @@ export interface ToolDef {
 
 export interface ResponseRequest {
   model: string;
-  input: string | ContentBlock[];
+  input: string | ContentBlock[] | Array<{ role: "user" | "assistant"; content: string }>;
   tools?: ToolDef[];
   instructions?: string;
   previousResponseId?: string;
@@ -455,8 +455,17 @@ export class ResponsesClient {
     // Current user input
     if (typeof request.input === "string") {
       messages.push({ role: "user", content: request.input });
+    } else if (
+      Array.isArray(request.input) &&
+      request.input.length > 0 &&
+      "role" in request.input[0]!
+    ) {
+      // Structured message array from ChatClient multi-turn context
+      for (const msg of request.input as Array<{ role: "user" | "assistant"; content: string }>) {
+        messages.push({ role: msg.role, content: msg.content });
+      }
     } else {
-      const parts: ChatContentPart[] = request.input.map((block) => {
+      const parts: ChatContentPart[] = (request.input as ContentBlock[]).map((block) => {
         switch (block.type) {
           case "image":
             if (block.imageUrl) {

@@ -166,20 +166,20 @@ export class ChatClient {
   // ---- private helpers ----------------------------------------------------
 
   private toResponseRequest(request: ChatRequest): ResponseRequest {
-    // Extract system message as instructions
     const systemMsg = request.messages.find((m) => m.role === "system");
     const nonSystemMessages = request.messages.filter((m) => m.role !== "system");
 
-    // Build a single input string from the conversation
-    // The last user message becomes the input; prior messages become context
-    const lastUserIdx = nonSystemMessages.map((m) => m.role).lastIndexOf("user");
-    const lastUserContent = lastUserIdx >= 0
-      ? nonSystemMessages[lastUserIdx]!.content
-      : nonSystemMessages[nonSystemMessages.length - 1]?.content ?? "";
+    // Preserve full multi-turn context by passing all messages as structured input
+    const inputItems = nonSystemMessages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
     const rr: ResponseRequest = {
       model: request.model,
-      input: lastUserContent,
+      input: inputItems.length === 1 && inputItems[0]!.role === "user"
+        ? inputItems[0]!.content  // Single user message → simple string
+        : inputItems,
     };
 
     if (systemMsg) rr.instructions = systemMsg.content;
