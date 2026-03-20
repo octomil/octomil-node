@@ -29,6 +29,7 @@ export type {
   ResponseObj,
   ResponseUsage,
   TextDeltaEvent,
+  ReasoningDeltaEvent,
   ToolCallDeltaEvent,
   DoneEvent,
   ResponseStreamEvent,

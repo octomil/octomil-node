@@ -10,7 +10,6 @@ import { ResponsesClient } from "./responses.js";
 import type {
   ResponseRequest,
   ResponseObj,
-  ResponseStreamEvent,
   ToolDef,
 } from "./responses.js";
 import type { TelemetryReporter } from "./telemetry.js";
@@ -22,6 +21,7 @@ import type { TelemetryReporter } from "./telemetry.js";
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  reasoningContent?: string;
   name?: string;
   toolCallId?: string;
 }
@@ -64,7 +64,7 @@ export interface ChatChunk {
 
 export interface ChatChunkChoice {
   index: number;
-  delta: { role?: string; content?: string; toolCalls?: ToolCallDelta[] };
+  delta: { role?: string; content?: string; reasoningContent?: string; toolCalls?: ToolCallDelta[] };
   finishReason?: string;
 }
 
@@ -107,7 +107,18 @@ export class ChatClient {
     let chunkUsage: ChatChunk["usage"] | undefined;
 
     for await (const event of this.responses.stream(responseRequest)) {
-      if (event.type === "text_delta") {
+      if (event.type === "reasoning_delta") {
+        const chunk: ChatChunk = {
+          id: currentId,
+          choices: [
+            {
+              index: 0,
+              delta: { reasoningContent: event.delta },
+            },
+          ],
+        };
+        yield chunk;
+      } else if (event.type === "text_delta") {
         const chunk: ChatChunk = {
           id: currentId,
           choices: [
@@ -202,7 +213,9 @@ export class ChatClient {
     const toolCalls: ToolCall[] = [];
 
     for (const output of responseObj.output) {
-      if (output.type === "text" && output.text) {
+      if (output.type === "reasoning" && output.reasoningContent) {
+        message.reasoningContent = output.reasoningContent;
+      } else if (output.type === "text" && output.text) {
         textParts.push(output.text);
       } else if (output.type === "tool_call" && output.toolCall) {
         toolCalls.push({

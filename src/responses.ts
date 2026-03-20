@@ -48,8 +48,9 @@ export interface ResponseRequest {
 }
 
 export interface ResponseOutput {
-  type: "text" | "tool_call";
+  type: "text" | "tool_call" | "reasoning";
   text?: string;
+  reasoningContent?: string;
   toolCall?: {
     id: string;
     name: string;
@@ -86,6 +87,11 @@ export interface ToolCallDeltaEvent {
   argumentsDelta?: string;
 }
 
+export interface ReasoningDeltaEvent {
+  type: "reasoning_delta";
+  delta: string;
+}
+
 export interface DoneEvent {
   type: "done";
   response: ResponseObj;
@@ -93,6 +99,7 @@ export interface DoneEvent {
 
 export type ResponseStreamEvent =
   | TextDeltaEvent
+  | ReasoningDeltaEvent
   | ToolCallDeltaEvent
   | DoneEvent;
 
@@ -154,6 +161,7 @@ interface ChatCompletionChoice {
   message: {
     role: string;
     content?: string | null;
+    reasoning_content?: string | null;
     tool_calls?: ChatToolCall[];
   };
   finish_reason: string;
@@ -185,6 +193,7 @@ interface ChatCompletionChunkChoice {
   delta: {
     role?: string;
     content?: string | null;
+    reasoning_content?: string | null;
     tool_calls?: ChunkToolCall[];
   };
   finish_reason: string | null;
@@ -291,6 +300,7 @@ export class ResponsesClient {
     let finishReason = "";
     const outputParts: ResponseOutput[] = [];
     let currentTextContent = "";
+    let currentReasoningContent = "";
     const toolCallAccumulators = new Map<
       number,
       { id: string; name: string; arguments: string }
@@ -325,6 +335,21 @@ export class ResponsesClient {
           for (const choice of chunk.choices) {
             if (choice.finish_reason) {
               finishReason = choice.finish_reason;
+            }
+
+            // Reasoning content delta
+            if (choice.delta.reasoning_content) {
+              currentReasoningContent += choice.delta.reasoning_content;
+              this.telemetry?.track("inference.chunk_produced", {
+                "model.id": request.model,
+                "inference.chunk_index": chunkIndex,
+                locality: "cloud",
+              });
+              chunkIndex++;
+              yield {
+                type: "reasoning_delta",
+                delta: choice.delta.reasoning_content,
+              } satisfies ReasoningDeltaEvent;
             }
 
             // Text delta
@@ -401,6 +426,9 @@ export class ResponsesClient {
       }
 
       // Build final output array
+      if (currentReasoningContent) {
+        outputParts.push({ type: "reasoning", reasoningContent: currentReasoningContent });
+      }
       if (currentTextContent) {
         outputParts.push({ type: "text", text: currentTextContent });
       }
@@ -604,6 +632,10 @@ export class ResponsesClient {
   private parseResponse(data: ChatCompletionResponse): ResponseObj {
     const choice = data.choices[0];
     const output: ResponseOutput[] = [];
+
+    if (choice?.message.reasoning_content) {
+      output.push({ type: "reasoning", reasoningContent: choice.message.reasoning_content });
+    }
 
     if (choice?.message.content) {
       output.push({ type: "text", text: choice.message.content });
