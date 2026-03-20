@@ -1,8 +1,8 @@
 # @octomil/sdk (Node.js)
 
-> **Status: Work in Progress (v0.1.0)** — not yet published to npm.
+> **Status:** work in progress. Not yet published to npm.
 
-Node.js SDK for downloading, caching, and running ONNX models locally via ONNX Runtime.
+Node.js SDK for downloading, caching, and running ONNX models locally with ONNX Runtime.
 
 ## What works today
 
@@ -26,7 +26,7 @@ Node.js SDK for downloading, caching, and running ONNX models locally via ONNX R
 - CLI
 - MCP server
 
-See the [Python SDK](https://github.com/octomil/octomil-python) for the full-featured CLI + inference experience, or the [Browser SDK](https://github.com/octomil/octomil-browser) for browser-based inference with federated learning.
+See the [Python SDK](https://github.com/octomil/octomil-python) for the full CLI + local inference experience, or the [Browser SDK](https://github.com/octomil/octomil-browser) for browser-based inference.
 
 ## Install
 
