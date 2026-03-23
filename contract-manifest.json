@@ -110,12 +110,20 @@
       "covers": [
         "supports_local_tool_loop"
       ]
+    },
+    {
+      "id": "cloud_responses_routing",
+      "paths": [
+        "tests/conformance/responses-routing.test.ts"
+      ],
+      "covers": []
     }
   ],
   "conformanceTests": [
     "tests/conformance/contract.test.ts",
     "tests/conformance/local-runtime-routing.test.ts",
-    "tests/conformance/local-tool-loop.test.ts"
+    "tests/conformance/local-tool-loop.test.ts",
+    "tests/conformance/responses-routing.test.ts"
   ],
   "generatedSources": [
     "src/_generated"
