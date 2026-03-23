@@ -219,6 +219,12 @@ export class TelemetryReporter {
     }
   }
 
+  async batch(events: TelemetryEvent[]): Promise<void> {
+    if (events.length === 0) return;
+    this.queue.push(...events);
+    await this.flush();
+  }
+
   dispose(): void {
     if (this.timer) {
       clearInterval(this.timer);

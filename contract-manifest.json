@@ -1,0 +1,59 @@
+{
+  "sdk": "@octomil/sdk",
+  "contractVersion": "1.13.0",
+  "methods": [
+    "responses.create",
+    "responses.stream",
+    "models.load",
+    "models.status",
+    "control.refresh",
+    "control.heartbeat",
+    "capabilities.current",
+    "chat.turn",
+    "chat.turn.stream",
+    "chat.threads.create",
+    "chat.threads.get",
+    "chat.threads.list",
+    "devices.desired_state",
+    "devices.observed_state",
+    "devices.sync",
+    "artifacts.manifest",
+    "artifacts.download_urls",
+    "telemetry.batch",
+    "federation.offers",
+    "federation.join",
+    "federation.plan",
+    "federation.heartbeat",
+    "federation.upload_initiate",
+    "federation.upload_complete",
+    "training.create_job",
+    "training.job_status",
+    "training.job_complete",
+    "audio.transcriptions.create",
+    "text.predictions.create",
+    "monitoring.delete-alert-rule",
+    "monitoring.get-alert-rule",
+    "monitoring.update-alert-rule",
+    "settings.create-checkout-session",
+    "settings.create-portal-session",
+    "settings.delete-integration",
+    "settings.get-integration",
+    "settings.get-usage-limits",
+    "settings.update-billing",
+    "settings.update-integration",
+    "settings.update-usage-limits",
+    "settings.validate-integration"
+  ],
+  "coverage": {
+    "errorCodes": "all",
+    "spanNames": "all",
+    "spanEvents": "all",
+    "resourceAttributes": "all"
+  },
+  "conformanceTests": [
+    "tests/conformance/contract.test.ts"
+  ],
+  "generatedSources": [
+    "src/_generated"
+  ]
+}

@@ -12,4 +12,6 @@ export enum Scope {
   RolloutsWrite = "rollouts:write",
   BenchmarksWrite = "benchmarks:write",
   EvalsWrite = "evals:write",
+  CloudInference = "cloud:inference",
+  CloudCredentials = "cloud:credentials",
 }

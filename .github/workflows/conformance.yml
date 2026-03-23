@@ -1,0 +1,18 @@
+# Drop this into octomil-node/.github/workflows/conformance.yml
+name: Contract Conformance
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  conformance:
+    uses: octomil/octomil-contracts/.github/workflows/sdk-conformance.yml@main
+    with:
+      sdk: node
+      contract-version: "1.0.0"
+      setup-command: "corepack enable && pnpm install --frozen-lockfile"
+      codegen-command: "python3 .contract/scripts/sync_generated.py --sdk node --write --target-dir src/_generated"
+      test-command: "pnpm vitest run tests/conformance/contract.test.ts --reporter=default && python3 .contract/ci/audit-sdks.py --sdk node --sdk-path . --out parity_report.json"
+      parity-report-path: parity_report.json
+      parity-score-floor: 60

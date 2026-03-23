@@ -407,6 +407,47 @@ describe("ControlClient", () => {
     });
   });
 
+  describe("sync()", () => {
+    it("posts the unified sync payload with requestedAt", async () => {
+      client.setDeviceId("dev-123");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        mockJsonResponse({
+          schemaVersion: "1.12.0",
+          deviceId: "dev-123",
+          generatedAt: "2026-03-22T12:00:00Z",
+          stateChanged: true,
+          models: [],
+          gcEligibleArtifactIds: [],
+          nextPollIntervalSeconds: 60,
+        }),
+      );
+
+      await client.sync({
+        knownStateVersion: "10",
+        modelInventory: [
+          {
+            modelId: "phi-4-mini-q4",
+            version: "1.0",
+            artifactId: "artifact-1",
+            status: "READY",
+          },
+        ],
+      });
+
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      const [url, init] = fetchSpy.mock.calls[0]!;
+      expect(url).toBe("https://api.test.com/api/v1/devices/dev-123/sync");
+      expect(init!.method).toBe("POST");
+
+      const body = JSON.parse(init!.body as string);
+      expect(body.deviceId).toBe("dev-123");
+      expect(body.requestedAt).toBeDefined();
+      expect(body.platform).toBe("node");
+      expect(body.modelInventory[0].artifactId).toBe("artifact-1");
+    });
+  });
+
   // ---- URL handling -------------------------------------------------------
 
   describe("URL handling", () => {

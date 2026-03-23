@@ -9,12 +9,22 @@ import { FinishReason } from "../../src/_generated/finish_reason";
 import { CompatibilityLevel } from "../../src/_generated/compatibility_level";
 import { TELEMETRY_EVENTS, EVENT_REQUIRED_ATTRIBUTES } from "../../src/_generated/telemetry_events";
 import { OTLP_RESOURCE_ATTRIBUTES } from "../../src/_generated/otlp_resource_attributes";
+import {
+  ArtifactsClient,
+  ChatClient,
+  DevicesClient,
+  FederationClient,
+  MonitoringClient,
+  SettingsClient,
+  TelemetryReporter,
+  TrainingClient,
+} from "../../src/index";
 
 describe("Contract Conformance", () => {
   describe("ErrorCode enum", () => {
-    it("has all 36 canonical error codes", () => {
+    it("has all 39 canonical error codes", () => {
       const codes = Object.values(ErrorCode);
-      expect(codes).toHaveLength(36);
+      expect(codes).toHaveLength(39);
       expect(codes).toContain("network_unavailable");
       expect(codes).toContain("request_timeout");
       expect(codes).toContain("server_error");
@@ -94,6 +104,19 @@ describe("Contract Conformance", () => {
       const keys = Object.values(OTLP_RESOURCE_ATTRIBUTES);
       expect(keys).toHaveLength(13);
       expect(keys).toContain("octomil.install.id");
+    });
+  });
+
+  describe("SDK surface", () => {
+    it("exports node parity clients", () => {
+      expect(ArtifactsClient).toBeTypeOf("function");
+      expect(ChatClient).toBeTypeOf("function");
+      expect(DevicesClient).toBeTypeOf("function");
+      expect(FederationClient).toBeTypeOf("function");
+      expect(MonitoringClient).toBeTypeOf("function");
+      expect(SettingsClient).toBeTypeOf("function");
+      expect(TelemetryReporter).toBeTypeOf("function");
+      expect(TrainingClient).toBeTypeOf("function");
     });
   });
 });
