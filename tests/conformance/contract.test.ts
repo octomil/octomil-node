@@ -15,6 +15,8 @@ import {
   DevicesClient,
   FederationClient,
   MonitoringClient,
+  OctomilClient,
+  ResponsesClient,
   SettingsClient,
   TelemetryReporter,
   TrainingClient,
@@ -114,6 +116,8 @@ describe("Contract Conformance", () => {
       expect(DevicesClient).toBeTypeOf("function");
       expect(FederationClient).toBeTypeOf("function");
       expect(MonitoringClient).toBeTypeOf("function");
+      expect(OctomilClient).toBeTypeOf("function");
+      expect(ResponsesClient).toBeTypeOf("function");
       expect(SettingsClient).toBeTypeOf("function");
       expect(TelemetryReporter).toBeTypeOf("function");
       expect(TrainingClient).toBeTypeOf("function");
