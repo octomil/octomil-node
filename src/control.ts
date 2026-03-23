@@ -104,6 +104,40 @@ export interface DesiredState {
   gcEligibleArtifactIds?: string[];
 }
 
+export interface ModelInventoryEntry {
+  modelId: string;
+  version: string;
+  artifactId?: string;
+  status?: string;
+}
+
+export interface DeviceSyncRequest {
+  schemaVersion?: string;
+  requestedAt?: string;
+  knownStateVersion?: string;
+  sdkVersion?: string;
+  platform?: string;
+  appId?: string;
+  appVersion?: string;
+  modelInventory?: ModelInventoryEntry[];
+  activeVersions?: Array<Record<string, string>>;
+  availableStorageBytes?: number;
+}
+
+export interface DeviceSyncResponse {
+  schemaVersion: string;
+  deviceId: string;
+  generatedAt?: string;
+  stateChanged: boolean;
+  models: DesiredModelEntry[];
+  gcEligibleArtifactIds: string[];
+  nextPollIntervalSeconds: number;
+  serverTimestamp?: string;
+  serving?: Array<Record<string, unknown>>;
+  training_policy?: Record<string, unknown> | null;
+  round_offers?: Array<Record<string, unknown>>;
+}
+
 // ---------------------------------------------------------------------------
 // Wire-format types (snake_case from server)
 // ---------------------------------------------------------------------------
@@ -420,6 +454,50 @@ export class ControlClient {
     }
 
     return (await response.json()) as DesiredState;
+  }
+
+  async sync(request: DeviceSyncRequest = {}): Promise<DeviceSyncResponse> {
+    const id = this.getDeviceIdOrThrow();
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          schemaVersion: request.schemaVersion ?? "1.12.0",
+          deviceId: id,
+          requestedAt: request.requestedAt ?? new Date().toISOString(),
+          knownStateVersion: request.knownStateVersion,
+          sdkVersion: request.sdkVersion,
+          platform: request.platform ?? "node",
+          appId: request.appId,
+          appVersion: request.appVersion,
+          modelInventory: request.modelInventory ?? [],
+          activeVersions: request.activeVersions ?? [],
+          availableStorageBytes: request.availableStorageBytes,
+        }),
+      });
+    } catch (err) {
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Device sync failed: ${String(err)}`,
+        err,
+      );
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new OctomilError(
+        "NETWORK_UNAVAILABLE",
+        `Device sync failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
+      );
+    }
+
+    return (await response.json()) as DeviceSyncResponse;
   }
 
   /**

@@ -9,6 +9,8 @@ export { ChatClient } from "./chat.js";
 /** @tier Core */
 export { ControlClient } from "./control.js";
 /** @tier Core */
+export { DevicesClient } from "./devices.js";
+/** @tier Core */
 export { CapabilitiesClient } from "./capabilities.js";
 /** @tier Core */
 export { ModelsClient } from "./models.js";
@@ -18,6 +20,11 @@ export { OctomilClient } from "./client.js";
 export type { TelemetryFacade } from "./client.js";
 /** @tier Core */
 export { OctomilError } from "./types.js";
+export { ArtifactsClient } from "./artifacts.js";
+export { FederationClient } from "./federation.js";
+export { MonitoringClient } from "./monitoring.js";
+export { SettingsClient } from "./settings.js";
+export { TrainingClient } from "./training.js";
 
 // Core type exports
 
@@ -29,6 +36,7 @@ export type {
   ResponseObj,
   ResponseUsage,
   TextDeltaEvent,
+  ReasoningDeltaEvent,
   ToolCallDeltaEvent,
   DoneEvent,
   ResponseStreamEvent,
@@ -49,6 +57,8 @@ export type {
   HeartbeatResponse,
   DeviceAssignment,
   ControlSyncResult,
+  DeviceSyncRequest,
+  DeviceSyncResponse,
 } from "./control.js";
 export type { CapabilityProfile } from "./capabilities.js";
 export type { ModelStatus, CachedModelInfo } from "./models.js";
@@ -210,6 +220,21 @@ export type {
   CreateLogIntegrationInput,
   CreateOtlpCollectorInput,
 } from "./integrations.js";
+export type {
+  ArtifactManifest,
+  ArtifactDownloadUrls,
+  ArtifactDownloadUrlsRequest,
+} from "./artifacts.js";
+export type { AlertRule, UpdateAlertRuleRequest } from "./monitoring.js";
+export type {
+  BillingSession,
+  BillingState,
+  UsageLimits,
+  Integration,
+  IntegrationValidation,
+  IntegrationPatch,
+} from "./settings.js";
+export type { TrainingJob, TrainingJobStatus } from "./training.js";
 export { embed } from "./embeddings.js";
 export type {
   EmbeddingConfig,

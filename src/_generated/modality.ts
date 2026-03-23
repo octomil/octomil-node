@@ -2,7 +2,7 @@
 
 export enum Modality {
   Text = "text",
-  Image = "image",
   Audio = "audio",
+  Image = "image",
   Video = "video",
 }

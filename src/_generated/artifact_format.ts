@@ -8,4 +8,5 @@ export enum ArtifactFormat {
   Mlx = "mlx",
   Mnn = "mnn",
   Transformersjs = "transformersjs",
+  Cloud = "cloud",
 }

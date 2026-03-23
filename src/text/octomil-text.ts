@@ -15,9 +15,21 @@ export type TextRuntimeResolver = (ref: ModelRef) => ModelRuntime | undefined;
 
 export class OctomilText {
   private readonly runtimeResolver: TextRuntimeResolver;
+  readonly predictions: {
+    create: (
+      request: { input: string; model?: ModelRef; maxSuggestions?: number },
+    ) => Promise<string[]>;
+  };
 
   constructor(runtimeResolver: TextRuntimeResolver) {
     this.runtimeResolver = runtimeResolver;
+    this.predictions = {
+      create: (request) =>
+        this.predict(request.input, {
+          model: request.model,
+          maxSuggestions: request.maxSuggestions,
+        }),
+    };
   }
 
   /**

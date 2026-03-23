@@ -7,4 +7,5 @@ export enum ModelCapability {
   KeyboardPrediction = "keyboard_prediction",
   Embedding = "embedding",
   Classification = "classification",
+  Reasoning = "reasoning",
 }

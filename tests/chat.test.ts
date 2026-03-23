@@ -438,4 +438,32 @@ describe("ChatClient", () => {
       await expect(gen.next()).rejects.toThrow(OctomilError);
     });
   });
+
+  describe("turn.stream()", () => {
+    it("posts threadId and completes on typed done events", async () => {
+      const sseResponse = new Response(
+        [
+          'data: {"type":"text_delta","delta":"Hello"}',
+          'data: {"type":"done","turn":{"userMessage":{"id":"msg_u"},"assistantMessage":{"id":"msg_a"}}}',
+        ].join("\n\n") + "\n\n",
+        {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        },
+      );
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse);
+
+      const chunks = await collect(
+        client.turn.stream("thread_123", { input: "Hi" }),
+      );
+
+      expect(chunks).toHaveLength(2);
+      expect(chunks[0]!.choices[0]!.delta.content).toBe("Hello");
+      expect(chunks[1]!.choices[0]!.finishReason).toBe("stop");
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.threadId).toBe("thread_123");
+      expect(body.stream).toBe(true);
+    });
+  });
 });

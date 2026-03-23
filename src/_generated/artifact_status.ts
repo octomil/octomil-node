@@ -18,4 +18,5 @@ export enum ArtifactStatus {
   FailedCorrupt = "failed_corrupt",
   FailedHealthcheck = "failed_healthcheck",
   RollbackPending = "rollback_pending",
+  RolledBack = "rolled_back",
 }
