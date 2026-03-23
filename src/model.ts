@@ -1,5 +1,4 @@
 import type { InferenceEngine } from "./runtime/engines/onnx/engine.js";
-import type { ModelRuntime } from "./runtime/core/model-runtime.js";
 import type { RoutingClient, DeviceCapabilities } from "./routing.js";
 import type { TelemetryReporter } from "./telemetry.js";
 import type { LoadOptions, PredictInput, PredictOutput } from "./types.js";
@@ -13,7 +12,6 @@ export class Model {
   private _outputNames: string[] = [];
   private _activeProvider: string = "";
   private _disposed = false;
-  private _runtime: ModelRuntime | null = null;
 
   /** Optional routing client for device/cloud inference decisions. */
   private _routingClient: RoutingClient | null = null;
@@ -31,13 +29,11 @@ export class Model {
     public readonly filePath: string,
     engine: InferenceEngine,
     telemetry: TelemetryReporter | null,
-    runtime?: ModelRuntime,
     version?: string,
     format?: string,
   ) {
     this.engine = engine;
     this.telemetry = telemetry;
-    this._runtime = runtime ?? null;
     this.version = version ?? "";
     this.format = format ?? "";
   }

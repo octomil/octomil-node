@@ -24,8 +24,10 @@ const PROVIDER_MAP: Record<string, string[]> = {
 
 export class InferenceEngine implements ModelRuntime {
   private _session: unknown = null;
-  private _disposed = false;
-  async createSession(filePath: string, options?: LoadOptions): Promise<SessionResult> {
+  async createSession(
+    filePath: string,
+    options?: LoadOptions,
+  ): Promise<SessionResult> {
     let ort: any;
     try {
       ort = await import("onnxruntime-node");
@@ -87,7 +89,15 @@ export class InferenceEngine implements ModelRuntime {
     return { session, inputNames, outputNames, activeProvider };
   }
 
-  async run(session: unknown, input: PredictInput): Promise<Omit<PredictOutput, "latencyMs">> {
+  async run(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+  async run(
+    session: unknown,
+    input: PredictInput,
+  ): Promise<Omit<PredictOutput, "latencyMs">>;
+  async run(
+    sessionOrInput: unknown,
+    maybeInput?: PredictInput,
+  ): Promise<Record<string, unknown> | Omit<PredictOutput, "latencyMs">> {
     let ort: any;
     try {
       ort = await import("onnxruntime-node");
@@ -95,7 +105,19 @@ export class InferenceEngine implements ModelRuntime {
       throw new OctomilError("INFERENCE_FAILED", "onnxruntime-node is not installed");
     }
 
-    const ortSession = session as any;
+    const ortSession = maybeInput === undefined
+      ? this._session as any
+      : sessionOrInput as any;
+    const input = (maybeInput === undefined
+      ? sessionOrInput
+      : maybeInput) as PredictInput;
+
+    if (!ortSession) {
+      throw new OctomilError(
+        "MODEL_LOAD_FAILED",
+        "No active session. Call createSession() first.",
+      );
+    }
     const feeds: Record<string, any> = {};
 
     if ("text" in input) {
@@ -161,33 +183,14 @@ export class InferenceEngine implements ModelRuntime {
       }
     }
 
-    return { tensors, label, score, scores };
-  }
-
-  // ---------------------------------------------------------------------------
-  // ModelRuntime interface methods
-  // ---------------------------------------------------------------------------
-
-  /**
-   * ModelRuntime.run() — simplified interface for running inference.
-   * Uses the session stored from the last createSession() call.
-   */
-  async runSimple(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    if (!this._session) {
-      throw new OctomilError("MODEL_LOAD_FAILED", "No active session. Call createSession() first.");
-    }
-    if (this._disposed) {
-      throw new OctomilError("CANCELLED", "Engine has been disposed.");
-    }
-
-    const predictInput = input as unknown as PredictInput;
-    const result = await this.run(this._session, predictInput);
-    return result as unknown as Record<string, unknown>;
+    const result = { tensors, label, score, scores };
+    return maybeInput === undefined
+      ? result as unknown as Record<string, unknown>
+      : result;
   }
 
   dispose(): void {
     this._session = null;
-    this._disposed = true;
   }
 }
 

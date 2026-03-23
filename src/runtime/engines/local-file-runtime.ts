@@ -71,7 +71,8 @@ export class LocalFileModelRuntime implements ModelRuntime {
     options?: Record<string, unknown>,
   ): Promise<void> {
     if (this.delegate) {
-      return this.delegate.createSession(filePath, options);
+      await this.delegate.createSession(filePath, options);
+      return;
     }
     // No delegate — the file path is stored for later resolution.
   }

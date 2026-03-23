@@ -1,4 +1,3 @@
-import type { OctomilClientOptions } from "./types.js";
 import { OctomilError } from "./types.js";
 
 export interface MetricsIntegration {

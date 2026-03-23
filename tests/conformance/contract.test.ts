@@ -19,6 +19,7 @@ import {
   ResponsesClient,
   SettingsClient,
   TelemetryReporter,
+  ToolRunner,
   TrainingClient,
 } from "../../src/index";
 
@@ -120,6 +121,7 @@ describe("Contract Conformance", () => {
       expect(ResponsesClient).toBeTypeOf("function");
       expect(SettingsClient).toBeTypeOf("function");
       expect(TelemetryReporter).toBeTypeOf("function");
+      expect(ToolRunner).toBeTypeOf("function");
       expect(TrainingClient).toBeTypeOf("function");
     });
   });

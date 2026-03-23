@@ -58,19 +58,59 @@
         "ResponsesClient",
         "ChatClient",
         "ControlClient",
-        "DevicesClient"
+        "DevicesClient",
+        "ToolRunner",
+        "LocalResponsesRuntime",
+        "LocalResponsesRuntimeResolver"
       ]
     }
   ],
   "capabilities": {
     "supports_local_responses_runtime": {
-      "implemented": false
+      "implemented": true,
+      "requiredExports": [
+        {
+          "file": "src/index.ts",
+          "symbols": [
+            "ResponsesClient",
+            "LocalResponsesRuntime",
+            "LocalResponsesRuntimeResolver"
+          ]
+        }
+      ]
     },
     "supports_local_tool_loop": {
-      "implemented": false
+      "implemented": true,
+      "requiredExports": [
+        {
+          "file": "src/index.ts",
+          "symbols": [
+            "ResponsesClient",
+            "ToolRunner"
+          ]
+        }
+      ]
     }
   },
   "behaviorTests": [
+    {
+      "id": "local_responses_runtime_routing",
+      "paths": [
+        "tests/conformance/local-runtime-routing.test.ts"
+      ],
+      "covers": [
+        "supports_local_responses_runtime"
+      ]
+    },
+    {
+      "id": "local_tool_loop_behavior",
+      "paths": [
+        "tests/conformance/local-tool-loop.test.ts"
+      ],
+      "covers": [
+        "supports_local_tool_loop"
+      ]
+    },
     {
       "id": "cloud_responses_routing",
       "paths": [
@@ -81,6 +121,8 @@
   ],
   "conformanceTests": [
     "tests/conformance/contract.test.ts",
+    "tests/conformance/local-runtime-routing.test.ts",
+    "tests/conformance/local-tool-loop.test.ts",
     "tests/conformance/responses-routing.test.ts"
   ],
   "generatedSources": [

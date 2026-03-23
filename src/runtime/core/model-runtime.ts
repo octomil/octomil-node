@@ -6,7 +6,10 @@
  */
 
 export interface ModelRuntime {
-  createSession(filePath: string, options?: Record<string, unknown>): Promise<void>;
+  createSession(
+    filePath: string,
+    options?: Record<string, unknown>,
+  ): Promise<void | unknown>;
   run(input: Record<string, unknown>): Promise<Record<string, unknown>>;
   dispose(): void;
 }

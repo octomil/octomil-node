@@ -4,6 +4,7 @@
 
 /** @tier Core */
 export { ResponsesClient } from "./responses.js";
+export { ToolRunner } from "./responses-tools.js";
 /** @tier Core */
 export { ChatClient } from "./chat.js";
 /** @tier Core */
@@ -31,7 +32,9 @@ export { TrainingClient } from "./training.js";
 export type {
   ResponseRequest,
   ContentBlock,
+  ResponseInputItem,
   ToolDef,
+  ResponseToolCall,
   ResponseOutput,
   ResponseObj,
   ResponseUsage,
@@ -42,6 +45,11 @@ export type {
   ResponseStreamEvent,
   ResponsesClientOptions,
 } from "./responses.js";
+export type {
+  LocalResponsesRuntime,
+  LocalResponsesRuntimeResolver,
+} from "./responses-runtime.js";
+export type { ToolExecutor, ToolResult } from "./responses-tools.js";
 export type {
   ChatMessage,
   ChatRequest,
