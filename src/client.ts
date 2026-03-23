@@ -14,8 +14,7 @@ import { ControlClient } from "./control.js";
 import { ModelsClient } from "./models.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
-import type { ModelRuntime } from "./runtime/core/model-runtime.js";
-import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo, AuthConfig } from "./types.js";
+import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
 import { OctomilError } from "./types.js";
 import { streamInference } from "./streaming.js";
 import type { StreamToken, StreamInput } from "./streaming.js";
@@ -52,7 +51,7 @@ export class OctomilClient {
   private readonly downloader: ModelDownloader;
   private readonly cache: FileCache;
   private readonly _telemetry: TelemetryReporter | null;
-  private readonly runtime: ModelRuntime | undefined;
+  private readonly responsesRuntime: OctomilClientOptions["responsesRuntime"];
   private readonly _loadedModels: Map<string, Model> = new Map();
   private readonly _activeDownloads: Set<string> = new Set();
   private readonly _errorModels: Set<string> = new Set();
@@ -89,7 +88,7 @@ export class OctomilClient {
           undefined, undefined, deviceId, installId,
         )
       : null;
-    this.runtime = options.runtime;
+    this.responsesRuntime = options.responsesRuntime;
   }
 
   /**
@@ -120,6 +119,7 @@ export class OctomilClient {
         serverUrl: this.serverUrl,
         apiKey: this.apiKey,
         telemetry: this._telemetry,
+        localRuntime: this.responsesRuntime,
       });
     }
     return this._responses;
@@ -127,7 +127,12 @@ export class OctomilClient {
 
   get chat(): ChatClient {
     if (!this._chat) {
-      this._chat = new ChatClient(this.serverUrl, this.apiKey, this._telemetry);
+      this._chat = new ChatClient(
+        this.serverUrl,
+        this.apiKey,
+        this._telemetry,
+        this.responsesRuntime,
+      );
     }
     return this._chat;
   }
@@ -206,7 +211,7 @@ export class OctomilClient {
         this._telemetry?.track("cache_hit", { "model.id": modelRef });
         return new Model(
           modelRef, cachedPath, new InferenceEngine(), this._telemetry,
-          this.runtime, pullResult.tag, pullResult.format,
+          pullResult.tag, pullResult.format,
         );
       }
     }
@@ -240,7 +245,7 @@ export class OctomilClient {
     this._telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
     return new Model(
       modelRef, destPath, new InferenceEngine(), this._telemetry,
-      this.runtime, pullResult.tag, pullResult.format,
+      pullResult.tag, pullResult.format,
     );
   }
 

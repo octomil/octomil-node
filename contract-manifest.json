@@ -1,6 +1,6 @@
 {
   "sdk": "@octomil/sdk",
-  "contractVersion": "1.13.0",
+  "contractVersion": "1.14.0",
   "methods": [
     "responses.create",
     "responses.stream",
@@ -50,8 +50,72 @@
     "spanEvents": "all",
     "resourceAttributes": "all"
   },
+  "exports": [
+    {
+      "file": "src/index.ts",
+      "symbols": [
+        "OctomilClient",
+        "ResponsesClient",
+        "ChatClient",
+        "ControlClient",
+        "DevicesClient",
+        "ToolRunner",
+        "LocalResponsesRuntime",
+        "LocalResponsesRuntimeResolver"
+      ]
+    }
+  ],
+  "capabilities": {
+    "supports_local_responses_runtime": {
+      "implemented": true,
+      "requiredExports": [
+        {
+          "file": "src/index.ts",
+          "symbols": [
+            "ResponsesClient",
+            "LocalResponsesRuntime",
+            "LocalResponsesRuntimeResolver"
+          ]
+        }
+      ]
+    },
+    "supports_local_tool_loop": {
+      "implemented": true,
+      "requiredExports": [
+        {
+          "file": "src/index.ts",
+          "symbols": [
+            "ResponsesClient",
+            "ToolRunner"
+          ]
+        }
+      ]
+    }
+  },
+  "behaviorTests": [
+    {
+      "id": "local_responses_runtime_routing",
+      "paths": [
+        "tests/conformance/local-runtime-routing.test.ts"
+      ],
+      "covers": [
+        "supports_local_responses_runtime"
+      ]
+    },
+    {
+      "id": "local_tool_loop_behavior",
+      "paths": [
+        "tests/conformance/local-tool-loop.test.ts"
+      ],
+      "covers": [
+        "supports_local_tool_loop"
+      ]
+    }
+  ],
   "conformanceTests": [
-    "tests/conformance/contract.test.ts"
+    "tests/conformance/contract.test.ts",
+    "tests/conformance/local-runtime-routing.test.ts",
+    "tests/conformance/local-tool-loop.test.ts"
   ],
   "generatedSources": [
     "src/_generated"

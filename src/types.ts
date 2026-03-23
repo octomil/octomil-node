@@ -4,6 +4,10 @@ export { ErrorCode, ERROR_CLASSIFICATION } from "./_generated/error_code.js";
 export { AuthType } from "./_generated/auth_type.js";
 export { PrincipalType } from "./_generated/principal_type.js";
 export { Scope } from "./_generated/scope.js";
+import type {
+  LocalResponsesRuntime,
+  LocalResponsesRuntimeResolver,
+} from "./responses-runtime.js";
 
 // ---------------------------------------------------------------------------
 // Auth Config (discriminated union)
@@ -54,6 +58,13 @@ export interface OctomilClientOptions {
   telemetry?: boolean;
   /** Custom model runtime implementation. */
   runtime?: import("./runtime/core/model-runtime.js").ModelRuntime;
+  /**
+   * Optional local runtime used by `responses.create()` / `responses.stream()`.
+   *
+   * When provided, the Node SDK can execute the structured responses API
+   * locally instead of requiring a server-backed chat completions endpoint.
+   */
+  responsesRuntime?: LocalResponsesRuntime | LocalResponsesRuntimeResolver;
 }
 
 export interface PullOptions {
@@ -156,7 +167,10 @@ export type OctomilErrorCode =
   // --- Training ---
   | "TRAINING_FAILED"
   | "TRAINING_NOT_SUPPORTED"
-  | "WEIGHT_UPLOAD_FAILED"
+ | "WEIGHT_UPLOAD_FAILED"
+  | "CLOUD_CREDENTIALS_MISSING"
+  | "CLOUD_CREDENTIALS_REVOKED"
+  | "CLOUD_PROVIDER_AUTH_FAILED"
   // --- Control Plane / Rollout ---
   | "CONTROL_SYNC_FAILED"
   | "ASSIGNMENT_NOT_FOUND"
@@ -202,6 +216,9 @@ export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
   [ErrorCode.TrainingFailed]: "TRAINING_FAILED",
   [ErrorCode.TrainingNotSupported]: "TRAINING_NOT_SUPPORTED",
   [ErrorCode.WeightUploadFailed]: "WEIGHT_UPLOAD_FAILED",
+  [ErrorCode.CloudCredentialsMissing]: "CLOUD_CREDENTIALS_MISSING",
+  [ErrorCode.CloudCredentialsRevoked]: "CLOUD_CREDENTIALS_REVOKED",
+  [ErrorCode.CloudProviderAuthFailed]: "CLOUD_PROVIDER_AUTH_FAILED",
   [ErrorCode.TokenExpired]: "TOKEN_EXPIRED",
   [ErrorCode.DeviceRevoked]: "DEVICE_REVOKED",
 } as const;

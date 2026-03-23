@@ -13,6 +13,10 @@ import type {
   ToolDef,
 } from "./responses.js";
 import type { TelemetryReporter } from "./telemetry.js";
+import type {
+  LocalResponsesRuntime,
+  LocalResponsesRuntimeResolver,
+} from "./responses-runtime.js";
 import {
   ServerApiClient,
   type QueryValue,
@@ -186,13 +190,19 @@ export class ChatClient {
   readonly threads: ChatThreadsClient;
   readonly turn: ChatTurnClient;
 
-  constructor(serverUrl: string, apiKey: string, telemetry?: TelemetryReporter | null) {
+  constructor(
+    serverUrl: string,
+    apiKey: string,
+    telemetry?: TelemetryReporter | null,
+    localRuntime?: LocalResponsesRuntime | LocalResponsesRuntimeResolver | null,
+  ) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
     this.responses = new ResponsesClient({
       serverUrl,
       apiKey,
       telemetry: telemetry ?? null,
+      localRuntime: localRuntime ?? null,
     });
     this.api = new ChatApiClient(serverUrl, apiKey);
     this.threads = new ChatThreadsClient(this.api);
