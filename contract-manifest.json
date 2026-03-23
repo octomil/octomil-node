@@ -1,6 +1,6 @@
 {
   "sdk": "@octomil/sdk",
-  "contractVersion": "1.13.0",
+  "contractVersion": "1.14.0",
   "methods": [
     "responses.create",
     "responses.stream",
@@ -50,8 +50,38 @@
     "spanEvents": "all",
     "resourceAttributes": "all"
   },
+  "exports": [
+    {
+      "file": "src/index.ts",
+      "symbols": [
+        "OctomilClient",
+        "ResponsesClient",
+        "ChatClient",
+        "ControlClient",
+        "DevicesClient"
+      ]
+    }
+  ],
+  "capabilities": {
+    "supports_local_responses_runtime": {
+      "implemented": false
+    },
+    "supports_local_tool_loop": {
+      "implemented": false
+    }
+  },
+  "behaviorTests": [
+    {
+      "id": "cloud_responses_routing",
+      "paths": [
+        "tests/conformance/responses-routing.test.ts"
+      ],
+      "covers": []
+    }
+  ],
   "conformanceTests": [
-    "tests/conformance/contract.test.ts"
+    "tests/conformance/contract.test.ts",
+    "tests/conformance/responses-routing.test.ts"
   ],
   "generatedSources": [
     "src/_generated"
