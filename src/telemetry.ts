@@ -79,7 +79,7 @@ const EVENT_NAME_MAP: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getSdkVersion(): string {
+export function getSdkVersion(): string {
   try {
     const thisDir = dirname(fileURLToPath(import.meta.url));
     const pkgPath = join(thisDir, "..", "package.json");

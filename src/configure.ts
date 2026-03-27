@@ -12,6 +12,14 @@ import {
   validatePublishableKey,
 } from "./auth-config.js";
 import type { MonitoringConfig } from "./monitoring-config.js";
+import { platform, arch, release, totalmem } from "node:os";
+import { getSdkVersion } from "./telemetry.js";
+
+const platformMap: Record<string, string> = {
+  darwin: "macos",
+  win32: "windows",
+  linux: "linux",
+};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,14 +97,24 @@ async function silentRegister(
       headers["Authorization"] = `Bearer ${options.auth.token}`;
     }
 
+    const osPlatformValue = platform();
+    const registrationBody: Record<string, unknown> = {
+      device_identifier: context.installationId,
+      platform: platformMap[osPlatformValue] ?? osPlatformValue,
+      app_id: context.appId,
+      os_version: release(),
+      sdk_version: getSdkVersion(),
+      cpu_architecture: arch(),
+      total_memory_mb: Math.floor(totalmem() / (1024 * 1024)),
+    };
+    if (osPlatformValue === "darwin") {
+      registrationBody.manufacturer = "Apple";
+    }
+
     const response = await fetch(`${baseUrl}/api/v1/devices/register`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        device_identifier: context.installationId,
-        platform: "node",
-        app_id: context.appId,
-      }),
+      body: JSON.stringify(registrationBody),
     });
 
     if (!response.ok) {
