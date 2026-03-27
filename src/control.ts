@@ -17,7 +17,8 @@
  */
 
 import { OctomilError } from "./types.js";
-import { hostname, platform, arch, release } from "node:os";
+import { hostname, platform, arch, release, totalmem } from "node:os";
+import { getSdkVersion } from "./telemetry.js";
 import { SPAN_NAMES } from "./_generated/span_names.js";
 import { SPAN_ATTRIBUTES } from "./_generated/span_attributes.js";
 import type { TelemetryReporter } from "./telemetry.js";
@@ -165,6 +166,16 @@ interface WireAssignmentsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Platform name mapping
+// ---------------------------------------------------------------------------
+
+const platformMap: Record<string, string> = {
+  darwin: "macos",
+  win32: "windows",
+  linux: "linux",
+};
+
+// ---------------------------------------------------------------------------
 // ControlClient
 // ---------------------------------------------------------------------------
 
@@ -193,14 +204,20 @@ export class ControlClient {
   async register(deviceId?: string): Promise<DeviceRegistration> {
     const identifier = deviceId ?? `${hostname()}-${platform()}-${arch()}`;
 
-    const body = {
+    const osPlatformValue = platform();
+    const body: Record<string, unknown> = {
       device_identifier: identifier,
       org_id: this.orgId,
-      platform: platform(),
-      arch: arch(),
+      platform: platformMap[osPlatformValue] ?? osPlatformValue,
       os_version: release(),
       sdk: "node",
+      sdk_version: getSdkVersion(),
+      cpu_architecture: arch(),
+      total_memory_mb: Math.floor(totalmem() / (1024 * 1024)),
     };
+    if (osPlatformValue === "darwin") {
+      body.manufacturer = "Apple";
+    }
 
     let response: Response;
     try {
