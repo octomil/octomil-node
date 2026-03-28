@@ -1,32 +1,29 @@
 # @octomil/sdk (Node.js)
 
-> **Status:** work in progress. Not yet published to npm.
+> **Status:** v0.1.0 — feature-complete but not yet published to npm. Install from source.
 
-Node.js SDK for downloading, caching, and running ONNX models locally with ONNX Runtime.
+Node.js SDK for on-device AI: ONNX inference, structured responses API, chat completions, control plane integration, model catalog, audio transcription, text prediction, query routing, and telemetry.
 
-## What works today
+## What's implemented
 
-- **ONNX inference** — load and run ONNX models via `onnxruntime-node`
-- **Model download & cache** — pull models with checksum verification and local file cache
-- **Streaming inference** — SSE token streaming
-- **Query routing** — route between on-device and cloud inference
-- **Embeddings** — cloud embeddings endpoint
-- **Telemetry** — usage reporting
-- **File integrity** — SHA-256 hash verification
+| Feature | Status |
+|---------|--------|
+| Responses API (create + stream) | Implemented — multi-turn via previousResponseId, tool calls, multimodal |
+| Chat API (create + stream + threads) | Implemented — delegates to ResponsesClient, OpenAI-compatible |
+| ONNX inference (local) | Implemented — via onnxruntime-node |
+| Embeddings (cloud) | Implemented |
+| Streaming (cloud SSE) | Implemented — AsyncGenerator of StreamToken |
+| Control plane (register, heartbeat, sync) | Implemented — full desired state + observed state |
+| AppManifest + ModelCatalogService | Implemented — capability-driven, bundled/managed/cloud delivery |
+| Audio transcription | Implemented — requires manifest runtime |
+| Text prediction | Implemented — requires manifest runtime |
+| Query routing | Implemented — policy-based + server routing |
+| Device capabilities | Implemented — RAM-based device class, accelerator detection |
+| Telemetry | Implemented — OTLP batched reporter |
+| Tool runner | Implemented — automated multi-turn tool call loop |
+| configure() (silent registration) | Implemented — background registration with backoff |
 
-## What's missing (vs production SDKs)
-
-- Chat completions (OpenAI-compatible API)
-- Model catalog / resolver (60+ model registry)
-- Federated learning
-- A/B testing / experiments
-- Rollouts / canary deployments
-- Privacy / secure aggregation
-- Benchmarking
-- CLI
-- MCP server
-
-See the [Python SDK](https://github.com/octomil/octomil-python) for the full CLI + local inference experience, or the [Browser SDK](https://github.com/octomil/octomil-browser) for browser-based inference.
+**Not implemented:** npm publishing, automatic OTA download orchestration for managed models, CLI, MCP server, benchmarking.
 
 ## Install
 
@@ -36,19 +33,123 @@ pnpm install
 pnpm build
 ```
 
-## Usage
+## Quick Start
 
 ```typescript
 import { OctomilClient } from "@octomil/sdk";
 
 const client = new OctomilClient({
-  apiKey: "oct_...",
-  orgId: "org_123",
+  auth: { type: "org_api_key", apiKey: "edg_...", orgId: "org_123" },
 });
 
-// Download and run a model
-const model = await client.pull("sentiment-v1");
-const result = await model.predict(inputTensor);
+// Responses API (structured, with tool calls and conversation threading)
+const result = await client.responses.create({
+  model: "phi-4-mini",
+  input: [{ role: "user", content: [{ type: "text", text: "Hello" }] }],
+  instructions: "You are a helpful assistant.",
+  maxOutputTokens: 512,
+});
+console.log(result.output[0].text);
+
+// Streaming
+for await (const event of client.responses.stream({
+  model: "phi-4-mini",
+  input: "Write a haiku about the ocean",
+})) {
+  if (event.type === "text_delta") process.stdout.write(event.delta);
+}
+```
+
+## Chat API
+
+```typescript
+// OpenAI-compatible chat completions
+const chat = await client.chat.create({
+  model: "phi-4-mini",
+  messages: [{ role: "user", content: "Hello" }],
+});
+
+// Streaming
+for await (const chunk of client.chat.stream({
+  model: "phi-4-mini",
+  messages: [{ role: "user", content: "Hello" }],
+})) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
+}
+
+// Thread management
+const thread = await client.chat.threads.create();
+const turn = await client.chat.turn.create(thread.id, { messages: [...] });
+```
+
+## Local ONNX Inference
+
+```typescript
+// Download and run a model locally
+await client.pull("sentiment-v1"); // download + SHA-256 checksum
+const prediction = await client.predict("sentiment-v1", inputTensor);
+```
+
+## AppManifest (Capability-Driven)
+
+```typescript
+import { ModelCapability, DeliveryMode } from "@octomil/sdk";
+
+client.bootstrapManifest({
+  models: [
+    {
+      id: "chat-model",
+      capability: ModelCapability.Chat,
+      delivery: DeliveryMode.Managed,
+    },
+    {
+      id: "classifier",
+      capability: ModelCapability.Classification,
+      delivery: DeliveryMode.Bundled,
+      bundledPath: "./models/classifier.onnx",
+    },
+  ],
+});
+```
+
+## Control Plane
+
+```typescript
+// Device registration + heartbeat
+await client.control.register();
+client.control.startHeartbeat(300_000); // 5 min interval, unref'd
+
+// Desired state sync
+const state = await client.control.fetchDesiredState();
+await client.control.sync({ modelInventory: [...] });
+await client.control.reportObservedState(models);
+
+// No automatic polling — intentional for server-side SDK
+```
+
+## Silent Registration (for device-like Node apps)
+
+```typescript
+import { configure } from "@octomil/sdk";
+
+configure({
+  auth: { type: "publishable_key", key: "oct_pub_live_..." },
+  monitoring: { enabled: true },
+});
+// Background registration with exponential backoff (10 retries, max 5 min)
+// Heartbeat timer (unref'd so it doesn't block process exit)
+```
+
+## Embeddings and Streaming
+
+```typescript
+// Cloud embeddings
+const embeddings = await client.embed("nomic-embed-text", ["query", "document"]);
+
+// Cloud SSE streaming
+for await (const token of client.streamPredict("phi-4-mini", "Explain quantum computing")) {
+  process.stdout.write(token.token);
+}
 ```
 
 ## Development
