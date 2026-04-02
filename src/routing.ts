@@ -24,6 +24,7 @@ interface RoutingRequest {
   model_size_mb: number;
   device_capabilities: DeviceCapabilities;
   prefer: RoutingPreference;
+  app_id?: string;
 }
 
 /** Fallback target returned by routing. */
@@ -69,6 +70,8 @@ export interface RoutingConfig {
   prefer?: RoutingPreference;
   /** Directory for persistent cache file. @default os.tmpdir() */
   cachePath?: string;
+  /** App ID to attribute routing decisions to. Sent in request body. */
+  appId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +94,7 @@ export class RoutingClient {
   private readonly prefer: RoutingPreference;
   private readonly cache = new Map<string, CacheEntry>();
   private readonly cachePath: string | undefined;
+  private readonly appId: string | undefined;
 
   /** Whether the last `route()` call was answered from offline fallback. */
   lastRouteWasOffline = false;
@@ -101,6 +105,7 @@ export class RoutingClient {
     this.cacheTtlMs = config.cacheTtlMs ?? 300_000;
     this.prefer = config.prefer ?? "fastest";
     this.cachePath = config.cachePath;
+    this.appId = config.appId;
   }
 
   /**
@@ -129,6 +134,7 @@ export class RoutingClient {
       model_size_mb: modelSizeMb,
       device_capabilities: deviceCapabilities,
       prefer: this.prefer,
+      ...(this.appId ? { app_id: this.appId } : {}),
     };
 
     let response: Response;
