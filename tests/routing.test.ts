@@ -104,10 +104,12 @@ describe("RoutingClient", () => {
       await client.route("model-a", 500, 2.0, DEVICE_CAPS);
 
       // Create a new client to clear in-memory cache.
+      // Must match prefer so the persistent cache key matches.
       const client2 = new RoutingClient({
         serverUrl: "https://api.octomil.com",
         apiKey: "test-key",
         cacheTtlMs: 5000,
+        prefer: "fastest",
         cachePath: tmpDir,
       });
 
@@ -197,11 +199,11 @@ describe("RoutingClient", () => {
 
       await client.invalidate("model-a");
 
-      // Read persistent cache file.
+      // Read persistent cache file. Keys include routing context suffix.
       const cacheFile = path.join(tmpDir, "octomil_routing_cache.json");
       const entries = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
-      expect(entries["model-a"]).toBeUndefined();
-      expect(entries["model-b"]).toBeDefined();
+      expect(entries["model-a|p:fastest"]).toBeUndefined();
+      expect(entries["model-b|p:fastest"]).toBeDefined();
     });
   });
 
@@ -309,6 +311,37 @@ describe("RoutingClient", () => {
         (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
       );
       expect(body.deployment_id).toBeUndefined();
+    });
+
+    it("isolates persistent cache by deployment context", async () => {
+      // Client A with dep-1 caches a cloud decision.
+      const clientA = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep-1",
+        cachePath: tmpDir,
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(CLOUD_DECISION), { status: 200 }),
+      );
+      await clientA.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      // Client B with dep-2 shares the same cachePath but should NOT
+      // see client A's cached decision when going offline.
+      const clientB = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep-2",
+        cachePath: tmpDir,
+      });
+
+      fetchSpy.mockRejectedValueOnce(new Error("Network down"));
+      const result = await clientB.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      // Should get a synthetic offline decision, NOT dep-1's cloud decision.
+      expect(result.offline).toBe(true);
+      expect(result.target).toBe("device");
     });
 
     it("defaults prefer to fastest when no deploymentId and no explicit prefer", async () => {

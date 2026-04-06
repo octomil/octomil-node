@@ -105,6 +105,9 @@ export class RoutingClient {
   /** Whether the last `route()` call was answered from offline fallback. */
   lastRouteWasOffline = false;
 
+  /** Suffix appended to modelId for cache keys to isolate routing context. */
+  private readonly cacheKeySuffix: string;
+
   constructor(config: RoutingConfig) {
     this.serverUrl = config.serverUrl.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
@@ -114,6 +117,19 @@ export class RoutingClient {
     this.cachePath = config.cachePath;
     this.appId = config.appId;
     this.deploymentId = config.deploymentId;
+
+    // Build a deterministic suffix so persistent cache entries from different
+    // routing contexts (deployment, app, prefer) never collide.
+    const parts: string[] = [];
+    if (this.deploymentId) parts.push(`d:${this.deploymentId}`);
+    if (this.appId) parts.push(`a:${this.appId}`);
+    if (this.prefer) parts.push(`p:${this.prefer}`);
+    this.cacheKeySuffix = parts.length ? `|${parts.join("|")}` : "";
+  }
+
+  /** Build a cache key that includes routing context. */
+  private cacheKey(modelId: string): string {
+    return `${modelId}${this.cacheKeySuffix}`;
   }
 
   /**
@@ -131,7 +147,8 @@ export class RoutingClient {
   ): Promise<RoutingDecision> {
     this.lastRouteWasOffline = false;
 
-    const cached = this.cache.get(modelId);
+    const key = this.cacheKey(modelId);
+    const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.decision;
     }
@@ -176,13 +193,13 @@ export class RoutingClient {
 
     const decision = (await response.json()) as RoutingDecision;
 
-    this.cache.set(modelId, {
+    this.cache.set(key, {
       decision,
       expiresAt: Date.now() + this.cacheTtlMs,
     });
 
     // Persist to disk for offline fallback.
-    await this.persistToDisk(modelId, decision);
+    await this.persistToDisk(key, decision);
 
     return decision;
   }
@@ -245,9 +262,10 @@ export class RoutingClient {
 
   /** Invalidate the cached routing decision for a specific model. */
   async invalidate(modelId: string): Promise<void> {
-    this.cache.delete(modelId);
+    const key = this.cacheKey(modelId);
+    this.cache.delete(key);
     const entries = await this.loadPersistentCache();
-    delete entries[modelId];
+    delete entries[key];
     await this.savePersistentCache(entries);
   }
 
@@ -259,8 +277,9 @@ export class RoutingClient {
     this.lastRouteWasOffline = true;
 
     // Try persistent cache (synchronous read to avoid complexity).
+    const key = this.cacheKey(modelId);
     const entries = this.loadPersistentCacheSync();
-    const persisted = entries[modelId];
+    const persisted = entries[key];
     if (persisted) {
       return { ...persisted, cached: true, offline: false };
     }
