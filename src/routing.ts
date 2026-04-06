@@ -136,12 +136,22 @@ export class RoutingClient {
       return cached.decision;
     }
 
+    // When deployment_id is set and prefer was not explicitly provided,
+    // omit prefer so the server applies the deployment's routing_preference.
+    // Otherwise default to "fastest" to preserve pre-existing behavior.
+    const effectivePrefer: RoutingPreference | undefined =
+      this.preferExplicit
+        ? this.prefer
+        : this.deploymentId
+          ? undefined
+          : "fastest";
+
     const body: RoutingRequest = {
       model_id: modelId,
       model_params: modelParams,
       model_size_mb: modelSizeMb,
       device_capabilities: deviceCapabilities,
-      ...(this.preferExplicit && this.prefer ? { prefer: this.prefer } : {}),
+      ...(effectivePrefer ? { prefer: effectivePrefer } : {}),
       ...(this.appId ? { app_id: this.appId } : {}),
       ...(this.deploymentId ? { deployment_id: this.deploymentId } : {}),
     };

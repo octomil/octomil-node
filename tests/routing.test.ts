@@ -310,5 +310,26 @@ describe("RoutingClient", () => {
       );
       expect(body.deployment_id).toBeUndefined();
     });
+
+    it("defaults prefer to fastest when no deploymentId and no explicit prefer", async () => {
+      const noDepClient = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        cachePath: tmpDir,
+        // no prefer, no deploymentId
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await noDepClient.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.prefer).toBe("fastest");
+      expect(body.deployment_id).toBeUndefined();
+    });
   });
 });
