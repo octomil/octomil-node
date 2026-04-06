@@ -23,8 +23,9 @@ interface RoutingRequest {
   model_params: number;
   model_size_mb: number;
   device_capabilities: DeviceCapabilities;
-  prefer: RoutingPreference;
+  prefer?: RoutingPreference;
   app_id?: string;
+  deployment_id?: string;
 }
 
 /** Fallback target returned by routing. */
@@ -66,12 +67,15 @@ export interface RoutingConfig {
   apiKey: string;
   /** Cache TTL in milliseconds. @default 300_000 (5 minutes) */
   cacheTtlMs?: number;
-  /** Routing preference. @default "fastest" */
+  /** Routing preference. Only sent when explicitly set; otherwise the server
+   *  uses the deployment's routing_preference. */
   prefer?: RoutingPreference;
   /** Directory for persistent cache file. @default os.tmpdir() */
   cachePath?: string;
   /** App ID to attribute routing decisions to. Sent in request body. */
   appId?: string;
+  /** Deployment ID. When set, the server applies the deployment's routing_preference. */
+  deploymentId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,10 +95,12 @@ export class RoutingClient {
   private readonly serverUrl: string;
   private readonly apiKey: string;
   private readonly cacheTtlMs: number;
-  private readonly prefer: RoutingPreference;
+  private readonly prefer: RoutingPreference | undefined;
+  private readonly preferExplicit: boolean;
   private readonly cache = new Map<string, CacheEntry>();
   private readonly cachePath: string | undefined;
   private readonly appId: string | undefined;
+  private readonly deploymentId: string | undefined;
 
   /** Whether the last `route()` call was answered from offline fallback. */
   lastRouteWasOffline = false;
@@ -103,9 +109,11 @@ export class RoutingClient {
     this.serverUrl = config.serverUrl.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
     this.cacheTtlMs = config.cacheTtlMs ?? 300_000;
-    this.prefer = config.prefer ?? "fastest";
+    this.prefer = config.prefer;
+    this.preferExplicit = config.prefer !== undefined;
     this.cachePath = config.cachePath;
     this.appId = config.appId;
+    this.deploymentId = config.deploymentId;
   }
 
   /**
@@ -133,8 +141,9 @@ export class RoutingClient {
       model_params: modelParams,
       model_size_mb: modelSizeMb,
       device_capabilities: deviceCapabilities,
-      prefer: this.prefer,
+      ...(this.preferExplicit && this.prefer ? { prefer: this.prefer } : {}),
       ...(this.appId ? { app_id: this.appId } : {}),
+      ...(this.deploymentId ? { deployment_id: this.deploymentId } : {}),
     };
 
     let response: Response;

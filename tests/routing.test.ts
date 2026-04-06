@@ -228,4 +228,87 @@ describe("RoutingClient", () => {
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // deployment_id + conditional prefer
+  // -------------------------------------------------------------------------
+
+  describe("deployment routing policy", () => {
+    it("sends deployment_id when configured", async () => {
+      const depClient = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep-abc",
+        cachePath: tmpDir,
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await depClient.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.deployment_id).toBe("dep-abc");
+    });
+
+    it("omits prefer when not explicitly set (server uses deployment routing_preference)", async () => {
+      const depClient = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep-abc",
+        cachePath: tmpDir,
+        // prefer is NOT set
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await depClient.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.prefer).toBeUndefined();
+      expect(body.deployment_id).toBe("dep-abc");
+    });
+
+    it("sends prefer when explicitly set even with deployment_id", async () => {
+      const depClient = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep-abc",
+        prefer: "device",
+        cachePath: tmpDir,
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await depClient.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.prefer).toBe("device");
+      expect(body.deployment_id).toBe("dep-abc");
+    });
+
+    it("omits deployment_id when not configured", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await client.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+      expect(body.deployment_id).toBeUndefined();
+    });
+  });
 });
