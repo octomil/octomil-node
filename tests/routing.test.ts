@@ -364,5 +364,37 @@ describe("RoutingClient", () => {
       expect(body.prefer).toBe("fastest");
       expect(body.deployment_id).toBeUndefined();
     });
+
+    it("regression: managed client body shape is correct for server contract", async () => {
+      const depClient = new RoutingClient({
+        serverUrl: "https://api.octomil.com",
+        apiKey: "test-key",
+        deploymentId: "dep_123",
+        cachePath: tmpDir,
+        // prefer is NOT set — server uses deployment's routing_preference
+      });
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify(DEVICE_DECISION), { status: 200 }),
+      );
+
+      await depClient.route("model-a", 500, 2.0, DEVICE_CAPS);
+
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      );
+
+      // deployment_id must be present with the exact value
+      expect(body.deployment_id).toBe("dep_123");
+
+      // prefer must NOT be present — server resolves it from the deployment
+      expect(body).not.toHaveProperty("prefer");
+
+      // all other required fields must be present
+      expect(body.model_id).toBe("model-a");
+      expect(body.model_params).toBe(500);
+      expect(body.model_size_mb).toBe(2.0);
+      expect(body.device_capabilities).toEqual(DEVICE_CAPS);
+    });
   });
 });
