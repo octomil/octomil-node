@@ -15,6 +15,7 @@ export { Modality } from "./modality";
 export { ModelSourceFormat } from "./model_source_format";
 export { ModelStatus } from "./model_status";
 export { RuntimeExecutor } from "./runtime_executor";
+export { ServingPolicyPreset } from "./serving_policy_preset";
 export { OTLP_RESOURCE_ATTRIBUTES } from "./otlp_resource_attributes";
 export {
   TELEMETRY_EVENTS,
