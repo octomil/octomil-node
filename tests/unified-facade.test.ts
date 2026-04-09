@@ -287,6 +287,34 @@ describe("Octomil unified facade", () => {
       );
     });
 
+    it("embeddings.create works with publishableKey auth", async () => {
+      const fakeResult: EmbeddingResult = {
+        embeddings: [[0.1, 0.2, 0.3]],
+        model: "nomic-embed-text-v1.5",
+        usage: { promptTokens: 5, totalTokens: 5 },
+      };
+      mockEmbed.mockResolvedValueOnce(fakeResult);
+
+      const client = new Octomil({
+        publishableKey: "oct_pub_test_key",
+      });
+      await client.initialize();
+
+      const result = await client.embeddings.create({
+        model: "nomic-embed-text-v1.5",
+        input: "test input",
+      });
+
+      expect(result).toEqual(fakeResult);
+      expect(mockEmbed).toHaveBeenCalledOnce();
+      expect(mockEmbed).toHaveBeenCalledWith(
+        { serverUrl: "https://api.octomil.com", apiKey: "oct_pub_test_key" },
+        "nomic-embed-text-v1.5",
+        "test input",
+        undefined,
+      );
+    });
+
     it("embeddings.create supports array input", async () => {
       const fakeResult: EmbeddingResult = {
         embeddings: [
