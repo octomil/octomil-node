@@ -45,6 +45,13 @@ const response = await client.responses.create({
   input: "Hello",
 });
 console.log(response.outputText);
+
+// Embeddings
+const result = await client.embeddings.create({
+  model: "nomic-embed-text-v1.5",
+  input: "On-device AI inference at scale",
+});
+console.log(result.embeddings[0].slice(0, 5));
 ```
 
 ### Migrating from OctomilClient
