@@ -2,7 +2,7 @@
 // Unified facade
 // ---------------------------------------------------------------------------
 
-export { Octomil, OctomilNotInitializedError } from "./facade.js";
+export { Octomil, OctomilNotInitializedError, FacadeEmbeddings } from "./facade.js";
 export type { OctomilFacadeOptions } from "./facade.js";
 
 // ---------------------------------------------------------------------------

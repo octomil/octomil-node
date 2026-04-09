@@ -14,6 +14,8 @@ import type {
   ResponseOutput,
   ResponseStreamEvent,
 } from "./responses.js";
+import { embed } from "./embeddings.js";
+import type { EmbeddingResult } from "./embeddings.js";
 import { validatePublishableKey } from "./auth-config.js";
 import { configure } from "./configure.js";
 import type { AuthConfig } from "./types.js";
@@ -71,12 +73,41 @@ class FacadeResponses {
 }
 
 // ---------------------------------------------------------------------------
+// FacadeEmbeddings
+// ---------------------------------------------------------------------------
+
+/** Convenience wrapper that delegates to the standalone `embed()` function. */
+export class FacadeEmbeddings {
+  private readonly serverUrl: string;
+  private readonly apiKey: string;
+
+  constructor(serverUrl: string, apiKey: string) {
+    this.serverUrl = serverUrl;
+    this.apiKey = apiKey;
+  }
+
+  async create(options: {
+    model: string;
+    input: string | string[];
+    signal?: AbortSignal;
+  }): Promise<EmbeddingResult> {
+    return embed(
+      { serverUrl: this.serverUrl, apiKey: this.apiKey },
+      options.model,
+      options.input,
+      options.signal,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Octomil facade
 // ---------------------------------------------------------------------------
 
 export class Octomil {
   private initialized = false;
   private readonly responsesClient: ResponsesClient;
+  private readonly _embeddings: FacadeEmbeddings;
   private readonly options: OctomilFacadeOptions;
   private _responses: FacadeResponses | undefined;
 
@@ -107,6 +138,8 @@ export class Octomil {
       serverUrl,
       apiKey,
     });
+
+    this._embeddings = new FacadeEmbeddings(serverUrl, apiKey ?? "");
   }
 
   /**
@@ -154,6 +187,17 @@ export class Octomil {
       this._responses = new FacadeResponses(this.responsesClient);
     }
     return this._responses;
+  }
+
+  /**
+   * Embeddings namespace. Throws OctomilNotInitializedError if `initialize()`
+   * has not been called.
+   */
+  get embeddings(): FacadeEmbeddings {
+    if (!this.initialized) {
+      throw new OctomilNotInitializedError();
+    }
+    return this._embeddings;
   }
 }
 
