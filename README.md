@@ -33,7 +33,25 @@ pnpm install
 pnpm build
 ```
 
-## Quick Start
+## Quick Start (Unified Facade)
+
+```typescript
+import { Octomil } from "@octomil/sdk";
+
+const client = new Octomil({ apiKey: "edg_...", orgId: "org_..." });
+await client.initialize();
+const response = await client.responses.create({
+  model: "phi-4-mini",
+  input: "Hello",
+});
+console.log(response.outputText);
+```
+
+### Migrating from OctomilClient
+
+`OctomilClient` and the low-level `ResponsesClient` / request-object APIs still work exactly as before. The `Octomil` facade is a convenience wrapper for the common path — it delegates to the same underlying client internally.
+
+## Advanced Usage (OctomilClient)
 
 ```typescript
 import { OctomilClient } from "@octomil/sdk";
