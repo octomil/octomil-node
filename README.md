@@ -33,25 +33,64 @@ pnpm install
 pnpm build
 ```
 
-## Quick Start (Unified Facade)
+## Quick Start
+
+### Hosted API (server-side)
+
+Use a server key (secret) for backend / CI / server-side usage. Keep this key out of client bundles.
 
 ```typescript
 import { Octomil } from "@octomil/sdk";
 
-const client = new Octomil({ apiKey: "edg_...", orgId: "org_..." });
+const client = new Octomil({ apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_..." });
 await client.initialize();
 const response = await client.responses.create({
-  model: "phi-4-mini",
+  model: "default",
+  input: "What can you help me with?",
+});
+console.log(response.outputText);
+```
+
+### Client-side (browser / mobile)
+
+Use a publishable key for on-device or browser usage. Publishable keys are safe to embed in client bundles.
+
+```typescript
+import { Octomil } from "@octomil/sdk";
+
+const client = new Octomil({ publishableKey: "YOUR_CLIENT_KEY" });
+await client.initialize();
+const response = await client.responses.create({
+  model: "default",
   input: "Hello",
 });
 console.log(response.outputText);
+```
 
-// Embeddings
-const result = await client.embeddings.create({
-  model: "nomic-embed-text-v1.5",
-  input: "On-device AI inference at scale",
+### Local runtime injection
+
+When you have a local inference runtime (e.g. ONNX, llama.cpp), inject it directly into `ResponsesClient` to run the Responses API entirely on-device with no server calls:
+
+```typescript
+import { ResponsesClient } from "@octomil/sdk";
+
+const client = new ResponsesClient({
+  localRuntime: myRuntime,
 });
-console.log(result.embeddings[0].slice(0, 5));
+const response = await client.create({
+  model: "phi-4-mini",
+  input: "Hello",
+});
+```
+
+### Local CLI
+
+For direct local inference without a Node.js runtime, use the Octomil CLI:
+
+```bash
+octomil run "What can you help me with?"
+octomil embed "text to embed" --json
+octomil transcribe audio.wav
 ```
 
 ### Migrating from OctomilClient
@@ -64,7 +103,7 @@ console.log(result.embeddings[0].slice(0, 5));
 import { OctomilClient } from "@octomil/sdk";
 
 const client = new OctomilClient({
-  auth: { type: "org_api_key", apiKey: "edg_...", orgId: "org_123" },
+  auth: { type: "org_api_key", apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_123" },
 });
 
 // Responses API (structured, with tool calls and conversation threading)
@@ -115,6 +154,48 @@ await client.pull("sentiment-v1"); // download + SHA-256 checksum
 const prediction = await client.predict("sentiment-v1", inputTensor);
 ```
 
+## Embeddings
+
+```typescript
+// Cloud embeddings via the unified facade
+const result = await client.embeddings.create({
+  model: "nomic-embed-text-v1.5",
+  input: "On-device AI inference at scale",
+});
+console.log(result.embeddings[0].slice(0, 5));
+
+// Or via the standalone embed() function
+import { embed } from "@octomil/sdk";
+const result2 = await embed(
+  { serverUrl: "https://api.octomil.com", apiKey: process.env.OCTOMIL_SERVER_KEY! },
+  "nomic-embed-text",
+  ["query", "document"],
+);
+```
+
+> **Note:** Node embeddings currently use the hosted embeddings endpoint. Use `octomil embed` for local one-shot embeddings.
+
+## Audio Transcription
+
+```typescript
+const transcription = await client.audio.transcriptions.create({
+  file: audioBuffer,
+  model: "whisper",
+});
+console.log(transcription.text);
+```
+
+> **Note:** Node audio transcription runs locally when a transcription runtime is registered; otherwise use the hosted `/v1/audio/transcriptions` endpoint or `octomil transcribe`.
+
+## Streaming
+
+```typescript
+// Cloud SSE streaming
+for await (const token of client.streamPredict("phi-4-mini", "Explain quantum computing")) {
+  process.stdout.write(token.token);
+}
+```
+
 ## AppManifest (Capability-Driven)
 
 ```typescript
@@ -163,18 +244,6 @@ configure({
 });
 // Background registration with exponential backoff (10 retries, max 5 min)
 // Heartbeat timer (unref'd so it doesn't block process exit)
-```
-
-## Embeddings and Streaming
-
-```typescript
-// Cloud embeddings
-const embeddings = await client.embed("nomic-embed-text", ["query", "document"]);
-
-// Cloud SSE streaming
-for await (const token of client.streamPredict("phi-4-mini", "Explain quantum computing")) {
-  process.stdout.write(token.token);
-}
 ```
 
 ## Development
