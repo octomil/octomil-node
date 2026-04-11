@@ -42,7 +42,7 @@ export interface DeviceTokenAuth {
  * ```ts
  * const auth: AuthConfig = {
  *   type: "org_api_key",
- *   apiKey: "edg_...",
+ *   apiKey: "YOUR_SERVER_KEY",
  *   orgId: "org_123",
  * };
  * ```
