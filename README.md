@@ -83,11 +83,13 @@ const response = await client.create({
 });
 ```
 
-### Local CLI
+### Local CLI (separate Octomil CLI)
 
-For direct local inference without a Node.js runtime, use the Octomil CLI:
+This SDK package does not ship a CLI. For direct local inference without a Node.js runtime, install and use the separate Octomil CLI:
 
 ```bash
+curl -fsSL https://get.octomil.com | sh
+
 octomil run "What can you help me with?"
 octomil embed "text to embed" --json
 octomil transcribe audio.wav
@@ -173,19 +175,26 @@ const result2 = await embed(
 );
 ```
 
-> **Note:** Node embeddings currently use the hosted embeddings endpoint. Use `octomil embed` for local one-shot embeddings.
+> **Note:** Node embeddings currently use the hosted embeddings endpoint. Use the separate Octomil CLI's `octomil embed` command for local one-shot embeddings.
 
 ## Audio Transcription
 
 ```typescript
+import { readFile } from "node:fs/promises";
+import { OctomilClient } from "@octomil/sdk";
+
+const client = new OctomilClient({
+  auth: { type: "org_api_key", apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_123" },
+});
+const audioBuffer = await readFile("meeting.wav");
 const transcription = await client.audio.transcriptions.create({
-  file: audioBuffer,
-  model: "whisper",
+  audio: new Uint8Array(audioBuffer),
+  language: "en",
 });
 console.log(transcription.text);
 ```
 
-> **Note:** Node audio transcription runs locally when a transcription runtime is registered; otherwise use the hosted `/v1/audio/transcriptions` endpoint or `octomil transcribe`.
+> **Note:** Node audio transcription runs locally when a transcription runtime is registered. Use the separate Octomil CLI's `octomil transcribe` command for local one-shot transcription.
 
 ## Streaming
 
