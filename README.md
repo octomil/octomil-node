@@ -39,10 +39,15 @@ pnpm build
 
 Use a server key (secret) for backend / CI / server-side usage. Keep this key out of client bundles.
 
+```bash
+export OCTOMIL_SERVER_KEY=YOUR_SERVER_KEY
+export OCTOMIL_ORG_ID=YOUR_ORG_ID
+```
+
 ```typescript
 import { Octomil } from "@octomil/sdk";
 
-const client = new Octomil({ apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_..." });
+const client = Octomil.fromEnv();
 await client.initialize();
 const response = await client.responses.create({
   model: "default",
@@ -105,7 +110,11 @@ octomil transcribe audio.wav
 import { OctomilClient } from "@octomil/sdk";
 
 const client = new OctomilClient({
-  auth: { type: "org_api_key", apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_123" },
+  auth: {
+    type: "org_api_key",
+    apiKey: process.env.OCTOMIL_SERVER_KEY!,
+    orgId: process.env.OCTOMIL_ORG_ID!,
+  },
 });
 
 // Responses API (structured, with tool calls and conversation threading)
@@ -184,7 +193,11 @@ import { readFile } from "node:fs/promises";
 import { OctomilClient } from "@octomil/sdk";
 
 const client = new OctomilClient({
-  auth: { type: "org_api_key", apiKey: process.env.OCTOMIL_SERVER_KEY!, orgId: "org_123" },
+  auth: {
+    type: "org_api_key",
+    apiKey: process.env.OCTOMIL_SERVER_KEY!,
+    orgId: process.env.OCTOMIL_ORG_ID!,
+  },
 });
 const audioBuffer = await readFile("meeting.wav");
 const transcription = await client.audio.transcriptions.create({

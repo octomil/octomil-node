@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Octomil, OctomilNotInitializedError } from "../src/facade.js";
 import type { ResponseObj } from "../src/responses.js";
 import type { EmbeddingResult } from "../src/embeddings.js";
@@ -46,8 +46,29 @@ vi.mock("../src/embeddings.js", () => ({
 // ---------------------------------------------------------------------------
 
 describe("Octomil unified facade", () => {
+  const envKeys = [
+    "OCTOMIL_SERVER_KEY",
+    "OCTOMIL_API_KEY",
+    "OCTOMIL_ORG_ID",
+  ] as const;
+  const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
+
   beforeEach(() => {
     vi.clearAllMocks();
+    for (const key of envKeys) {
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of envKeys) {
+      const value = originalEnv.get(key);
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   });
 
   // -- Constructor ----------------------------------------------------------
@@ -72,6 +93,75 @@ describe("Octomil unified facade", () => {
       expect(() => {
         new Octomil({ publishableKey: "bad_prefix_key" });
       }).toThrow("oct_pub_test_");
+    });
+  });
+
+  // -- fromEnv() ------------------------------------------------------------
+
+  describe("fromEnv()", () => {
+    it("uses OCTOMIL_SERVER_KEY and OCTOMIL_ORG_ID", async () => {
+      const fakeResult: EmbeddingResult = {
+        embeddings: [[0.1]],
+        model: "nomic-embed-text-v1.5",
+        usage: { promptTokens: 1, totalTokens: 1 },
+      };
+      mockEmbed.mockResolvedValueOnce(fakeResult);
+      process.env.OCTOMIL_SERVER_KEY = "srv_key";
+      process.env.OCTOMIL_API_KEY = "legacy_key";
+      process.env.OCTOMIL_ORG_ID = "org_public_id";
+
+      const client = Octomil.fromEnv({ serverUrl: "https://api.test.com" });
+      await client.initialize();
+      await client.embeddings.create({
+        model: "nomic-embed-text-v1.5",
+        input: "hello",
+      });
+
+      expect(mockEmbed).toHaveBeenCalledWith(
+        { serverUrl: "https://api.test.com", apiKey: "srv_key" },
+        "nomic-embed-text-v1.5",
+        "hello",
+        undefined,
+      );
+    });
+
+    it("accepts legacy OCTOMIL_API_KEY when server key is absent", async () => {
+      const fakeResult: EmbeddingResult = {
+        embeddings: [[0.1]],
+        model: "nomic-embed-text-v1.5",
+        usage: { promptTokens: 1, totalTokens: 1 },
+      };
+      mockEmbed.mockResolvedValueOnce(fakeResult);
+      process.env.OCTOMIL_SERVER_KEY = "";
+      process.env.OCTOMIL_API_KEY = "legacy_key";
+      process.env.OCTOMIL_ORG_ID = "org_public_id";
+
+      const client = Octomil.fromEnv();
+      await client.initialize();
+      await client.embeddings.create({
+        model: "nomic-embed-text-v1.5",
+        input: "hello",
+      });
+
+      expect(mockEmbed).toHaveBeenCalledWith(
+        { serverUrl: "https://api.octomil.com", apiKey: "legacy_key" },
+        "nomic-embed-text-v1.5",
+        "hello",
+        undefined,
+      );
+    });
+
+    it("requires OCTOMIL_SERVER_KEY or legacy OCTOMIL_API_KEY", () => {
+      process.env.OCTOMIL_ORG_ID = "org_public_id";
+
+      expect(() => Octomil.fromEnv()).toThrow("OCTOMIL_SERVER_KEY");
+      expect(() => Octomil.fromEnv()).toThrow("OCTOMIL_API_KEY");
+    });
+
+    it("requires OCTOMIL_ORG_ID", () => {
+      process.env.OCTOMIL_SERVER_KEY = "srv_key";
+
+      expect(() => Octomil.fromEnv()).toThrow("OCTOMIL_ORG_ID");
     });
   });
 
