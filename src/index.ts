@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export { Octomil, OctomilNotInitializedError, FacadeEmbeddings } from "./facade.js";
-export type { OctomilFacadeOptions } from "./facade.js";
+export type { OctomilFacadeEnvOptions, OctomilFacadeOptions } from "./facade.js";
 
 // ---------------------------------------------------------------------------
 // Core tier (MUST) — required for all SDK consumers

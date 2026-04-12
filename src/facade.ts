@@ -5,6 +5,9 @@
  *   1. publishableKey  — client-side / on-device usage
  *   2. apiKey + orgId  — server-side / CI usage
  *   3. auth            — advanced pass-through of AuthConfig
+ *
+ * For server-side code, prefer `Octomil.fromEnv()` so credentials stay in
+ * deployment config instead of application source.
  */
 
 import { ResponsesClient } from "./responses.js";
@@ -42,6 +45,11 @@ export interface OctomilFacadeOptions {
   apiKey?: string;
   orgId?: string;
   auth?: AuthConfig;
+  serverUrl?: string;
+  telemetry?: boolean;
+}
+
+export interface OctomilFacadeEnvOptions {
   serverUrl?: string;
   telemetry?: boolean;
 }
@@ -110,6 +118,28 @@ export class Octomil {
   private readonly _embeddings: FacadeEmbeddings;
   private readonly options: OctomilFacadeOptions;
   private _responses: FacadeResponses | undefined;
+
+  static fromEnv(options: OctomilFacadeEnvOptions = {}): Octomil {
+    const apiKey =
+      process.env.OCTOMIL_SERVER_KEY || process.env.OCTOMIL_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "Set OCTOMIL_SERVER_KEY before calling Octomil.fromEnv() " +
+          "(or set OCTOMIL_API_KEY for legacy compatibility).",
+      );
+    }
+
+    const orgId = process.env.OCTOMIL_ORG_ID;
+    if (!orgId) {
+      throw new Error("Set OCTOMIL_ORG_ID before calling Octomil.fromEnv().");
+    }
+
+    return new Octomil({
+      ...options,
+      apiKey,
+      orgId,
+    });
+  }
 
   constructor(options: OctomilFacadeOptions) {
     this.options = options;
