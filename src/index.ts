@@ -3,7 +3,23 @@
 // ---------------------------------------------------------------------------
 
 export { Octomil, OctomilNotInitializedError, FacadeEmbeddings } from "./facade.js";
-export type { OctomilFacadeEnvOptions, OctomilFacadeOptions } from "./facade.js";
+export type {
+  OctomilFacadeEnvOptions,
+  OctomilFacadeOptions,
+  OctomilLocalOptions,
+  LocalTranscriptionResult,
+} from "./facade.js";
+export {
+  discoverLocalRunner,
+  discoverFromEnv,
+  discoverFromCli,
+  localRunnerPost,
+  localRunnerHealthCheck,
+} from "./local.js";
+export type {
+  LocalRunnerEndpoint,
+  LocalRunnerDiscoveryOptions,
+} from "./local.js";
 
 // ---------------------------------------------------------------------------
 // Core tier (MUST) — required for all SDK consumers
