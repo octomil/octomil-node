@@ -25,7 +25,11 @@ import { configure } from "./configure.js";
 import type { AuthConfig } from "./types.js";
 import { OctomilError } from "./types.js";
 import type { LocalRunnerEndpoint, LocalRunnerDiscoveryOptions } from "./local.js";
-import { discoverLocalRunner, localRunnerPost } from "./local.js";
+import {
+  discoverLocalRunner,
+  localRunnerMultipartPost,
+  localRunnerPost,
+} from "./local.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -59,16 +63,7 @@ export interface OctomilFacadeEnvOptions {
 }
 
 /** Options for `Octomil.local()`. */
-export interface OctomilLocalOptions extends LocalRunnerDiscoveryOptions {
-  /** If true, allow fallback to hosted cloud when local runner fails. @default false */
-  fallbackToCloud?: boolean;
-  /** Server URL for cloud fallback. Only used when fallbackToCloud is true. */
-  serverUrl?: string;
-  /** API key for cloud fallback. Only used when fallbackToCloud is true. */
-  apiKey?: string;
-  /** Org ID for cloud fallback. Only used when fallbackToCloud is true. */
-  orgId?: string;
-}
+export type OctomilLocalOptions = LocalRunnerDiscoveryOptions;
 
 // ---------------------------------------------------------------------------
 // FacadeResponses
@@ -282,18 +277,23 @@ class LocalFacadeAudioTranscriptions {
     audio: Uint8Array;
     language?: string;
   }): Promise<LocalTranscriptionResult> {
-    // The local runner expects multipart form data at /v1/audio/transcriptions.
-    // Since we're in Node, we use the fetch API with FormData or raw POST.
-    // For simplicity and because the local runner also accepts JSON, we send JSON.
-    const body: Record<string, unknown> = {
-      model: options.model ?? "default",
-      audio_data: Buffer.from(options.audio).toString("base64"),
-    };
+    const audioBuffer = new ArrayBuffer(options.audio.byteLength);
+    new Uint8Array(audioBuffer).set(options.audio);
+
+    const body = new FormData();
+    body.append(
+      "file",
+      new Blob([audioBuffer], { type: "application/octet-stream" }),
+      "audio.wav",
+    );
+    if (options.model) {
+      body.append("model", options.model);
+    }
     if (options.language) {
-      body.language = options.language;
+      body.append("language", options.language);
     }
 
-    const response = await localRunnerPost(
+    const response = await localRunnerMultipartPost(
       this.endpoint,
       "/v1/audio/transcriptions",
       body,
@@ -325,7 +325,7 @@ export class Octomil {
   /**
    * Create a local-only Octomil client that uses the Python CLI's local runner.
    *
-   * Never sends requests to the hosted cloud unless `fallbackToCloud` is true.
+   * Never sends requests to the hosted cloud.
    * Discovers the runner via env vars or the CLI subprocess.
    *
    * @example
@@ -337,16 +337,7 @@ export class Octomil {
    */
   static async local(options: OctomilLocalOptions = {}): Promise<Octomil> {
     const endpoint = await discoverLocalRunner(options);
-
-    const facadeOptions: OctomilFacadeOptions = {};
-    if (options.fallbackToCloud) {
-      facadeOptions.apiKey = options.apiKey;
-      facadeOptions.orgId = options.orgId;
-      facadeOptions.serverUrl = options.serverUrl;
-    }
-
-    const client = new Octomil(facadeOptions, endpoint);
-    return client;
+    return new Octomil({}, endpoint);
   }
 
   static fromEnv(options: OctomilFacadeEnvOptions = {}): Octomil {

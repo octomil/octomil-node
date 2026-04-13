@@ -14,6 +14,7 @@ export {
   discoverFromEnv,
   discoverFromCli,
   localRunnerPost,
+  localRunnerMultipartPost,
   localRunnerHealthCheck,
 } from "./local.js";
 export type {

@@ -31,6 +31,10 @@ export interface LocalRunnerDiscoveryOptions {
   cliBinary?: string;
   /** Timeout in ms for CLI subprocess. @default 30_000 */
   cliTimeoutMs?: number;
+  /** Model to start when discovery needs to launch the Python local runner. */
+  model?: string;
+  /** Engine to start when discovery needs to launch the Python local runner. */
+  engine?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,11 +97,15 @@ export async function discoverFromCli(
   const timeoutMs = options?.cliTimeoutMs ?? 30_000;
 
   try {
-    const output = await execAsync(
-      binary,
-      ["local", "endpoint", "--json", "--show-token"],
-      timeoutMs,
-    );
+    const args = ["local", "endpoint", "--json", "--show-token"];
+    if (options?.model) {
+      args.push("--model", options.model);
+    }
+    if (options?.engine) {
+      args.push("--engine", options.engine);
+    }
+
+    const output = await execAsync(binary, args, timeoutMs);
 
     const parsed = JSON.parse(output) as Record<string, unknown>;
     const baseUrl =
@@ -139,6 +147,45 @@ export async function localRunnerPost(
         "User-Agent": "octomil-node/1.0",
       },
       body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new OctomilError(
+      "NETWORK_UNAVAILABLE",
+      "Failed to connect to local runner. Ensure the runner is started.",
+      err,
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new OctomilError(
+      "INFERENCE_FAILED",
+      `Local runner request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
+    );
+  }
+
+  return response;
+}
+
+/**
+ * Make an authenticated multipart POST request to the local runner.
+ * Do not set Content-Type here; fetch/FormData must supply the boundary.
+ */
+export async function localRunnerMultipartPost(
+  endpoint: LocalRunnerEndpoint,
+  path: string,
+  body: FormData,
+): Promise<Response> {
+  const url = `${endpoint.baseUrl}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${endpoint.token}`,
+        "User-Agent": "octomil-node/1.0",
+      },
+      body,
     });
   } catch (err) {
     throw new OctomilError(

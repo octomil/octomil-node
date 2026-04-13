@@ -362,10 +362,14 @@ describe("Octomil.local()", () => {
 
       // Verify it hit the local runner
       expect(fetchSpy).toHaveBeenCalledOnce();
-      const [fetchUrl] = fetchSpy.mock.calls[0]!;
+      const [fetchUrl, fetchOptions] = fetchSpy.mock.calls[0]!;
       expect(fetchUrl).toBe(
         "http://127.0.0.1:5555/v1/audio/transcriptions",
       );
+      expect(fetchOptions?.body).toBeInstanceOf(FormData);
+      const headers = fetchOptions?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer test-tok");
+      expect(headers["Content-Type"]).toBeUndefined();
 
       fetchSpy.mockRestore();
     });
