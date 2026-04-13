@@ -8,4 +8,5 @@ export enum ModelCapability {
   Embedding = "embedding",
   Classification = "classification",
   Reasoning = "reasoning",
+  Vision = "vision",
 }

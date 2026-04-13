@@ -20,6 +20,9 @@ export const SPAN_EVENT_ATTRIBUTES = {
   octomilRuntimeInitMs: "octomil.runtime.init_ms",
   octomilToolExtractionStrategy: "octomil.tool.extraction_strategy",
   octomilToolRawTextPreview: "octomil.tool.raw_text_preview",
+  octomilKvCacheStrategy: "octomil.kv_cache.strategy",
+  octomilKvCacheQuantizationBits: "octomil.kv_cache.quantization_bits",
+  octomilKvCacheBackend: "octomil.kv_cache.backend",
 } as const;
 
 export const EVENT_REQUIRED_ATTRIBUTES: Record<string, string[]> = {
@@ -34,4 +37,5 @@ export const EVENT_REQUIRED_ATTRIBUTES: Record<string, string[]> = {
   "runtime_initialized": ["octomil.runtime.executor", "octomil.runtime.init_ms"],
   "tool_call_parse_succeeded": ["octomil.tool.name", "octomil.tool.extraction_strategy"],
   "tool_call_parse_failed": ["octomil.tool.extraction_strategy"],
+  "kv_cache_applied": ["octomil.kv_cache.strategy"],
 };
