@@ -1,7 +1,7 @@
 {
   "name": "@octomil/sdk",
   "version": "0.1.0",
-  "description": "Octomil Node.js SDK — download, cache, and run ONNX models locally",
+  "description": "Octomil Node.js SDK for hosted and local AI inference",
   "type": "module",
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/esm/index.js",
@@ -18,11 +18,20 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "pack:check": "npm pack --dry-run --json",
+    "exports:check": "node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
+    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run exports:check && pnpm run pack:check",
     "test:watch": "vitest",
     "lint": "eslint src/ tests/",
     "format": "prettier --write ."

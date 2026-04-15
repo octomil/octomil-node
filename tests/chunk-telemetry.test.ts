@@ -19,6 +19,12 @@ function createMockTelemetry(): TelemetryReporter {
   } as unknown as TelemetryReporter;
 }
 
+function chunkTelemetryCalls(telemetry: TelemetryReporter) {
+  return vi
+    .mocked(telemetry.track)
+    .mock.calls.filter(([name]) => name === "inference.chunk_produced");
+}
+
 function makeSSEResponse(lines: string[]): Response {
   const text = lines.join("\n") + "\n";
   const encoder = new TextEncoder();
@@ -172,16 +178,19 @@ describe("ResponsesClient chunk telemetry", () => {
     const textDeltas = events.filter((e) => e.type === "text_delta");
     expect(textDeltas).toHaveLength(2);
 
-    // Telemetry should fire for each text_delta
-    expect(telemetry.track).toHaveBeenCalledTimes(2);
-    expect(telemetry.track).toHaveBeenNthCalledWith(1, "inference.chunk_produced", {
+    // Telemetry should fire for each text_delta, alongside lifecycle events.
+    const chunkCalls = chunkTelemetryCalls(telemetry);
+    expect(chunkCalls).toHaveLength(2);
+    expect(chunkCalls[0]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 0,
-    });
-    expect(telemetry.track).toHaveBeenNthCalledWith(2, "inference.chunk_produced", {
+      locality: "cloud",
+    }]);
+    expect(chunkCalls[1]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 1,
-    });
+      locality: "cloud",
+    }]);
   });
 
   it("should emit inference.chunk_produced for tool call deltas", async () => {
@@ -205,15 +214,18 @@ describe("ResponsesClient chunk telemetry", () => {
     const toolDeltas = events.filter((e) => e.type === "tool_call_delta");
     expect(toolDeltas).toHaveLength(2);
 
-    expect(telemetry.track).toHaveBeenCalledTimes(2);
-    expect(telemetry.track).toHaveBeenNthCalledWith(1, "inference.chunk_produced", {
+    const chunkCalls = chunkTelemetryCalls(telemetry);
+    expect(chunkCalls).toHaveLength(2);
+    expect(chunkCalls[0]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 0,
-    });
-    expect(telemetry.track).toHaveBeenNthCalledWith(2, "inference.chunk_produced", {
+      locality: "cloud",
+    }]);
+    expect(chunkCalls[1]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 1,
-    });
+      locality: "cloud",
+    }]);
   });
 
   it("should not emit telemetry when reporter is not provided", async () => {
@@ -265,16 +277,19 @@ describe("ChatClient chunk telemetry", () => {
     // "Hello" + " world" produce text_delta chunks; done event produces final chunk
     expect(chunks).toHaveLength(3);
 
-    // Telemetry fires for each text_delta (2 deltas)
-    expect(telemetry.track).toHaveBeenCalledTimes(2);
-    expect(telemetry.track).toHaveBeenNthCalledWith(1, "inference.chunk_produced", {
+    // Telemetry fires for each text_delta (2 deltas), alongside lifecycle events.
+    const chunkCalls = chunkTelemetryCalls(telemetry);
+    expect(chunkCalls).toHaveLength(2);
+    expect(chunkCalls[0]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 0,
-    });
-    expect(telemetry.track).toHaveBeenNthCalledWith(2, "inference.chunk_produced", {
+      locality: "cloud",
+    }]);
+    expect(chunkCalls[1]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 1,
-    });
+      locality: "cloud",
+    }]);
   });
 
   it("should not emit telemetry when reporter is null", async () => {
@@ -330,10 +345,12 @@ describe("ChatClient chunk telemetry", () => {
 
     // text_delta chunk + done chunk
     expect(chunks).toHaveLength(2);
-    expect(telemetry.track).toHaveBeenCalledTimes(1);
-    expect(telemetry.track).toHaveBeenCalledWith("inference.chunk_produced", {
+    const chunkCalls = chunkTelemetryCalls(telemetry);
+    expect(chunkCalls).toHaveLength(1);
+    expect(chunkCalls[0]).toEqual(["inference.chunk_produced", {
       "model.id": "gpt-4o",
       "inference.chunk_index": 0,
-    });
+      locality: "cloud",
+    }]);
   });
 });

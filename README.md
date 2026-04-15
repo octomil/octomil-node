@@ -1,6 +1,6 @@
 # @octomil/sdk (Node.js)
 
-> **Status:** v0.1.0 — feature-complete but not yet published to npm. Install from source.
+> **Status:** v0.1.0 beta — publishable as `@octomil/sdk`.
 
 Node.js SDK for on-device AI: ONNX inference, structured responses API, chat completions, control plane integration, model catalog, audio transcription, text prediction, query routing, and telemetry.
 
@@ -23,14 +23,16 @@ Node.js SDK for on-device AI: ONNX inference, structured responses API, chat com
 | Tool runner | Implemented — automated multi-turn tool call loop |
 | configure() (silent registration) | Implemented — background registration with backoff |
 
-**Not implemented:** npm publishing, automatic OTA download orchestration for managed models, CLI, MCP server, benchmarking.
+**Not implemented:** automatic OTA download orchestration for managed models, CLI, MCP server, benchmarking.
 
 ## Install
 
 ```bash
-# not yet published — install from source
-pnpm install
-pnpm build
+npm install @octomil/sdk
+```
+
+```bash
+pnpm add @octomil/sdk
 ```
 
 ## Quick Start
@@ -278,6 +280,21 @@ pnpm typecheck     # type check
 pnpm lint          # lint
 pnpm format        # format
 ```
+
+## Releasing
+
+Releases publish to npm from GitHub Releases via trusted publishing with npm provenance. Before cutting the first release, configure npm trusted publishing for `@octomil/sdk` with repository `octomil/octomil-node` and workflow `.github/workflows/publish.yml`.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm test
+pnpm run build
+pnpm run exports:check
+pnpm run pack:check
+```
+
+Then create a GitHub Release for the package version in `package.json`. The publish workflow runs the same gates and publishes `@octomil/sdk` with public scoped-package access and provenance.
 
 ## Requirements
 
