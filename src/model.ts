@@ -31,11 +31,16 @@ export class Model {
     telemetry: TelemetryReporter | null,
     version?: string,
     format?: string,
+    legacyFormat?: string,
   ) {
     this.engine = engine;
     this.telemetry = telemetry;
-    this.version = version ?? "";
-    this.format = format ?? "";
+    // Older callers passed an unused options slot before version/format:
+    // new Model(ref, path, engine, telemetry, undefined, "v2", "tflite").
+    // Preserve that arity so published SDK consumers do not silently lose
+    // version metadata.
+    this.version = legacyFormat === undefined ? (version ?? "") : (format ?? "");
+    this.format = legacyFormat ?? format ?? "";
   }
 
   /**
