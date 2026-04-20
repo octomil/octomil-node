@@ -227,6 +227,28 @@ export type {
 } from "./query-routing.js";
 
 // ---------------------------------------------------------------------------
+// Runtime planner (server-assisted engine selection)
+// ---------------------------------------------------------------------------
+
+export { RuntimePlannerClient, parsePlanResponse } from "./planner/index.js";
+export type { RuntimePlannerClientOptions } from "./planner/index.js";
+export { collectDeviceRuntimeProfile } from "./planner/index.js";
+export { SUPPORTED_POLICIES, isSupportedPolicy } from "./planner/index.js";
+export type {
+  SupportedPolicy,
+  PlannerCapability,
+  InstalledRuntime,
+  DeviceRuntimeProfile,
+  RuntimePlanRequest,
+  RuntimeArtifactPlan,
+  RuntimeCandidatePlan,
+  RuntimePlanResponse,
+  RuntimeBenchmarkSubmission,
+  RuntimeDefaultsResponse,
+  RouteMetadata,
+} from "./planner/index.js";
+
+// ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
 // ---------------------------------------------------------------------------
 
