@@ -18,12 +18,13 @@ Node.js SDK for on-device AI: ONNX inference, structured responses API, chat com
 | Audio transcription | Implemented — requires manifest runtime |
 | Text prediction | Implemented — requires manifest runtime |
 | Query routing | Implemented — policy-based + server routing |
+| Runtime planner | Implemented — server-assisted engine selection, route metadata |
 | Device capabilities | Implemented — RAM-based device class, accelerator detection |
 | Telemetry | Implemented — OTLP batched reporter |
 | Tool runner | Implemented — automated multi-turn tool call loop |
 | configure() (silent registration) | Implemented — background registration with backoff |
 
-**Not implemented:** automatic OTA download orchestration for managed models, CLI, MCP server, benchmarking.
+**Not implemented:** automatic OTA download orchestration for managed models, CLI, MCP server, local benchmarking. The Node SDK cannot run local inference engines (llama.cpp, mlx, etc.) directly. Use the separate Octomil CLI for local execution.
 
 ## Install
 
@@ -219,6 +220,88 @@ for await (const token of client.streamPredict("phi-4-mini", "Explain quantum co
   process.stdout.write(token.token);
 }
 ```
+
+## Runtime Planner
+
+The runtime planner client fetches server-assisted engine selection plans via the `/api/v2/runtime/plan` endpoint. It determines whether a model should run locally or in the cloud, which engine to use, and which artifact to download.
+
+```typescript
+import {
+  RuntimePlannerClient,
+  collectDeviceRuntimeProfile,
+  SUPPORTED_POLICIES,
+} from "@octomil/sdk";
+
+// Create a planner client (uses OCTOMIL_SERVER_KEY from env)
+const planner = new RuntimePlannerClient({
+  apiKey: process.env.OCTOMIL_SERVER_KEY,
+});
+
+// Collect device profile automatically
+const device = await collectDeviceRuntimeProfile();
+
+// Fetch a runtime plan from the server
+const plan = await planner.fetchPlan({
+  model: "phi-4-mini",
+  capability: "chat",
+  routing_policy: "local_first",
+  device,
+  allow_cloud_fallback: true,
+});
+
+if (plan) {
+  console.log(`Policy: ${plan.policy}`);
+  console.log(`Candidates: ${plan.candidates.length}`);
+  for (const c of plan.candidates) {
+    console.log(`  ${c.locality} via ${c.engine ?? "cloud"} (confidence: ${c.confidence})`);
+  }
+}
+
+// Fetch server defaults (supported policies, TTLs)
+const defaults = await planner.fetchDefaults();
+console.log(`Supported policies: ${defaults?.supported_policies.join(", ")}`);
+
+// Submit benchmark telemetry (best-effort, never throws)
+await planner.submitBenchmark({
+  source: "planner",
+  model: "phi-4-mini",
+  capability: "chat",
+  engine: "onnxruntime-node",
+  device,
+  success: true,
+  tokens_per_second: 42.5,
+});
+```
+
+### Supported routing policies
+
+| Policy | Behavior |
+|--------|----------|
+| `private` / `local_only` | Never contact the cloud |
+| `local_first` | Prefer local, fall back to cloud |
+| `cloud_first` | Prefer cloud, fall back to local |
+| `cloud_only` | Never use local engines |
+| `performance_first` | Pick whichever is fastest |
+
+`quality_first` is not a supported policy name.
+
+### Route metadata
+
+Every planner response includes route metadata that can be attached to inference results:
+
+```typescript
+import type { RouteMetadata } from "@octomil/sdk";
+
+const metadata: RouteMetadata = {
+  locality: "on_device",
+  engine: "onnxruntime-node",
+  planner_source: "server",
+  fallback_used: false,
+  reason: "local engine available and model format supported",
+};
+```
+
+> **Note:** The Node SDK currently supports the planner client for server-assisted planning, but cannot execute local inference engines directly (llama.cpp, mlx, etc.). For local execution, use the Octomil CLI or Python SDK.
 
 ## AppManifest (Capability-Driven)
 
