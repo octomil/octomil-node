@@ -1,0 +1,65 @@
+{
+  "description": "Deployment reference with cloud_only policy — local candidates excluded",
+  "request": {
+    "model": "gpt-4o-mini",
+    "capability": "chat",
+    "routing_policy": "cloud_only"
+  },
+  "planner_response": {
+    "model": "gpt-4o-mini",
+    "candidates": [
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 1.0,
+        "reason": "cloud_only deployment — single cloud candidate"
+      }
+    ],
+    "fallback_allowed": false
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_deploy_cloud_004",
+    "model": "gpt-4o-mini",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "cloud_only",
+    "latency_ms": 156,
+    "status": "success"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": false
+  },
+  "rules_tested": [
+    "cloud_only_excludes_local_candidates",
+    "deployment_ref_resolved_by_planner",
+    "no_fallback_on_cloud_only"
+  ]
+}

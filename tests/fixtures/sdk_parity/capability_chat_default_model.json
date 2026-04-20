@@ -1,0 +1,65 @@
+{
+  "description": "Chat capability request with no explicit model — planner resolves default",
+  "request": {
+    "model": null,
+    "capability": "chat",
+    "routing_policy": "auto"
+  },
+  "planner_response": {
+    "model": "llama-3.2-3b",
+    "candidates": [
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 0.99,
+        "reason": "default model for chat — cloud route"
+      }
+    ],
+    "fallback_allowed": false
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_chat_default_003",
+    "model": "llama-3.2-3b",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "auto",
+    "latency_ms": 210,
+    "status": "success"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": false
+  },
+  "rules_tested": [
+    "null_model_resolved_by_planner",
+    "auto_policy_defaults_cloud",
+    "single_candidate_direct_selection"
+  ]
+}

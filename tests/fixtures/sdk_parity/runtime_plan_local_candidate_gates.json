@@ -1,0 +1,104 @@
+{
+  "description": "Local candidate with multiple gates — all pass, selected for inference",
+  "request": {
+    "model": "llama-3.2-1b",
+    "capability": "chat",
+    "routing_policy": "local_first"
+  },
+  "planner_response": {
+    "model": "llama-3.2-1b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_1b_q4",
+          "digest": "sha256:abc123"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          { "code": "artifact_verified", "required": true, "source": "server" },
+          { "code": "model_loads", "required": true, "source": "server" },
+          {
+            "code": "context_fits",
+            "required": true,
+            "threshold_number": 4096,
+            "source": "sdk"
+          },
+          {
+            "code": "min_tokens_per_second",
+            "required": false,
+            "threshold_number": 10,
+            "window_seconds": 60,
+            "source": "sdk"
+          },
+          {
+            "code": "max_ttft_ms",
+            "required": false,
+            "threshold_number": 500,
+            "window_seconds": 60,
+            "source": "sdk"
+          }
+        ],
+        "priority": 0,
+        "confidence": 0.92,
+        "reason": "local candidate with full gate set"
+      },
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 1,
+        "confidence": 0.99,
+        "reason": "cloud fallback"
+      }
+    ],
+    "fallback_allowed": true
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "sdk_runtime",
+      "locality": "local",
+      "engine": "llamacpp"
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_local_gates_006",
+    "model": "llama-3.2-1b",
+    "locality": "local",
+    "engine": "llamacpp",
+    "policy": "local_first",
+    "latency_ms": 412,
+    "status": "success",
+    "gates_evaluated": 6,
+    "gates_passed": 6
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": true
+  },
+  "rules_tested": [
+    "multiple_gates_all_evaluated",
+    "optional_gates_do_not_block",
+    "local_selected_when_all_gates_pass",
+    "cloud_fallback_not_attempted_on_success"
+  ]
+}

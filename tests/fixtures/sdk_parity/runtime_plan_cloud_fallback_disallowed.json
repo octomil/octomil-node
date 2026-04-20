@@ -1,0 +1,73 @@
+{
+  "description": "Local candidate fails gate but fallback is disallowed — route unavailable",
+  "request": {
+    "model": "llama-3.2-3b",
+    "capability": "chat",
+    "routing_policy": "local_only"
+  },
+  "planner_response": {
+    "model": "llama-3.2-3b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_3b_q8",
+          "digest": "sha256:ghi789"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          {
+            "code": "min_free_memory_bytes",
+            "required": true,
+            "threshold_number": 4294967296,
+            "source": "sdk"
+          }
+        ],
+        "priority": 0,
+        "confidence": 0.4,
+        "reason": "local_only — no cloud fallback permitted"
+      }
+    ],
+    "fallback_allowed": false
+  },
+  "expected_route_metadata": {
+    "status": "unavailable",
+    "execution": null,
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "failed",
+        "stage": "gate"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_no_fallback_007",
+    "model": "llama-3.2-3b",
+    "locality": "local",
+    "engine": "llamacpp",
+    "policy": "local_only",
+    "latency_ms": 12,
+    "status": "unavailable",
+    "failure_reason": "gate_failed:min_free_memory_bytes"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": false,
+    "fallback_allowed": false
+  },
+  "rules_tested": [
+    "fallback_disallowed_stops_after_first_failure",
+    "route_status_unavailable_when_no_candidate_selected",
+    "gate_failure_recorded_in_attempts"
+  ]
+}

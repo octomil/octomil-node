@@ -1,0 +1,81 @@
+{
+  "description": "Streaming request — error after first token emitted blocks fallback",
+  "request": {
+    "model": "llama-3.2-3b",
+    "capability": "chat",
+    "routing_policy": "local_first",
+    "stream": true
+  },
+  "planner_response": {
+    "model": "llama-3.2-3b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_3b_q4",
+          "digest": "sha256:jkl012"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          { "code": "model_loads", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 0.8,
+        "reason": "local preferred for streaming"
+      },
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 1,
+        "confidence": 0.99,
+        "reason": "cloud fallback — not used after first output"
+      }
+    ],
+    "fallback_allowed": true
+  },
+  "expected_route_metadata": {
+    "status": "failed",
+    "execution": null,
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "failed",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_stream_postfirst_009",
+    "model": "llama-3.2-3b",
+    "locality": "local",
+    "engine": "llamacpp",
+    "policy": "local_first",
+    "latency_ms": 3400,
+    "status": "failed",
+    "streaming": true,
+    "fallback_used": false,
+    "first_token_emitted": true,
+    "failure_reason": "inference_error_after_first_output"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": true
+  },
+  "rules_tested": [
+    "streaming_no_fallback_after_first_token",
+    "first_output_emitted_blocks_route_switch",
+    "partial_output_prevents_splice"
+  ]
+}

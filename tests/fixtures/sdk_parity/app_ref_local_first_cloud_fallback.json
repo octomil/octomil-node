@@ -1,0 +1,99 @@
+{
+  "description": "App reference with local_first policy — local candidate fails, falls back to cloud",
+  "request": {
+    "model": "llama-3.2-3b",
+    "capability": "chat",
+    "routing_policy": "local_first"
+  },
+  "planner_response": {
+    "model": "llama-3.2-3b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_3b_q4",
+          "digest": "sha256:def456"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          { "code": "model_loads", "required": true, "source": "server" },
+          {
+            "code": "min_free_memory_bytes",
+            "required": true,
+            "threshold_number": 2147483648,
+            "source": "sdk"
+          }
+        ],
+        "priority": 0,
+        "confidence": 0.7,
+        "reason": "local preferred — insufficient memory expected"
+      },
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 1,
+        "confidence": 0.99,
+        "reason": "cloud fallback — always available"
+      }
+    ],
+    "fallback_allowed": true
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "failed",
+        "stage": "gate"
+      },
+      {
+        "index": 1,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": true,
+      "from_attempt": 0,
+      "to_attempt": 1,
+      "trigger": {
+        "code": "gate_failed",
+        "stage": "gate",
+        "message": "min_free_memory_bytes gate failed"
+      }
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_app_local_first_002",
+    "model": "llama-3.2-3b",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "local_first",
+    "latency_ms": 890,
+    "status": "success",
+    "fallback_used": true
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": true
+  },
+  "rules_tested": [
+    "local_first_attempts_local_before_cloud",
+    "gate_failure_triggers_fallback",
+    "fallback_metadata_records_trigger"
+  ]
+}

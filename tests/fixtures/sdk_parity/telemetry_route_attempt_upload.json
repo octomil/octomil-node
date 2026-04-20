@@ -1,0 +1,69 @@
+{
+  "description": "Telemetry payload for route attempt upload — validates safe field set",
+  "request": {
+    "model": "llama-3.2-1b",
+    "capability": "chat",
+    "routing_policy": "auto"
+  },
+  "planner_response": {
+    "model": "llama-3.2-1b",
+    "candidates": [
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 0.99,
+        "reason": "cloud route for telemetry test"
+      }
+    ],
+    "fallback_allowed": false
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_telemetry_010",
+    "model": "llama-3.2-1b",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "auto",
+    "latency_ms": 198,
+    "status": "success",
+    "token_count_input": 42,
+    "token_count_output": 128,
+    "ttft_ms": 85
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": false
+  },
+  "rules_tested": [
+    "telemetry_excludes_prompt_content",
+    "telemetry_excludes_output_content",
+    "telemetry_includes_only_safe_metrics",
+    "no_pii_in_route_telemetry"
+  ]
+}

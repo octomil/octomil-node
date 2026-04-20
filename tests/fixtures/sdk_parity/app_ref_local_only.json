@@ -1,0 +1,77 @@
+{
+  "description": "App reference with local_only routing policy — no cloud fallback allowed",
+  "request": {
+    "model": "llama-3.2-1b",
+    "capability": "chat",
+    "routing_policy": "local_only"
+  },
+  "planner_response": {
+    "model": "llama-3.2-1b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_1b_q4",
+          "digest": "sha256:abc123"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          { "code": "model_loads", "required": true, "source": "server" },
+          {
+            "code": "context_fits",
+            "required": true,
+            "threshold_number": 2048,
+            "source": "server"
+          }
+        ],
+        "priority": 0,
+        "confidence": 0.95,
+        "reason": "local_only policy — single local candidate"
+      }
+    ],
+    "fallback_allowed": false
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "sdk_runtime",
+      "locality": "local",
+      "engine": "llamacpp"
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_app_local_only_001",
+    "model": "llama-3.2-1b",
+    "locality": "local",
+    "engine": "llamacpp",
+    "policy": "local_only",
+    "latency_ms": 342,
+    "status": "success"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": false,
+    "fallback_allowed": false
+  },
+  "rules_tested": [
+    "local_only_policy_blocks_cloud",
+    "fallback_disallowed_on_local_only",
+    "single_candidate_no_fallback_metadata"
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "description": "Streaming request — inference error before first token allows fallback",
+  "request": {
+    "model": "llama-3.2-3b",
+    "capability": "chat",
+    "routing_policy": "local_first",
+    "stream": true
+  },
+  "planner_response": {
+    "model": "llama-3.2-3b",
+    "candidates": [
+      {
+        "locality": "local",
+        "engine": "llamacpp",
+        "artifact": {
+          "artifact_id": "art_llama32_3b_q4",
+          "digest": "sha256:jkl012"
+        },
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" },
+          { "code": "model_loads", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 0.8,
+        "reason": "local preferred for streaming"
+      },
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 1,
+        "confidence": 0.99,
+        "reason": "cloud fallback for streaming"
+      }
+    ],
+    "fallback_allowed": true
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "local",
+        "mode": "sdk_runtime",
+        "engine": "llamacpp",
+        "status": "failed",
+        "stage": "inference"
+      },
+      {
+        "index": 1,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": true,
+      "from_attempt": 0,
+      "to_attempt": 1,
+      "trigger": {
+        "code": "inference_error_before_first_output",
+        "stage": "inference",
+        "message": "model failed to generate output"
+      }
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_stream_prefirst_008",
+    "model": "llama-3.2-3b",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "local_first",
+    "latency_ms": 1200,
+    "status": "success",
+    "streaming": true,
+    "fallback_used": true,
+    "fallback_stage": "inference"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": true
+  },
+  "rules_tested": [
+    "streaming_fallback_allowed_before_first_token",
+    "inference_error_triggers_fallback",
+    "fallback_trigger_records_inference_stage"
+  ]
+}

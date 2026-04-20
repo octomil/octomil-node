@@ -1,0 +1,67 @@
+{
+  "description": "Experiment variant resolution — planner selects variant candidate",
+  "request": {
+    "model": "llama-3.2-1b",
+    "capability": "chat",
+    "routing_policy": "auto"
+  },
+  "planner_response": {
+    "model": "llama-3.2-1b",
+    "candidates": [
+      {
+        "locality": "cloud",
+        "gates": [
+          { "code": "runtime_available", "required": true, "source": "server" }
+        ],
+        "priority": 0,
+        "confidence": 0.98,
+        "reason": "experiment variant A — cloud route selected"
+      }
+    ],
+    "fallback_allowed": true
+  },
+  "expected_route_metadata": {
+    "status": "selected",
+    "execution": {
+      "mode": "hosted_gateway",
+      "locality": "cloud",
+      "engine": null
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "locality": "cloud",
+        "mode": "hosted_gateway",
+        "engine": null,
+        "status": "selected",
+        "stage": "inference"
+      }
+    ],
+    "fallback": {
+      "used": false,
+      "from_attempt": null,
+      "to_attempt": null,
+      "trigger": null
+    }
+  },
+  "expected_telemetry": {
+    "route_id": "route_experiment_005",
+    "model": "llama-3.2-1b",
+    "locality": "cloud",
+    "engine": null,
+    "policy": "auto",
+    "experiment_id": "exp_latency_comparison_001",
+    "variant": "A",
+    "latency_ms": 245,
+    "status": "success"
+  },
+  "expected_policy_result": {
+    "cloud_allowed": true,
+    "fallback_allowed": true
+  },
+  "rules_tested": [
+    "experiment_variant_resolved_by_planner",
+    "variant_metadata_in_telemetry",
+    "fallback_allowed_on_experiment"
+  ]
+}
