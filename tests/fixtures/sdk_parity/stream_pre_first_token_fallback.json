@@ -1,96 +1,122 @@
 {
-  "description": "Streaming request — inference error before first token allows fallback",
+  "description": "Streaming: local inference fails before first token. Fallback to cloud is allowed and succeeds.",
   "request": {
-    "model": "llama-3.2-3b",
+    "model": "gemma3-1b",
     "capability": "chat",
     "routing_policy": "local_first",
-    "stream": true
+    "stream": true,
+    "device": {
+      "platform": "macos",
+      "arch": "arm64",
+      "ram_bytes": 17179869184,
+      "engines": [{ "id": "llama.cpp", "version": "b4567" }]
+    }
   },
   "planner_response": {
-    "model": "llama-3.2-3b",
+    "model": "gemma3-1b",
+    "capability": "chat",
+    "policy": "local_first",
     "candidates": [
       {
         "locality": "local",
-        "engine": "llamacpp",
+        "engine": "llama.cpp",
         "artifact": {
-          "artifact_id": "art_llama32_3b_q4",
-          "digest": "sha256:jkl012"
+          "model_id": "gemma3-1b",
+          "artifact_id": "art_700",
+          "format": "gguf",
+          "digest": "sha256:ggg777",
+          "size_bytes": 1200000000
         },
+        "priority": 0,
+        "confidence": 0.9,
+        "reason": "local preferred",
         "gates": [
+          { "code": "artifact_verified", "required": true, "source": "server" },
           { "code": "runtime_available", "required": true, "source": "server" },
           { "code": "model_loads", "required": true, "source": "server" }
-        ],
-        "priority": 0,
-        "confidence": 0.8,
-        "reason": "local preferred for streaming"
+        ]
       },
       {
         "locality": "cloud",
-        "gates": [
-          { "code": "runtime_available", "required": true, "source": "server" }
-        ],
+        "engine": "cloud",
         "priority": 1,
         "confidence": 0.99,
-        "reason": "cloud fallback for streaming"
+        "reason": "cloud fallback",
+        "gates": []
       }
     ],
-    "fallback_allowed": true
+    "fallback_candidates": [],
+    "fallback_allowed": true,
+    "server_generated_at": "2026-04-20T10:00:00Z",
+    "plan_ttl_seconds": 604800
   },
   "expected_route_metadata": {
     "status": "selected",
-    "execution": {
-      "mode": "hosted_gateway",
-      "locality": "cloud",
-      "engine": null
+    "execution": { "locality": "cloud", "mode": "hosted_gateway", "engine": null },
+    "model": {
+      "requested": { "ref": "gemma3-1b", "kind": "model", "capability": "chat" }
+    },
+    "artifact": null,
+    "planner": { "source": "server" },
+    "fallback": {
+      "used": true,
+      "from_attempt": 0,
+      "to_attempt": 1,
+      "trigger": { "code": "inference_error_before_first_token", "stage": "inference", "message": "local engine crashed before emitting first token" }
     },
     "attempts": [
       {
         "index": 0,
         "locality": "local",
         "mode": "sdk_runtime",
-        "engine": "llamacpp",
+        "engine": "llama.cpp",
+        "artifact": { "id": "art_700", "digest": "sha256:ggg777", "cache": { "status": "hit", "managed_by": "octomil" } },
         "status": "failed",
-        "stage": "inference"
+        "stage": "inference",
+        "gate_results": [
+          { "code": "artifact_verified", "status": "passed" },
+          { "code": "runtime_available", "status": "passed" },
+          { "code": "model_loads", "status": "passed" }
+        ],
+        "reason": { "code": "inference_error_before_first_token", "message": "engine crashed before first token" }
       },
       {
         "index": 1,
         "locality": "cloud",
         "mode": "hosted_gateway",
         "engine": null,
+        "artifact": null,
         "status": "selected",
-        "stage": "inference"
+        "stage": "inference",
+        "gate_results": [],
+        "reason": { "code": "selected", "message": "cloud fallback after pre-token failure" }
       }
     ],
-    "fallback": {
-      "used": true,
-      "from_attempt": 0,
-      "to_attempt": 1,
-      "trigger": {
-        "code": "inference_error_before_first_output",
-        "stage": "inference",
-        "message": "model failed to generate output"
-      }
-    }
+    "reason": { "code": "fallback_cloud", "message": "streaming fallback before first token" }
   },
   "expected_telemetry": {
-    "route_id": "route_stream_prefirst_008",
-    "model": "llama-3.2-3b",
-    "locality": "cloud",
-    "engine": null,
+    "route_id": "{{generated}}",
+    "plan_id": "{{generated}}",
+    "request_id": "{{generated}}",
+    "capability": "chat",
     "policy": "local_first",
-    "latency_ms": 1200,
-    "status": "success",
-    "streaming": true,
+    "planner_source": "server",
+    "final_locality": "cloud",
+    "engine": null,
+    "artifact_id": null,
     "fallback_used": true,
-    "fallback_stage": "inference"
+    "fallback_trigger_code": "inference_error_before_first_token",
+    "candidate_attempts": 2
   },
   "expected_policy_result": {
     "cloud_allowed": true,
-    "fallback_allowed": true
+    "local_allowed": true,
+    "fallback_allowed": true,
+    "private": false
   },
   "rules_tested": [
-    "streaming_fallback_allowed_before_first_token",
-    "inference_error_triggers_fallback",
-    "fallback_trigger_records_inference_stage"
+    "streaming fallback before first token is allowed",
+    "fallback trigger records the stage and error code",
+    "cloud fallback starts fresh stream, not mid-stream"
   ]
 }

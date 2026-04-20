@@ -82,6 +82,17 @@ describe("Contract Conformance", () => {
         }
       }
     });
+
+    test.each(fixtures.filter((f) => f.data.request.model?.startsWith?.("@app/")))(
+      "$name: app refs carry app_resolution",
+      ({ data }) => {
+        expect(data.planner_response.app_resolution).toBeDefined();
+        expect(data.planner_response.app_resolution).not.toBeNull();
+        expect(data.planner_response.app_resolution.selected_model).toBe(
+          data.planner_response.model,
+        );
+      },
+    );
   });
 
   describe("Candidate Type Alignment", () => {
@@ -233,11 +244,11 @@ describe("Contract Conformance", () => {
       if (telemetry) {
         expect(telemetry.route_id).toBeDefined();
         expect(typeof telemetry.route_id).toBe("string");
-        expect(telemetry.model).toBeDefined();
-        expect(telemetry.status).toBeDefined();
-        expect(["success", "failed", "unavailable"]).toContain(
-          telemetry.status,
-        );
+        expect(telemetry.request_id).toBeDefined();
+        expect(typeof telemetry.request_id).toBe("string");
+        expect(telemetry.capability).toBeDefined();
+        expect(telemetry.policy).toBeDefined();
+        expect(typeof telemetry.fallback_used).toBe("boolean");
       }
     });
   });
