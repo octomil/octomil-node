@@ -229,9 +229,7 @@ export class CandidateAttemptRunner {
 
   private attempts: RouteAttempt[] = [];
 
-  constructor(
-    opts: { fallbackAllowed?: boolean; streaming?: boolean } = {},
-  ) {
+  constructor(opts: { fallbackAllowed?: boolean; streaming?: boolean } = {}) {
     this.fallbackAllowed = opts.fallbackAllowed ?? true;
     this.streaming = opts.streaming ?? false;
   }
