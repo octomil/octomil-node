@@ -15,6 +15,15 @@ export type {
   RuntimePlanResponse,
   RuntimeBenchmarkSubmission,
   RuntimeDefaultsResponse,
+  RouteExecution,
+  RouteModelRequested,
+  RouteModelResolved,
+  RouteModel,
+  ArtifactCache,
+  RouteArtifact,
+  PlannerInfo,
+  FallbackInfo,
+  RouteReason,
   RouteMetadata,
 } from "./types.js";
 

@@ -155,31 +155,87 @@ export interface RuntimeBenchmarkSubmission {
 
 /** Response from GET /api/v2/runtime/defaults. */
 export interface RuntimeDefaultsResponse {
-  default_policy: string;
-  plan_ttl_seconds: number;
-  benchmark_ttl_seconds: number;
-  supported_policies: string[];
+  default_engines: Record<string, string[]>;
   supported_capabilities: string[];
+  supported_policies: string[];
+  plan_ttl_seconds: number;
 }
 
 // ---------------------------------------------------------------------------
 // Route metadata — attached to inference responses
 // ---------------------------------------------------------------------------
 
+/** Execution details for a routed request. */
+export interface RouteExecution {
+  locality: "local" | "cloud";
+  mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
+  engine: string | null;
+}
+
+/** The model reference as requested by the caller. */
+export interface RouteModelRequested {
+  ref: string;
+  kind: "model" | "app" | "deployment" | "alias" | "default" | "unknown";
+  capability: string | null;
+}
+
+/** Server-resolved model identifiers. */
+export interface RouteModelResolved {
+  id: string | null;
+  slug: string | null;
+  version_id: string | null;
+  variant_id: string | null;
+}
+
+/** Requested + resolved model information. */
+export interface RouteModel {
+  requested: RouteModelRequested;
+  resolved: RouteModelResolved | null;
+}
+
+/** Cache status for a downloaded artifact. */
+export interface ArtifactCache {
+  status: "hit" | "miss" | "downloaded" | "not_applicable" | "unavailable";
+  managed_by: "octomil" | "runtime" | "external" | null;
+}
+
+/** Artifact details for a routed request. */
+export interface RouteArtifact {
+  id: string | null;
+  version: string | null;
+  format: string | null;
+  digest: string | null;
+  cache: ArtifactCache;
+}
+
+/** How the routing plan was obtained. */
+export interface PlannerInfo {
+  source: "server" | "cache" | "offline";
+}
+
+/** Whether a fallback path was used. */
+export interface FallbackInfo {
+  used: boolean;
+}
+
+/** Human-readable reason for the routing decision. */
+export interface RouteReason {
+  code: string;
+  message: string;
+}
+
 /**
  * Route metadata describing how a request was routed.
  *
- * Matches the Python SDK's RouteMetadata structure for cross-SDK parity.
+ * Matches the canonical contract shape (JSON wire format) for cross-SDK parity.
+ * Public locality values are "local" | "cloud" only — never "on_device".
  */
 export interface RouteMetadata {
-  /** Where the inference ran. */
-  locality: "on_device" | "cloud";
-  /** Engine used for local inference (undefined for cloud). */
-  engine?: string;
-  /** How the plan was obtained. */
-  planner_source: "server" | "cache" | "offline";
-  /** Whether the response came from a fallback candidate. */
-  fallback_used: boolean;
-  /** Human-readable reason for the routing decision. */
-  reason: string;
+  status: "selected" | "unavailable";
+  execution: RouteExecution | null;
+  model: RouteModel;
+  artifact: RouteArtifact | null;
+  planner: PlannerInfo;
+  fallback: FallbackInfo;
+  reason: RouteReason;
 }

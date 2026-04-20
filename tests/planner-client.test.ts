@@ -69,9 +69,12 @@ const SERVER_PLAN_RESPONSE = {
 };
 
 const SERVER_DEFAULTS_RESPONSE: RuntimeDefaultsResponse = {
-  default_policy: "local_first",
-  plan_ttl_seconds: 604800,
-  benchmark_ttl_seconds: 1209600,
+  default_engines: {
+    chat: ["llama.cpp", "onnxruntime-node"],
+    embeddings: ["onnxruntime-node"],
+    transcription: ["whisper.cpp"],
+  },
+  supported_capabilities: ["chat", "responses", "embeddings", "transcription", "audio"],
   supported_policies: [
     "private",
     "local_only",
@@ -80,7 +83,7 @@ const SERVER_DEFAULTS_RESPONSE: RuntimeDefaultsResponse = {
     "cloud_only",
     "performance_first",
   ],
-  supported_capabilities: ["chat", "responses", "embeddings", "transcription", "audio"],
+  plan_ttl_seconds: 604800,
 };
 
 // ---------------------------------------------------------------------------
@@ -340,10 +343,12 @@ describe("RuntimePlannerClient", () => {
       const result = await client.fetchDefaults();
 
       expect(result).not.toBeNull();
-      expect(result!.default_policy).toBe("local_first");
+      expect(result!.default_engines).toHaveProperty("chat");
+      expect(result!.default_engines.chat).toContain("llama.cpp");
       expect(result!.supported_policies).toContain("private");
       expect(result!.supported_policies).toContain("performance_first");
       expect(result!.supported_capabilities).toContain("chat");
+      expect(result!.plan_ttl_seconds).toBe(604800);
 
       expect(fetchSpy).toHaveBeenCalledWith(
         "https://api.octomil.com/api/v2/runtime/defaults",
