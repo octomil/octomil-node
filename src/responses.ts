@@ -13,6 +13,11 @@ import type {
   LocalResponsesRuntime,
   LocalResponsesRuntimeResolver,
 } from "./responses-runtime.js";
+import {
+  CandidateAttemptRunner,
+  type CandidatePlan,
+  type RuntimeChecker,
+} from "./runtime/routing/attempt-runner.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -238,10 +243,36 @@ export class ResponsesClient {
 
   async create(request: ResponseRequest): Promise<ResponseObj> {
     const localRuntime = this.resolveLocalRuntime(request.model);
-    if (localRuntime) {
-      return this.createLocal(request, localRuntime);
+    if (!localRuntime) {
+      return this.createCloud(request);
     }
 
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: this.cloudFallbackAllowed(request),
+    });
+    const result = await runner.runWithInference<ResponseObj>(
+      this.responseCandidates(localRuntime),
+      {
+        runtimeChecker: this.responseRuntimeChecker(localRuntime),
+        executeCandidate: async (candidate) => {
+          if (candidate.locality === "local") {
+            return this.createLocal(request, localRuntime);
+          }
+          return this.createCloud(request);
+        },
+      },
+    );
+
+    if (result.selectedAttempt && result.value) {
+      return result.value;
+    }
+    throw (
+      result.error ??
+      new OctomilError("INFERENCE_FAILED", "No response route succeeded")
+    );
+  }
+
+  private async createCloud(request: ResponseRequest): Promise<ResponseObj> {
     const effectiveRequest = this.buildEffectiveRequest(request);
     const body = this.buildRequestBody(effectiveRequest, false);
     this.telemetry?.track("inference.started", {
@@ -271,11 +302,52 @@ export class ResponsesClient {
 
   async *stream(request: ResponseRequest): AsyncGenerator<ResponseStreamEvent> {
     const localRuntime = this.resolveLocalRuntime(request.model);
-    if (localRuntime) {
-      yield* this.streamLocal(request, localRuntime);
+    if (!localRuntime) {
+      yield* this.streamCloud(request);
       return;
     }
 
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: this.cloudFallbackAllowed(request),
+      streaming: true,
+    });
+    const candidates = this.responseCandidates(localRuntime);
+    const readiness = runner.run(candidates, {
+      runtimeChecker: this.responseRuntimeChecker(localRuntime),
+    });
+    const selected = readiness.selectedAttempt;
+    if (!selected) {
+      throw new OctomilError("INFERENCE_FAILED", "No response route succeeded");
+    }
+
+    if (selected.locality === "cloud") {
+      yield* this.streamCloud(request);
+      return;
+    }
+
+    let firstOutputEmitted = false;
+    try {
+      for await (const event of this.streamLocal(request, localRuntime)) {
+        if (event.type !== "done") {
+          firstOutputEmitted = true;
+        }
+        yield event;
+      }
+    } catch (error) {
+      if (
+        runner.shouldFallbackAfterInferenceError(firstOutputEmitted) &&
+        candidates.some((candidate) => candidate.locality === "cloud")
+      ) {
+        yield* this.streamCloud(request);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async *streamCloud(
+    request: ResponseRequest,
+  ): AsyncGenerator<ResponseStreamEvent> {
     const effectiveRequest = this.buildEffectiveRequest(request);
     const body = this.buildRequestBody(effectiveRequest, true);
     this.telemetry?.track("inference.started", {
@@ -439,6 +511,50 @@ export class ResponsesClient {
     });
 
     yield { type: "done", response: finalResponse };
+  }
+
+  private responseCandidates(
+    localRuntime: LocalResponsesRuntime | null,
+  ): CandidatePlan[] {
+    const candidates: CandidatePlan[] = [];
+    if (localRuntime) {
+      candidates.push({
+        locality: "local",
+        engine: "localRuntime",
+        priority: 0,
+        confidence: 1,
+        reason: "configured local responses runtime",
+      });
+    }
+    candidates.push({
+      locality: "cloud",
+      engine: "cloud",
+      priority: candidates.length,
+      confidence: 1,
+      reason: "hosted gateway",
+    });
+    return candidates;
+  }
+
+  private responseRuntimeChecker(
+    localRuntime: LocalResponsesRuntime | null,
+  ): RuntimeChecker {
+    return {
+      check: (_engine, locality) => {
+        if (locality === "cloud") {
+          return { available: true };
+        }
+        return localRuntime
+          ? { available: true }
+          : { available: false, reasonCode: "local_runtime_unavailable" };
+      },
+    };
+  }
+
+  private cloudFallbackAllowed(request: ResponseRequest): boolean {
+    const policy =
+      request.metadata?.routing_policy ?? request.metadata?.routingPolicy;
+    return policy !== "private" && policy !== "local_only";
   }
 
   private resolveLocalRuntime(model: string): LocalResponsesRuntime | null {
