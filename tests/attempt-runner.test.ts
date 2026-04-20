@@ -949,3 +949,59 @@ describe("CandidateAttemptRunner.getAttempts", () => {
     expect(runner.getAttempts()).toEqual(result.attempts);
   });
 });
+
+// ---------------------------------------------------------------------------
+// runWithInference
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner.runWithInference", () => {
+  it("falls back after a non-streaming inference error", async () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = await runner.runWithInference(
+      [localCandidate(), cloudCandidate()],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        executeCandidate: async (candidate) => {
+          if (candidate.locality === "local") {
+            throw new Error("model load failed");
+          }
+          return "cloud-ok";
+        },
+      },
+    );
+
+    expect(result.value).toBe("cloud-ok");
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackTrigger?.code).toBe("inference_error");
+    expect(result.attempts[0]?.stage).toBe(AttemptStage.Inference);
+    expect(result.attempts[0]?.status).toBe(AttemptStatus.Failed);
+    expect(result.selectedAttempt?.locality).toBe("cloud");
+  });
+
+  it("does not fall back after streaming output was emitted", async () => {
+    let emitted = false;
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: true,
+      streaming: true,
+    });
+    const result = await runner.runWithInference(
+      [localCandidate(), cloudCandidate()],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        executeCandidate: async () => {
+          emitted = true;
+          throw new Error("stream interrupted");
+        },
+        firstOutputEmitted: () => emitted,
+      },
+    );
+
+    expect(result.selectedAttempt).toBeNull();
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts[0]?.reason.code).toBe(
+      "inference_error_after_first_output",
+    );
+  });
+});

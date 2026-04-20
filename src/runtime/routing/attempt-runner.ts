@@ -103,13 +103,15 @@ export interface FallbackTrigger {
 }
 
 /** Result of running the full attempt loop. */
-export interface AttemptLoopResult {
+export interface AttemptLoopResult<T = unknown> {
   selectedAttempt: RouteAttempt | null;
   attempts: RouteAttempt[];
   fallbackUsed: boolean;
   fallbackTrigger: FallbackTrigger | null;
   fromAttempt: number | null;
   toAttempt: number | null;
+  value?: T;
+  error?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -222,8 +224,7 @@ export class CandidateAttemptRunner {
   /**
    * Whether the request is streaming. Affects inference-time fallback
    * semantics: before the first token is emitted, fallback is allowed;
-   * after the first token, it is not. Currently stored for future use
-   * when inference-stage fallback is implemented.
+   * after the first token, it is not.
    */
   readonly streaming: boolean;
 
@@ -232,6 +233,17 @@ export class CandidateAttemptRunner {
   constructor(opts: { fallbackAllowed?: boolean; streaming?: boolean } = {}) {
     this.fallbackAllowed = opts.fallbackAllowed ?? true;
     this.streaming = opts.streaming ?? false;
+  }
+
+  /**
+   * Whether a failed inference may move to the next candidate.
+   *
+   * Streaming requests may fall back only before any output has reached the
+   * caller. After the first token/event, switching routes would splice two
+   * independent model outputs into one stream.
+   */
+  shouldFallbackAfterInferenceError(firstOutputEmitted = false): boolean {
+    return this.fallbackAllowed && !(this.streaming && firstOutputEmitted);
   }
 
   /**
@@ -427,6 +439,133 @@ export class CandidateAttemptRunner {
   }
 
   /**
+   * Run readiness checks and execute inference for the selected candidate.
+   *
+   * This is the product-path API. It records inference-stage failures instead
+   * of declaring a candidate selected before the request actually runs.
+   */
+  async runWithInference<T>(
+    candidates: CandidatePlan[],
+    opts: {
+      runtimeChecker?: RuntimeChecker;
+      gateEvaluator?: GateEvaluator;
+      executeCandidate: (
+        candidate: CandidatePlan,
+        attempt: RouteAttempt,
+      ) => Promise<T> | T;
+      firstOutputEmitted?: () => boolean;
+    },
+  ): Promise<AttemptLoopResult<T>> {
+    const runtimeChecker = opts.runtimeChecker ?? new NoOpRuntimeChecker();
+    const gateEvaluator = opts.gateEvaluator ?? new NoOpGateEvaluator();
+
+    this.attempts = [];
+
+    let fallbackTrigger: FallbackTrigger | null = null;
+    let fromAttempt: number | null = null;
+    let toAttempt: number | null = null;
+    let lastError: unknown;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i]!;
+      const readinessRunner = new CandidateAttemptRunner({
+        fallbackAllowed: false,
+        streaming: this.streaming,
+      });
+      const readiness = readinessRunner.run([candidate], {
+        runtimeChecker,
+        gateEvaluator,
+      });
+      const attempt = readiness.attempts[0];
+
+      if (!attempt || readiness.selectedAttempt === null) {
+        if (attempt) {
+          const failedAttempt = { ...attempt, index: i };
+          this.attempts.push(failedAttempt);
+          if (fallbackTrigger === null) {
+            fallbackTrigger = {
+              code: failedAttempt.reason.code,
+              stage: failedAttempt.stage,
+              message: failedAttempt.reason.message,
+            };
+            fromAttempt = i;
+          }
+        }
+
+        if (!this.fallbackAllowed) {
+          break;
+        }
+        continue;
+      }
+
+      const selectedAttempt = { ...readiness.selectedAttempt, index: i };
+
+      try {
+        const value = await opts.executeCandidate(candidate, selectedAttempt);
+        this.attempts.push(selectedAttempt);
+        if (fallbackTrigger !== null) {
+          toAttempt = i;
+        }
+        const fallbackUsed = fallbackTrigger !== null;
+        return {
+          selectedAttempt,
+          attempts: this.attempts,
+          fallbackUsed,
+          fallbackTrigger: fallbackUsed ? fallbackTrigger : null,
+          fromAttempt: fallbackUsed ? fromAttempt : null,
+          toAttempt: fallbackUsed ? toAttempt : null,
+          value,
+        };
+      } catch (error) {
+        lastError = error;
+        const firstOutputEmitted = opts.firstOutputEmitted?.() ?? false;
+        const reasonCode =
+          this.streaming && firstOutputEmitted
+            ? "inference_error_after_first_output"
+            : this.streaming
+              ? "inference_error_before_first_output"
+              : "inference_error";
+        const failedAttempt: RouteAttempt = {
+          ...selectedAttempt,
+          status: AttemptStatus.Failed,
+          stage: AttemptStage.Inference,
+          reason: {
+            code: reasonCode,
+            message: errorMessage(error),
+          },
+        };
+        this.attempts.push(failedAttempt);
+
+        if (fallbackTrigger === null) {
+          fallbackTrigger = {
+            code: reasonCode,
+            stage: AttemptStage.Inference,
+            message: failedAttempt.reason.message,
+          };
+          fromAttempt = i;
+        }
+
+        if (
+          i >= candidates.length - 1 ||
+          !this.shouldFallbackAfterInferenceError(firstOutputEmitted)
+        ) {
+          break;
+        }
+      }
+    }
+
+    return {
+      selectedAttempt: null,
+      attempts: this.attempts,
+      fallbackUsed: false,
+      fallbackTrigger: null,
+      fromAttempt: null,
+      toAttempt: null,
+      error: lastError,
+    };
+  }
+
+  /**
    * Produce the route_metadata.fallback and route_metadata.attempts fields
    * suitable for embedding in a RouteMetadata response object.
    */
@@ -527,4 +666,8 @@ function buildAttemptArtifact(artifact: {
     digest: artifact.digest ?? null,
     cache: { status: "not_applicable", managed_by: null },
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
