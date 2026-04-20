@@ -227,6 +227,32 @@ export type {
 } from "./query-routing.js";
 
 // ---------------------------------------------------------------------------
+// Candidate attempt runner (per-request candidate evaluation loop)
+// ---------------------------------------------------------------------------
+
+export {
+  CandidateAttemptRunner,
+  NoOpRuntimeChecker,
+  NoOpGateEvaluator,
+  AttemptStage,
+  AttemptStatus,
+  GateStatus,
+  GATE_CODES,
+} from "./runtime/routing/attempt-runner.js";
+export type {
+  GateCode,
+  GateResult,
+  AttemptArtifact,
+  RouteAttempt,
+  FallbackTrigger,
+  AttemptLoopResult,
+  RuntimeChecker,
+  GateEvaluator,
+  CandidateGate,
+  CandidatePlan,
+} from "./runtime/routing/attempt-runner.js";
+
+// ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
 // ---------------------------------------------------------------------------
 
