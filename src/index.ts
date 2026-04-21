@@ -16,10 +16,13 @@ export {
   localRunnerPost,
   localRunnerMultipartPost,
   localRunnerHealthCheck,
+  checkLocalAvailability,
 } from "./local.js";
 export type {
   LocalRunnerEndpoint,
   LocalRunnerDiscoveryOptions,
+  LocalLifecycleStatus,
+  LocalExecutionMode,
 } from "./local.js";
 
 // ---------------------------------------------------------------------------

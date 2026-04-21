@@ -37,6 +37,38 @@ export interface LocalRunnerDiscoveryOptions {
   engine?: string;
 }
 
+/**
+ * How local execution is achieved.
+ *
+ * - `"managed_runtime"` — The Octomil CLI's invisible local runner (Python process).
+ * - `"external_endpoint"` — A user-configured local endpoint (env vars).
+ * - `"hosted_gateway"` — Cloud gateway, no true local execution.
+ */
+export type LocalExecutionMode =
+  | "managed_runtime"
+  | "external_endpoint"
+  | "hosted_gateway";
+
+/**
+ * Reports whether local execution is available and how it would be achieved.
+ *
+ * Callers can inspect this to answer "where will my inference run and why?"
+ * before issuing a request.
+ */
+export interface LocalLifecycleStatus {
+  /** Whether local execution is currently available. */
+  available: boolean;
+  /** The execution mode that would be used. */
+  mode: LocalExecutionMode;
+  /**
+   * Human-readable reason when `available` is false.
+   * Never contains secrets, tokens, or URLs.
+   */
+  reason?: string;
+  /** Whether the managed runtime health check passed (only set for managed_runtime mode). */
+  healthy?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Discovery
 // ---------------------------------------------------------------------------
@@ -121,6 +153,68 @@ export async function discoverFromCli(
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Local lifecycle status
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether local execution is available and report the execution mode.
+ *
+ * This is a non-destructive probe — it does not start a runner, download
+ * artifacts, or make any mutations. Use it to build UI status indicators
+ * or gate local-only code paths.
+ *
+ * Resolution:
+ *   1. If env vars are set (`OCTOMIL_LOCAL_RUNNER_URL` + token) -> `external_endpoint`.
+ *   2. If the CLI is installed and the managed runtime responds to /health -> `managed_runtime`.
+ *   3. Otherwise -> `hosted_gateway` with `available: false` and setup guidance.
+ *
+ * @param options - Discovery options (CLI binary path, timeout, etc.)
+ * @returns A {@link LocalLifecycleStatus} describing the current state.
+ */
+export async function checkLocalAvailability(
+  options?: LocalRunnerDiscoveryOptions,
+): Promise<LocalLifecycleStatus> {
+  // 1. Check for explicit external endpoint via env vars
+  const envEndpoint = discoverFromEnv();
+  if (envEndpoint) {
+    const healthy = await localRunnerHealthCheck(envEndpoint);
+    return {
+      available: healthy,
+      mode: "external_endpoint",
+      healthy,
+      reason: healthy
+        ? undefined
+        : "External endpoint configured but not responding to health check.",
+    };
+  }
+
+  // 2. Probe the CLI-managed local runner
+  const cliEndpoint = await discoverFromCli(options);
+  if (cliEndpoint) {
+    const healthy = await localRunnerHealthCheck(cliEndpoint);
+    return {
+      available: healthy,
+      mode: "managed_runtime",
+      healthy,
+      reason: healthy
+        ? undefined
+        : "Managed runtime discovered but health check failed. " +
+          "Run 'octomil local start' to ensure the runner is active.",
+    };
+  }
+
+  // 3. No local runtime found — report hosted_gateway as fallback
+  return {
+    available: false,
+    mode: "hosted_gateway",
+    reason:
+      "No local runtime available. Install the Octomil CLI " +
+      "(pip install octomil) and run 'octomil local start', or set " +
+      "OCTOMIL_LOCAL_RUNNER_URL and OCTOMIL_LOCAL_RUNNER_TOKEN environment variables.",
+  };
 }
 
 // ---------------------------------------------------------------------------
