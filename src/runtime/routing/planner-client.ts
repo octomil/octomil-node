@@ -1,18 +1,9 @@
 /**
  * PlannerClient — fetches runtime plans from the server planner API.
- *
- * The planner resolves model refs (app/capability/deployment/experiment)
- * into concrete candidate lists with locality, engine, gates, and policy.
- *
- * This is the SDK-side client; the server does the actual planning.
  */
 
 import type { CandidatePlan } from "./attempt-runner.js";
 import type { PlannerResult, RoutableCapability } from "./request-router.js";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface PlannerClientConfig {
   serverUrl: string;
@@ -26,13 +17,11 @@ export interface PlanRequest {
   routing_policy?: string;
 }
 
-/** Raw planner response from the server. */
 interface PlannerApiResponse {
   model: string;
   capability: string;
   policy: string;
   candidates: CandidatePlan[];
-  fallback_candidates?: CandidatePlan[];
   fallback_allowed: boolean;
   plan_id?: string;
   planner_source?: string;
@@ -41,13 +30,7 @@ interface PlannerApiResponse {
     app_slug?: string;
     [key: string]: unknown;
   };
-  server_generated_at?: string;
-  plan_ttl_seconds?: number;
 }
-
-// ---------------------------------------------------------------------------
-// PlannerClient
-// ---------------------------------------------------------------------------
 
 export class PlannerClient {
   private readonly serverUrl: string;
@@ -58,18 +41,10 @@ export class PlannerClient {
     this.apiKey = config.apiKey;
   }
 
-  /**
-   * Fetch a runtime plan for the given model and capability.
-   *
-   * Returns null if the planner is unavailable or returns an error
-   * (graceful degradation — caller falls back to legacy direct route).
-   */
   async getPlan(request: PlanRequest): Promise<PlannerResult | null> {
-    const url = `${this.serverUrl}/api/v1/runtime/plan`;
-
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(`${this.serverUrl}/api/v2/runtime/plan`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -84,12 +59,10 @@ export class PlannerClient {
         }),
       });
     } catch {
-      // Network error — graceful degradation
       return null;
     }
 
     if (!response.ok) {
-      // Planner unavailable or returned error — graceful degradation
       return null;
     }
 

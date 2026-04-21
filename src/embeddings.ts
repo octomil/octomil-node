@@ -74,7 +74,98 @@ export async function embed(
     throw new OctomilError("INVALID_INPUT", "apiKey is required for embed()");
   }
 
-  const url = `${config.serverUrl.replace(/\/+$/, "")}/api/v1/embeddings`;
+  return embedAtEndpoint(
+    {
+      baseUrl: config.serverUrl,
+      apiKey: config.apiKey,
+      path: "/api/v1/embeddings",
+    },
+    modelId,
+    input,
+    signal,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// embedWithPlanner() — planner-routed embedding
+// ---------------------------------------------------------------------------
+
+/** Configuration for planner-routed embeddings. */
+export interface PlannerEmbeddingConfig extends EmbeddingConfig {
+  plannerClient: PlannerClient;
+  externalEndpoint?: string;
+}
+
+/** Route info from a planner-routed embedding request. */
+export interface EmbeddingRouteInfo {
+  routeMetadata?: RouteMetadata;
+  routeEvent?: RouteEvent;
+}
+
+/**
+ * Generate embeddings via planner-routed execution.
+ *
+ * Uses the planner to choose between hosted cloud and an explicitly configured
+ * local endpoint. If the planner is unavailable, falls back to the legacy
+ * hosted path.
+ */
+export async function embedWithPlanner(
+  config: PlannerEmbeddingConfig,
+  modelId: string,
+  input: string | string[],
+  signal?: AbortSignal,
+): Promise<EmbeddingResult & { _routeInfo?: EmbeddingRouteInfo }> {
+  const plan = await config.plannerClient.getPlan({
+    model: modelId,
+    capability: "embeddings",
+    streaming: false,
+  });
+
+  const router = new RequestRouter({
+    cloudEndpoint: config.serverUrl,
+    apiKey: config.apiKey,
+    externalEndpoint: config.externalEndpoint,
+  });
+
+  const decision = router.resolve({
+    model: modelId,
+    capability: "embeddings",
+    streaming: false,
+    plannerResult: plan ?? undefined,
+  });
+
+  const result =
+    decision.locality === "local" && config.externalEndpoint
+      ? await embedAtEndpoint(
+          { baseUrl: config.externalEndpoint, path: "/v1/embeddings" },
+          modelId,
+          input,
+          signal,
+        )
+      : await embed(config, modelId, input, signal);
+
+  return Object.assign(result, {
+    _routeInfo: {
+      routeMetadata: decision.routeMetadata,
+      routeEvent: decision.routeMetadata.routeEvent,
+    },
+  });
+}
+
+async function embedAtEndpoint(
+  config: { baseUrl: string; apiKey?: string; path: string },
+  modelId: string,
+  input: string | string[],
+  signal?: AbortSignal,
+): Promise<EmbeddingResult> {
+  if (!config.baseUrl) {
+    throw new OctomilError(
+      "INVALID_INPUT",
+      "serverUrl is required for embed()",
+    );
+  }
+
+  const url = `${config.baseUrl.replace(/\/+$/, "")}${config.path}`;
 
   let response: Response;
   try {
@@ -82,7 +173,9 @@ export async function embed(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
+        ...(config.apiKey
+          ? { Authorization: `Bearer ${config.apiKey}` }
+          : {}),
       },
       body: JSON.stringify({ model_id: modelId, input }),
       signal,
@@ -112,67 +205,4 @@ export async function embed(
       totalTokens: data.usage.total_tokens,
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// embedWithPlanner() — planner-routed embedding
-// ---------------------------------------------------------------------------
-
-/** Configuration for planner-routed embeddings. */
-export interface PlannerEmbeddingConfig extends EmbeddingConfig {
-  plannerClient: PlannerClient;
-}
-
-/** Route info from a planner-routed embedding request. */
-export interface EmbeddingRouteInfo {
-  routeMetadata?: RouteMetadata;
-  routeEvent?: RouteEvent;
-}
-
-/**
- * Generate embeddings via planner-routed execution.
- *
- * Fetches a plan from the server planner, evaluates candidates, then
- * executes embedding via the selected cloud endpoint. Falls back to
- * direct cloud if the planner is unavailable.
- *
- * @param config - Server URL, API key, and planner client.
- * @param modelId - Embedding model identifier.
- * @param input - A single string or array of strings to embed.
- * @param signal - Optional AbortSignal for cancellation.
- * @returns Embedding result with route info.
- */
-export async function embedWithPlanner(
-  config: PlannerEmbeddingConfig,
-  modelId: string,
-  input: string | string[],
-  signal?: AbortSignal,
-): Promise<EmbeddingResult & { _routeInfo?: EmbeddingRouteInfo }> {
-  const plan = await config.plannerClient.getPlan({
-    model: modelId,
-    capability: "embeddings",
-    streaming: false,
-  });
-
-  const router = new RequestRouter({
-    cloudEndpoint: config.serverUrl,
-    apiKey: config.apiKey,
-  });
-
-  const decision = router.resolve({
-    model: modelId,
-    capability: "embeddings",
-    streaming: false,
-    plannerResult: plan ?? undefined,
-  });
-
-  // Embeddings are cloud-only in the Node SDK
-  const result = await embed(config, modelId, input, signal);
-
-  return Object.assign(result, {
-    _routeInfo: {
-      routeMetadata: decision.routeMetadata,
-      routeEvent: decision.routeMetadata.routeEvent,
-    },
-  });
 }

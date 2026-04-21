@@ -56,17 +56,7 @@ export interface OctomilFacadeOptions {
   auth?: AuthConfig;
   serverUrl?: string;
   telemetry?: boolean;
-  /**
-   * Enable planner-routed request paths.
-   *
-   * When true, the SDK fetches runtime plans from the server planner API
-   * to resolve model refs and evaluate candidate routes end-to-end.
-   * Falls back to legacy direct routing if the planner is unavailable.
-   *
-   * Default: false (opt-in for now, will become default in a future release).
-   */
   plannerRouting?: boolean;
-  /** External endpoint URL for local serve instances (opt-in). */
   externalEndpoint?: string;
 }
 
@@ -220,15 +210,18 @@ export class FacadeEmbeddings {
   private readonly serverUrl: string;
   private readonly apiKey: string;
   private readonly plannerClient: PlannerClient | null;
+  private readonly externalEndpoint: string | undefined;
 
   constructor(
     serverUrl: string,
     apiKey: string,
     plannerClient?: PlannerClient | null,
+    externalEndpoint?: string,
   ) {
     this.serverUrl = serverUrl;
     this.apiKey = apiKey;
     this.plannerClient = plannerClient ?? null;
+    this.externalEndpoint = externalEndpoint;
   }
 
   async create(options: {
@@ -242,6 +235,7 @@ export class FacadeEmbeddings {
           serverUrl: this.serverUrl,
           apiKey: this.apiKey,
           plannerClient: this.plannerClient,
+          externalEndpoint: this.externalEndpoint,
         },
         options.model,
         options.input,
@@ -352,7 +346,6 @@ export class Octomil {
   private readonly _localEndpoint: LocalRunnerEndpoint | null;
   private _localResponses: LocalFacadeResponses | undefined;
   private _localAudioTranscriptions: LocalFacadeAudioTranscriptions | undefined;
-  /** PlannerClient instance (created when plannerRouting is enabled). */
   private readonly _plannerClient: PlannerClient | null;
 
   /**
@@ -428,7 +421,6 @@ export class Octomil {
             : options.auth.bootstrapToken;
       }
 
-      // Build planner client when plannerRouting is enabled
       if (options.plannerRouting && apiKey) {
         this._plannerClient = new PlannerClient({
           serverUrl,
@@ -449,6 +441,7 @@ export class Octomil {
         serverUrl,
         apiKey ?? "",
         this._plannerClient,
+        options.externalEndpoint,
       );
     }
   }

@@ -17,7 +17,6 @@ import type {
   LocalResponsesRuntime,
   LocalResponsesRuntimeResolver,
 } from "./responses-runtime.js";
-import type { PlannerClient } from "./runtime/routing/planner-client.js";
 import {
   ServerApiClient,
   type QueryValue,
@@ -196,8 +195,6 @@ export class ChatClient {
     apiKey: string,
     telemetry?: TelemetryReporter | null,
     localRuntime?: LocalResponsesRuntime | LocalResponsesRuntimeResolver | null,
-    plannerClient?: PlannerClient | null,
-    externalEndpoint?: string,
   ) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
@@ -206,8 +203,6 @@ export class ChatClient {
       apiKey,
       telemetry: telemetry ?? null,
       localRuntime: localRuntime ?? null,
-      plannerClient: plannerClient ?? null,
-      externalEndpoint,
     });
     this.api = new ChatApiClient(serverUrl, apiKey);
     this.threads = new ChatThreadsClient(this.api);

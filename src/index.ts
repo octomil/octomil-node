@@ -251,47 +251,25 @@ export type {
   CandidateGate,
   CandidatePlan,
 } from "./runtime/routing/attempt-runner.js";
-
-// ---------------------------------------------------------------------------
-// Request router + planner client (production routing)
-// ---------------------------------------------------------------------------
-
+export { PlannerClient } from "./runtime/routing/planner-client.js";
+export type { PlannerClientConfig, PlanRequest } from "./runtime/routing/planner-client.js";
 export { RequestRouter } from "./runtime/routing/request-router.js";
 export type {
-  RoutableCapability,
   PlannerResult,
   RequestRoutingContext,
   RouteMetadata,
-  RoutingDecision as RequestRoutingDecision,
+  RoutingDecision as RuntimeRoutingDecision,
   RouterConfig,
+  RoutableCapability,
 } from "./runtime/routing/request-router.js";
-
 export { parseModelRef } from "./runtime/routing/model-ref-parser.js";
-export type {
-  ModelRefKind,
-  ParsedModelRef,
-} from "./runtime/routing/model-ref-parser.js";
-
+export type { ParsedModelRef, ModelRefKind } from "./runtime/routing/model-ref-parser.js";
 export {
   buildRouteEvent,
   validateRouteEvent,
   FORBIDDEN_TELEMETRY_FIELDS,
 } from "./runtime/routing/route-event.js";
-export type {
-  RouteEvent,
-  AttemptDetail,
-  RouteEventBuilderInput,
-} from "./runtime/routing/route-event.js";
-
-export { PlannerClient } from "./runtime/routing/planner-client.js";
-export type {
-  PlannerClientConfig,
-  PlanRequest,
-} from "./runtime/routing/planner-client.js";
-
-export type { ResponseRouteInfo } from "./responses.js";
-export { embedWithPlanner } from "./embeddings.js";
-export type { PlannerEmbeddingConfig, EmbeddingRouteInfo } from "./embeddings.js";
+export type { RouteEvent, AttemptDetail } from "./runtime/routing/route-event.js";
 
 // ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
