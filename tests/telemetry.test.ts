@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TelemetryReporter } from "../src/telemetry.js";
 import type { ExportLogsServiceRequest, OtlpLogRecord } from "../src/telemetry.js";
+import { buildRouteEvent } from "../src/runtime/routing/route-event.js";
+import type { AttemptLoopResult } from "../src/runtime/routing/attempt-runner.js";
 
 // Mock fs/url/os imports used by getSdkVersion()
 vi.mock("node:fs", () => ({
@@ -295,6 +297,95 @@ describe("TelemetryReporter", () => {
     const attrs = body.resourceLogs[0]!.resource.attributes;
     const attrMap = Object.fromEntries(attrs.map((a) => [a.key, a.value]));
     expect(attrMap["octomil.install.id"]).toBeUndefined();
+
+    reporter.dispose();
+  });
+
+  it("should emit route decisions in canonical route.* attributes", async () => {
+    const reporter = new TelemetryReporter(
+      "https://api.test.com",
+      "key123",
+      "org-1",
+      1000,
+    );
+    const attemptResult: AttemptLoopResult = {
+      selectedAttempt: {
+        index: 1,
+        locality: "cloud",
+        mode: "hosted_gateway",
+        engine: "cloud",
+        artifact: null,
+        status: "selected",
+        stage: "inference",
+        gate_results: [],
+        reason: { code: "selected", message: "ok" },
+      },
+      attempts: [
+        {
+          index: 0,
+          locality: "local",
+          mode: "sdk_runtime",
+          engine: "mlx",
+          artifact: null,
+          status: "failed",
+          stage: "prepare",
+          gate_results: [],
+          reason: { code: "runtime_unavailable", message: "no runtime" },
+        },
+        {
+          index: 1,
+          locality: "cloud",
+          mode: "hosted_gateway",
+          engine: "cloud",
+          artifact: null,
+          status: "selected",
+          stage: "inference",
+          gate_results: [],
+          reason: { code: "selected", message: "ok" },
+        },
+      ],
+      fallbackUsed: true,
+      fallbackTrigger: {
+        code: "runtime_unavailable",
+        stage: "prepare",
+        message: "no runtime",
+      },
+      fromAttempt: 0,
+      toAttempt: 1,
+    };
+
+    reporter.reportRouteEvent(
+      buildRouteEvent({
+        requestId: "req_telemetry",
+        capability: "responses",
+        streaming: false,
+        model: "@app/my-app",
+        modelRefKind: "app",
+        policy: "local_first",
+        plannerSource: "server",
+        planId: "plan_123",
+        appId: "app_123",
+        appSlug: "my-app",
+        attemptResult,
+      }),
+    );
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const record = getLogRecords()[0]!;
+    const attrMap = Object.fromEntries(
+      (record.attributes ?? []).map((a) => [a.key, a.value]),
+    );
+    expect(record.body!.stringValue).toBe("route.decision");
+    expect(attrMap["route.id"]!.stringValue).toBeDefined();
+    expect(attrMap["route.request_id"]!.stringValue).toBe("req_telemetry");
+    expect(attrMap["route.app_id"]!.stringValue).toBe("app_123");
+    expect(attrMap["route.app_slug"]!.stringValue).toBe("my-app");
+    expect(attrMap["route.candidate_attempts"]!.intValue).toBe("2");
+    expect(attrMap["route.attempt_details"]!.stringValue).toContain(
+      "runtime_unavailable",
+    );
 
     reporter.dispose();
   });

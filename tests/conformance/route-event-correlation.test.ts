@@ -205,6 +205,26 @@ describe("stripForbiddenKeys", () => {
     expect(stripped).toEqual(input);
   });
 
+  it("removes forbidden keys recursively from nested maps", () => {
+    const input = {
+      route_id: "route_nested",
+      metadata: {
+        safe: true,
+        prompt: "secret",
+        attempts: [{ reason: { code: "gate_failed", content: "user text" } }],
+      },
+    };
+
+    const stripped = stripForbiddenKeys(input);
+    expect(stripped).toEqual({
+      route_id: "route_nested",
+      metadata: {
+        safe: true,
+        attempts: [{ reason: { code: "gate_failed" } }],
+      },
+    });
+  });
+
   it("returns empty object when all keys are forbidden", () => {
     const input = {
       prompt: "hello",

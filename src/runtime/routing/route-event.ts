@@ -121,18 +121,11 @@ export function validateRouteEvent(event: RouteEvent): void {
 /**
  * Strip any forbidden telemetry keys from an arbitrary key-value map.
  *
- * Returns a new object with forbidden keys removed. Does NOT recurse into
- * nested objects — operates only on top-level keys. Use this before uploading
- * custom metadata alongside route events.
+ * Returns a new object with forbidden keys removed at any nesting depth.
+ * Use this before uploading custom metadata alongside route events.
  */
-export function stripForbiddenKeys<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (!FORBIDDEN_TELEMETRY_KEYS.has(key)) {
-      result[key] = value;
-    }
-  }
-  return result as Partial<T>;
+export function stripForbiddenKeys<T extends object>(obj: T): Partial<T> {
+  return scrubValue(obj) as Partial<T>;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +242,23 @@ function collectKeysRecursive(obj: unknown, keys: Set<string>): void {
       collectKeysRecursive(item, keys);
     }
   }
+}
+
+function scrubValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => scrubValue(item));
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (FORBIDDEN_TELEMETRY_KEYS.has(key)) {
+        continue;
+      }
+      result[key] = scrubValue(child);
+    }
+    return result;
+  }
+  return value;
 }
 
 function generateRouteId(): string {
