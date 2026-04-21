@@ -70,6 +70,8 @@ export interface RouteEvent {
   variant_id?: string;
   // Artifact info
   artifact_id?: string;
+  // Cache status
+  cache_status?: string; // "hit" | "miss" | "not_applicable"
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +97,10 @@ export const FORBIDDEN_TELEMETRY_KEYS = new Set([
   "messages",
   "system_prompt",
   "documents",
+  "image",
+  "image_url",
+  "embedding",
+  "embeddings",
 ]);
 
 /** @deprecated Use FORBIDDEN_TELEMETRY_KEYS. */
@@ -186,6 +192,7 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
     experiment_id: input.experimentId,
     variant_id: input.variantId,
     artifact_id: selected?.artifact?.id ?? undefined,
+    cache_status: selected?.artifact?.cache.status,
   };
 
   // Build attempt details
