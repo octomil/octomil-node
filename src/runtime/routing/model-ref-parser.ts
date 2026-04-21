@@ -62,6 +62,11 @@ const EXPERIMENT_REF_RE = /^exp[_/]([^/]+)(?:\/(.+))?$/;
 export function parseModelRef(model: string): ParsedModelRef {
   const trimmed = model.trim();
 
+  // Empty or missing model → "default"
+  if (!trimmed) {
+    return { raw: trimmed, kind: "default" };
+  }
+
   // @app/slug/capability
   const appMatch = APP_REF_RE.exec(trimmed);
   if (appMatch) {
