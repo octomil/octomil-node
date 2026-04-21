@@ -49,6 +49,19 @@ export interface PlannerResult {
     app_slug?: string;
     [key: string]: unknown;
   };
+  /** Model resolution metadata for deployment/experiment/capability refs. */
+  resolution?: {
+    ref_kind: string;
+    original_ref: string;
+    resolved_model: string;
+    deployment_id?: string;
+    deployment_key?: string;
+    experiment_id?: string;
+    variant_id?: string;
+    variant_name?: string;
+    capability?: string;
+    routing_policy?: string;
+  };
 }
 
 /** Input context for a routing decision. */
