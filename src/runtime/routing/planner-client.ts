@@ -17,6 +17,20 @@ export interface PlanRequest {
   routing_policy?: string;
 }
 
+/** Resolution metadata for non-app model ref types (deployment, experiment, etc.). */
+export interface ModelResolution {
+  ref_kind: string;
+  original_ref: string;
+  resolved_model: string;
+  deployment_id?: string;
+  deployment_key?: string;
+  experiment_id?: string;
+  variant_id?: string;
+  variant_name?: string;
+  capability?: string;
+  routing_policy?: string;
+}
+
 interface PlannerApiResponse {
   model: string;
   capability: string;
@@ -30,6 +44,7 @@ interface PlannerApiResponse {
     app_slug?: string;
     [key: string]: unknown;
   };
+  resolution?: ModelResolution;
 }
 
 export class PlannerClient {
@@ -77,6 +92,7 @@ export class PlannerClient {
         plan_id: data.plan_id,
         planner_source: data.planner_source ?? "server",
         app_resolution: data.app_resolution,
+        resolution: data.resolution,
       };
     } catch {
       return null;

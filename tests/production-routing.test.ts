@@ -356,4 +356,125 @@ describe("production routing integration", () => {
       client.lastRouteInfo?.routeMetadata.attemptResult?.fallbackUsed,
     ).toBe(true);
   });
+
+  // -------------------------------------------------------------------------
+  // Model ref kind propagation through production path
+  // -------------------------------------------------------------------------
+
+  it.each([
+    ["deploy_abc123", "deployment"],
+    ["exp_v1/variant_a", "experiment"],
+    ["@app/my-app/chat", "app"],
+    ["gemma-2b", "model"],
+  ] as const)(
+    "model ref '%s' propagates kind '%s' to routeMetadata via planner path",
+    async (model, expectedKind) => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/api/v2/runtime/plan")) {
+          return jsonResponse({
+            model,
+            capability: "responses",
+            policy: "cloud_first",
+            candidates: [
+              {
+                locality: "cloud",
+                engine: "cloud",
+                priority: 0,
+                confidence: 1,
+                reason: "cloud selected",
+              },
+            ],
+            fallback_allowed: true,
+          });
+        }
+        if (urlStr.endsWith("/v1/chat/completions")) {
+          return jsonResponse({
+            id: `resp_${expectedKind}`,
+            model,
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: "result" },
+                finish_reason: "stop",
+              },
+            ],
+          });
+        }
+        throw new Error(`Unexpected URL ${urlStr}`);
+      });
+
+      const client = new ResponsesClient({
+        serverUrl: "https://api.example.com",
+        apiKey: "test-key",
+        plannerClient: new PlannerClient({
+          serverUrl: "https://api.example.com",
+          apiKey: "test-key",
+        }),
+      });
+
+      await client.create({ model, input: "hello" });
+
+      expect(client.lastRouteInfo?.routeMetadata.modelRefKind).toBe(
+        expectedKind,
+      );
+    },
+  );
+
+  it("route event from planner path never contains prompt or output content", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.endsWith("/api/v2/runtime/plan")) {
+        return jsonResponse({
+          model: "test-model",
+          capability: "responses",
+          policy: "cloud_first",
+          candidates: [
+            {
+              locality: "cloud",
+              engine: "cloud",
+              priority: 0,
+              confidence: 1,
+              reason: "cloud selected",
+            },
+          ],
+          fallback_allowed: true,
+        });
+      }
+      if (urlStr.endsWith("/v1/chat/completions")) {
+        return jsonResponse({
+          id: "resp_privacy",
+          model: "test-model",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: "SECRET_OUTPUT" },
+              finish_reason: "stop",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL ${urlStr}`);
+    });
+
+    const client = new ResponsesClient({
+      serverUrl: "https://api.example.com",
+      apiKey: "test-key",
+      plannerClient: new PlannerClient({
+        serverUrl: "https://api.example.com",
+        apiKey: "test-key",
+      }),
+    });
+
+    await client.create({ model: "test-model", input: "SECRET_PROMPT" });
+
+    const routeInfo = client.lastRouteInfo;
+    expect(routeInfo).toBeDefined();
+    // The routeEvent (telemetry payload) must never contain user content.
+    // The internal routeMetadata may retain attemptResult.value for SDK use,
+    // but the wire-format routeEvent is the privacy boundary.
+    const routeEventStr = JSON.stringify(routeInfo!.routeEvent);
+    expect(routeEventStr).not.toContain("SECRET_PROMPT");
+    expect(routeEventStr).not.toContain("SECRET_OUTPUT");
+  });
 });
