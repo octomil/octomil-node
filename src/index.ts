@@ -227,6 +227,37 @@ export type {
 } from "./query-routing.js";
 
 // ---------------------------------------------------------------------------
+// Runtime planner (server-assisted engine selection)
+// ---------------------------------------------------------------------------
+
+export { RuntimePlannerClient, parsePlanResponse } from "./planner/index.js";
+export type { RuntimePlannerClientOptions } from "./planner/index.js";
+export { collectDeviceRuntimeProfile } from "./planner/index.js";
+export { SUPPORTED_POLICIES, isSupportedPolicy } from "./planner/index.js";
+export type {
+  SupportedPolicy,
+  PlannerCapability,
+  InstalledRuntime,
+  DeviceRuntimeProfile,
+  RuntimePlanRequest,
+  RuntimeArtifactPlan,
+  RuntimeCandidatePlan,
+  RuntimePlanResponse,
+  RuntimeBenchmarkSubmission,
+  RuntimeDefaultsResponse,
+  RouteExecution,
+  RouteModelRequested,
+  RouteModelResolved,
+  RouteModel,
+  ArtifactCache,
+  RouteArtifact,
+  PlannerInfo,
+  FallbackInfo,
+  RouteReason,
+  RouteMetadata as PlannerRouteMetadata,
+} from "./planner/index.js";
+
+// ---------------------------------------------------------------------------
 // Candidate attempt runner (per-request candidate evaluation loop)
 // ---------------------------------------------------------------------------
 
@@ -258,6 +289,7 @@ export type {
   PlannerResult,
   RequestRoutingContext,
   RouteMetadata,
+  RouteMetadata as RuntimeRouteMetadata,
   RoutingDecision as RuntimeRoutingDecision,
   RouterConfig,
   RoutableCapability,

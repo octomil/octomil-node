@@ -18,6 +18,7 @@ src/
 ├── _generated/          # Enum types from octomil-contracts — DO NOT HAND-EDIT
 ├── audio/               # Audio transcription client
 ├── manifest/            # Engine manifest types and resolution
+├── planner/             # Server-assisted runtime planner (types, client, device profile)
 ├── runtime/             # Local runtime engine interfaces
 ├── text/                # Text generation helpers
 ├── facade.ts            # Unified SDK entry point (hosted + local routing)
