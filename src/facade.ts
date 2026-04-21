@@ -32,7 +32,7 @@ import {
   localRunnerHealthCheck,
 } from "./local.js";
 import { PlannerClient } from "./runtime/routing/planner-client.js";
-import type { LocalLifecycleStatus, LocalCacheStatus } from "./local-lifecycle.js";
+import type { LocalLifecycleStatus } from "./local-lifecycle.js";
 import { buildLocalLifecycleStatus, buildUnavailableStatus } from "./local-lifecycle.js";
 
 // ---------------------------------------------------------------------------
@@ -506,7 +506,7 @@ export class Octomil {
    */
   async getLocalStatus(): Promise<LocalLifecycleStatus> {
     if (!this._localEndpoint) {
-      return buildUnavailableStatus("not_local_client");
+      return buildUnavailableStatus("not_local_client", "not_applicable");
     }
 
     const healthy = await localRunnerHealthCheck(this._localEndpoint);
@@ -516,7 +516,7 @@ export class Octomil {
 
     return buildLocalLifecycleStatus({
       runnerAvailable: true,
-      cacheStatus: "hit", // runner manages its own model cache
+      cacheStatus: "not_applicable", // model/artifact cache is resolved per request
       engine: null, // engine is resolved per-request by the runner
     });
   }

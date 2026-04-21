@@ -18,10 +18,16 @@
  *
  * - `hit`            — Artifact was found in cache and reused.
  * - `miss`           — Artifact was not cached; download or preparation needed.
+ * - `downloaded`     — Artifact was downloaded and verified during this request.
  * - `not_applicable` — No local artifact involved (e.g. cloud-only route).
  * - `unavailable`    — Artifact cannot be obtained (no network, model not found).
  */
-export type LocalCacheStatus = "hit" | "miss" | "not_applicable" | "unavailable";
+export type LocalCacheStatus =
+  | "hit"
+  | "miss"
+  | "downloaded"
+  | "not_applicable"
+  | "unavailable";
 
 /**
  * Status of the local runtime lifecycle for a given request.
@@ -76,10 +82,13 @@ export function buildLocalLifecycleStatus(opts: {
  * Used to produce an actionable error with telemetry context before
  * throwing RUNTIME_UNAVAILABLE.
  */
-export function buildUnavailableStatus(reason: string): LocalLifecycleStatus {
+export function buildUnavailableStatus(
+  reason: string,
+  cacheStatus: LocalCacheStatus = "unavailable",
+): LocalLifecycleStatus {
   return {
     runnerAvailable: false,
-    cacheStatus: "unavailable",
+    cacheStatus,
     engine: null,
     locality: "cloud",
     mode: "hosted_gateway",

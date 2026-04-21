@@ -85,7 +85,13 @@ describe("LocalLifecycleStatus builder", () => {
 // ---------------------------------------------------------------------------
 
 describe("cache status reporting", () => {
-  const allStatuses: LocalCacheStatus[] = ["hit", "miss", "not_applicable", "unavailable"];
+  const allStatuses: LocalCacheStatus[] = [
+    "hit",
+    "miss",
+    "downloaded",
+    "not_applicable",
+    "unavailable",
+  ];
 
   it("accepts all valid cache status values", () => {
     for (const cs of allStatuses) {
@@ -107,8 +113,8 @@ describe("cache status reporting", () => {
   });
 
   it("cache status 'not_applicable' for cloud routes", () => {
-    const status = buildUnavailableStatus("not_local_client");
-    expect(status.cacheStatus).toBe("unavailable");
+    const status = buildUnavailableStatus("not_local_client", "not_applicable");
+    expect(status.cacheStatus).toBe("not_applicable");
   });
 });
 
@@ -152,7 +158,7 @@ describe("Octomil.getLocalStatus()", () => {
     const status = await client.getLocalStatus();
 
     expect(status.runnerAvailable).toBe(false);
-    expect(status.cacheStatus).toBe("unavailable");
+    expect(status.cacheStatus).toBe("not_applicable");
     expect(status.fallbackReason).toBe("not_local_client");
   });
 
@@ -180,7 +186,7 @@ describe("Octomil.getLocalStatus()", () => {
     const status = await client.getLocalStatus();
 
     expect(status.runnerAvailable).toBe(true);
-    expect(status.cacheStatus).toBe("hit");
+    expect(status.cacheStatus).toBe("not_applicable");
     expect(status.locality).toBe("local");
     expect(status.mode).toBe("sdk_runtime");
 
