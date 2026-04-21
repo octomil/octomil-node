@@ -10,6 +10,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform } from "node:os";
 import { OTLP_RESOURCE_ATTRIBUTES } from "./_generated/otlp_resource_attributes.js";
+import {
+  stripForbiddenKeys,
+  type RouteEvent,
+} from "./runtime/routing/route-event.js";
 
 // ---------------------------------------------------------------------------
 // OTLP Types
@@ -185,6 +189,52 @@ export class TelemetryReporter {
     if (this.queue.length >= this.maxBatchSize) {
       void this.flush();
     }
+  }
+
+  reportRouteEvent(routeEvent: RouteEvent): void {
+    const sanitized = stripForbiddenKeys(routeEvent);
+    const attrs: Record<string, unknown> = {
+      "route.id": sanitized.route_id,
+      "route.request_id": sanitized.request_id,
+      "route.capability": sanitized.capability,
+      "route.final_locality": sanitized.final_locality,
+      "route.selected_locality": sanitized.selected_locality,
+      "route.final_mode": sanitized.final_mode,
+      "route.fallback_used": sanitized.fallback_used,
+      "route.candidate_attempts": sanitized.candidate_attempts,
+    };
+
+    if (sanitized.plan_id) attrs["route.plan_id"] = sanitized.plan_id;
+    if (sanitized.policy) attrs["route.policy"] = sanitized.policy;
+    if (sanitized.planner_source) {
+      attrs["route.planner_source"] = sanitized.planner_source;
+    }
+    if (sanitized.engine) attrs["route.engine"] = sanitized.engine;
+    if (sanitized.fallback_trigger_code) {
+      attrs["route.fallback_trigger_code"] = sanitized.fallback_trigger_code;
+    }
+    if (sanitized.fallback_trigger_stage) {
+      attrs["route.fallback_trigger_stage"] = sanitized.fallback_trigger_stage;
+    }
+    if (sanitized.model_ref) attrs["route.model_ref"] = sanitized.model_ref;
+    if (sanitized.model_ref_kind) {
+      attrs["route.model_ref_kind"] = sanitized.model_ref_kind;
+    }
+    if (sanitized.app_slug) attrs["route.app_slug"] = sanitized.app_slug;
+    if (sanitized.app_id) attrs["route.app_id"] = sanitized.app_id;
+    if (sanitized.deployment_id) {
+      attrs["route.deployment_id"] = sanitized.deployment_id;
+    }
+    if (sanitized.experiment_id) {
+      attrs["route.experiment_id"] = sanitized.experiment_id;
+    }
+    if (sanitized.variant_id) attrs["route.variant_id"] = sanitized.variant_id;
+    if (sanitized.artifact_id) attrs["route.artifact_id"] = sanitized.artifact_id;
+    if (sanitized.attempt_details) {
+      attrs["route.attempt_details"] = JSON.stringify(sanitized.attempt_details);
+    }
+
+    this.track("route.decision", attrs);
   }
 
   async flush(): Promise<void> {

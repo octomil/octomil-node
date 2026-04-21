@@ -254,8 +254,54 @@ export type {
   PlannerInfo,
   FallbackInfo,
   RouteReason,
-  RouteMetadata,
+  RouteMetadata as PlannerRouteMetadata,
 } from "./planner/index.js";
+
+// ---------------------------------------------------------------------------
+// Candidate attempt runner (per-request candidate evaluation loop)
+// ---------------------------------------------------------------------------
+
+export {
+  CandidateAttemptRunner,
+  NoOpRuntimeChecker,
+  NoOpGateEvaluator,
+  AttemptStage,
+  AttemptStatus,
+  GateStatus,
+  GATE_CODES,
+} from "./runtime/routing/attempt-runner.js";
+export type {
+  GateCode,
+  GateResult,
+  AttemptArtifact,
+  RouteAttempt,
+  FallbackTrigger,
+  AttemptLoopResult,
+  RuntimeChecker,
+  GateEvaluator,
+  CandidateGate,
+  CandidatePlan,
+} from "./runtime/routing/attempt-runner.js";
+export { PlannerClient } from "./runtime/routing/planner-client.js";
+export type { PlannerClientConfig, PlanRequest } from "./runtime/routing/planner-client.js";
+export { RequestRouter } from "./runtime/routing/request-router.js";
+export type {
+  PlannerResult,
+  RequestRoutingContext,
+  RouteMetadata,
+  RouteMetadata as RuntimeRouteMetadata,
+  RoutingDecision as RuntimeRoutingDecision,
+  RouterConfig,
+  RoutableCapability,
+} from "./runtime/routing/request-router.js";
+export { parseModelRef } from "./runtime/routing/model-ref-parser.js";
+export type { ParsedModelRef, ModelRefKind } from "./runtime/routing/model-ref-parser.js";
+export {
+  buildRouteEvent,
+  validateRouteEvent,
+  FORBIDDEN_TELEMETRY_FIELDS,
+} from "./runtime/routing/route-event.js";
+export type { RouteEvent, AttemptDetail } from "./runtime/routing/route-event.js";
 
 // ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
