@@ -5,7 +5,7 @@
  *   - `@app/<slug>/<cap>`         -> kind "app"
  *   - `@capability/<cap>`         -> kind "capability"
  *   - `deploy_<id>`               -> kind "deployment"
- *   - `exp/<id>` or `<exp>/<var>` -> kind "experiment" (with variant)
+ *   - `exp_<id>/<var>`            -> kind "experiment"
  *   - plain string                -> kind "model" (bare model ID)
  *
  * The server resolves these; the SDK just classifies the ref and passes it
@@ -51,6 +51,7 @@ const APP_REF_RE = /^@app\/([^/]+)\/([^/]+)$/;
 const CAPABILITY_REF_RE = /^@capability\/([^/]+)$/;
 const DEPLOY_REF_RE = /^deploy_(.+)$/;
 const EXPERIMENT_REF_RE = /^exp[_/]([^/]+)(?:\/(.+))?$/;
+const ALIAS_REF_RE = /^alias:(.+)$/;
 
 /**
  * Parse a model string into a structured reference.
@@ -61,6 +62,20 @@ const EXPERIMENT_REF_RE = /^exp[_/]([^/]+)(?:\/(.+))?$/;
  */
 export function parseModelRef(model: string): ParsedModelRef {
   const trimmed = model.trim();
+
+  if (!trimmed) {
+    return {
+      raw: trimmed,
+      kind: "default",
+    };
+  }
+
+  if (trimmed.includes("://")) {
+    return {
+      raw: trimmed,
+      kind: "unknown",
+    };
+  }
 
   // @app/slug/capability
   const appMatch = APP_REF_RE.exec(trimmed);
@@ -89,13 +104,19 @@ export function parseModelRef(model: string): ParsedModelRef {
     return {
       raw: trimmed,
       kind: "deployment",
-      deploymentId: deployMatch[1],
+      deploymentId: trimmed,
     };
   }
 
-  // exp/id or exp/id/variant — also handles exp_id/variant
+  // exp_id/variant
   const expMatch = EXPERIMENT_REF_RE.exec(trimmed);
   if (expMatch) {
+    if (!expMatch[2]) {
+      return {
+        raw: trimmed,
+        kind: "unknown",
+      };
+    }
     return {
       raw: trimmed,
       kind: "experiment",
@@ -115,6 +136,21 @@ export function parseModelRef(model: string): ParsedModelRef {
         variantId: rest.join("/"),
       };
     }
+  }
+
+  const aliasMatch = ALIAS_REF_RE.exec(trimmed);
+  if (aliasMatch) {
+    return {
+      raw: trimmed,
+      kind: aliasMatch[1] ? "alias" : "unknown",
+    };
+  }
+
+  if (trimmed.startsWith("@")) {
+    return {
+      raw: trimmed,
+      kind: "unknown",
+    };
   }
 
   // Bare model ID

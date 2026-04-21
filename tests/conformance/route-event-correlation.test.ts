@@ -16,6 +16,7 @@ import {
   validateRouteEvent,
   buildRouteEvent,
 } from "../../src/runtime/routing/route-event.js";
+import { parseModelRef } from "../../src/runtime/routing/model-ref-parser.js";
 import type { AttemptLoopResult } from "../../src/runtime/routing/attempt-runner.js";
 
 // ---------------------------------------------------------------------------
@@ -125,6 +126,26 @@ describe("RouteEvent canonical correlation fields", () => {
     expect(event.selected_locality).toBe(event.final_locality);
     expect(event.selected_locality).toBe("local");
     expect(event.final_mode).toBe("sdk_runtime");
+  });
+});
+
+describe("parseModelRef canonical kinds", () => {
+  it.each([
+    ["gemma3-1b", "model"],
+    ["@app/translator/chat", "app"],
+    ["@capability/embeddings", "capability"],
+    ["deploy_abc123", "deployment"],
+    ["exp_v1/variant_a", "experiment"],
+    ["alias:prod-chat", "alias"],
+    ["", "default"],
+    ["@bad/ref", "unknown"],
+    ["https://example.com/model.gguf", "unknown"],
+  ] as const)("classifies %s as %s", (model, expectedKind) => {
+    expect(parseModelRef(model).kind).toBe(expectedKind);
+  });
+
+  it("keeps deployment IDs canonical including the deploy_ prefix", () => {
+    expect(parseModelRef("deploy_abc123").deploymentId).toBe("deploy_abc123");
   });
 });
 

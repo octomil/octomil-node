@@ -192,6 +192,7 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
     experiment_id: input.experimentId,
     variant_id: input.variantId,
     artifact_id: selected?.artifact?.id ?? undefined,
+    cache_status: selected?.artifact?.cache.status,
   };
 
   // Build attempt details
