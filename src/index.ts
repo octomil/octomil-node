@@ -253,6 +253,47 @@ export type {
 } from "./runtime/routing/attempt-runner.js";
 
 // ---------------------------------------------------------------------------
+// Request router + planner client (production routing)
+// ---------------------------------------------------------------------------
+
+export { RequestRouter } from "./runtime/routing/request-router.js";
+export type {
+  RoutableCapability,
+  PlannerResult,
+  RequestRoutingContext,
+  RouteMetadata,
+  RoutingDecision as RequestRoutingDecision,
+  RouterConfig,
+} from "./runtime/routing/request-router.js";
+
+export { parseModelRef } from "./runtime/routing/model-ref-parser.js";
+export type {
+  ModelRefKind,
+  ParsedModelRef,
+} from "./runtime/routing/model-ref-parser.js";
+
+export {
+  buildRouteEvent,
+  validateRouteEvent,
+  FORBIDDEN_TELEMETRY_FIELDS,
+} from "./runtime/routing/route-event.js";
+export type {
+  RouteEvent,
+  AttemptDetail,
+  RouteEventBuilderInput,
+} from "./runtime/routing/route-event.js";
+
+export { PlannerClient } from "./runtime/routing/planner-client.js";
+export type {
+  PlannerClientConfig,
+  PlanRequest,
+} from "./runtime/routing/planner-client.js";
+
+export type { ResponseRouteInfo } from "./responses.js";
+export { embedWithPlanner } from "./embeddings.js";
+export type { PlannerEmbeddingConfig, EmbeddingRouteInfo } from "./embeddings.js";
+
+// ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
 // ---------------------------------------------------------------------------
 

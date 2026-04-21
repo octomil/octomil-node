@@ -18,6 +18,12 @@ import {
   type CandidatePlan,
   type RuntimeChecker,
 } from "./runtime/routing/attempt-runner.js";
+import {
+  RequestRouter,
+  type RouteMetadata,
+} from "./runtime/routing/request-router.js";
+import type { PlannerClient } from "./runtime/routing/planner-client.js";
+import type { RouteEvent } from "./runtime/routing/route-event.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,6 +127,16 @@ export interface ResponsesClientOptions {
   apiKey?: string;
   telemetry?: TelemetryReporter | null;
   localRuntime?: LocalResponsesRuntime | LocalResponsesRuntimeResolver | null;
+  /** Planner client for fetching runtime plans from the server. */
+  plannerClient?: PlannerClient | null;
+  /** External endpoint URL for local serve instances. */
+  externalEndpoint?: string;
+}
+
+/** Route metadata attached to a ResponseObj when planner routing is used. */
+export interface ResponseRouteInfo {
+  routeMetadata: RouteMetadata;
+  routeEvent?: RouteEvent;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,9 +243,14 @@ export class ResponsesClient {
     | LocalResponsesRuntime
     | LocalResponsesRuntimeResolver
     | null;
+  private readonly plannerClient: PlannerClient | null;
+  private readonly requestRouter: RequestRouter | null;
   private readonly responseCache = new Map<string, ResponseObj>();
   private readonly messageCache = new Map<string, ResponseInputItem[]>();
   private readonly maxCache = 100;
+
+  /** Route info from the last completed request (for telemetry/inspection). */
+  lastRouteInfo: ResponseRouteInfo | null = null;
 
   constructor(options: ResponsesClientOptions = {}) {
     this.serverUrl = (options.serverUrl ?? "https://api.octomil.com").replace(
@@ -239,9 +260,31 @@ export class ResponsesClient {
     this.apiKey = options.apiKey;
     this.telemetry = options.telemetry ?? null;
     this.localRuntime = options.localRuntime ?? null;
+    this.plannerClient = options.plannerClient ?? null;
+
+    // Build RequestRouter when planner is configured
+    if (this.plannerClient) {
+      this.requestRouter = new RequestRouter({
+        cloudEndpoint: this.serverUrl,
+        apiKey: this.apiKey,
+        externalEndpoint: options.externalEndpoint,
+      });
+    } else {
+      this.requestRouter = null;
+    }
   }
 
   async create(request: ResponseRequest): Promise<ResponseObj> {
+    // ---------------------------------------------------------------
+    // Planner-routed path: fetch plan and execute via attempt runner
+    // ---------------------------------------------------------------
+    if (this.plannerClient && this.requestRouter) {
+      return this.createWithPlanner(request);
+    }
+
+    // ---------------------------------------------------------------
+    // Legacy path: local runtime fallback or direct cloud
+    // ---------------------------------------------------------------
     const localRuntime = this.resolveLocalRuntime(request.model);
     if (!localRuntime) {
       return this.createCloud(request);
@@ -269,6 +312,66 @@ export class ResponsesClient {
     throw (
       result.error ??
       new OctomilError("INFERENCE_FAILED", "No response route succeeded")
+    );
+  }
+
+  /**
+   * Planner-routed create: fetch a plan, resolve routing, execute via
+   * CandidateAttemptRunner.runWithInference with per-candidate execution.
+   */
+  private async createWithPlanner(request: ResponseRequest): Promise<ResponseObj> {
+    const plan = await this.plannerClient!.getPlan({
+      model: request.model,
+      capability: "responses",
+      streaming: false,
+      routing_policy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+
+    // Resolve routing (with or without plan)
+    const decision = this.requestRouter!.resolve({
+      model: request.model,
+      capability: "responses",
+      streaming: false,
+      plannerResult: plan ?? undefined,
+      routingPolicy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+
+    const candidates = plan?.candidates ?? [
+      { locality: "cloud" as const, engine: "cloud", priority: 0, confidence: 1, reason: "direct cloud" },
+    ];
+
+    const localRuntime = this.resolveLocalRuntime(request.model);
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: plan?.fallback_allowed ?? true,
+    });
+
+    const result = await runner.runWithInference<ResponseObj>(candidates, {
+      runtimeChecker: this.requestRouter!["buildRuntimeChecker"]("responses"),
+      executeCandidate: async (candidate) => {
+        if (candidate.locality === "local" && localRuntime) {
+          return this.createLocal(request, localRuntime);
+        }
+        return this.createCloud(request);
+      },
+    });
+
+    // Attach route info for telemetry
+    this.lastRouteInfo = {
+      routeMetadata: decision.routeMetadata,
+      routeEvent: decision.routeMetadata.routeEvent,
+    };
+
+    // Emit route event via telemetry
+    if (this.telemetry && decision.routeMetadata.routeEvent) {
+      this.telemetry.track("route.completed", decision.routeMetadata.routeEvent as unknown as Record<string, unknown>);
+    }
+
+    if (result.selectedAttempt && result.value) {
+      return result.value;
+    }
+    throw (
+      result.error ??
+      new OctomilError("INFERENCE_FAILED", "No response route succeeded (planner path)")
     );
   }
 
@@ -301,6 +404,17 @@ export class ResponsesClient {
   }
 
   async *stream(request: ResponseRequest): AsyncGenerator<ResponseStreamEvent> {
+    // ---------------------------------------------------------------
+    // Planner-routed streaming path
+    // ---------------------------------------------------------------
+    if (this.plannerClient && this.requestRouter) {
+      yield* this.streamWithPlanner(request);
+      return;
+    }
+
+    // ---------------------------------------------------------------
+    // Legacy path
+    // ---------------------------------------------------------------
     const localRuntime = this.resolveLocalRuntime(request.model);
     if (!localRuntime) {
       yield* this.streamCloud(request);
@@ -342,6 +456,92 @@ export class ResponsesClient {
         return;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Planner-routed streaming: fetch plan, evaluate readiness, execute
+   * the selected candidate with streaming-aware fallback semantics.
+   *
+   * No fallback after first streamed token/chunk.
+   */
+  private async *streamWithPlanner(
+    request: ResponseRequest,
+  ): AsyncGenerator<ResponseStreamEvent> {
+    const plan = await this.plannerClient!.getPlan({
+      model: request.model,
+      capability: "responses",
+      streaming: true,
+      routing_policy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+
+    const decision = this.requestRouter!.resolve({
+      model: request.model,
+      capability: "responses",
+      streaming: true,
+      plannerResult: plan ?? undefined,
+      routingPolicy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+
+    const candidates = plan?.candidates ?? [
+      { locality: "cloud" as const, engine: "cloud", priority: 0, confidence: 1, reason: "direct cloud" },
+    ];
+
+    const fallbackAllowed = plan?.fallback_allowed ?? true;
+    const localRuntime = this.resolveLocalRuntime(request.model);
+
+    // Evaluate readiness for each candidate; find the first viable one
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed,
+      streaming: true,
+    });
+    const readiness = runner.run(candidates, {
+      runtimeChecker: this.requestRouter!["buildRuntimeChecker"]("responses"),
+    });
+
+    const selected = readiness.selectedAttempt;
+    if (!selected) {
+      throw new OctomilError(
+        "INFERENCE_FAILED",
+        "No response route succeeded (planner streaming path)",
+      );
+    }
+
+    // Attach route info
+    this.lastRouteInfo = {
+      routeMetadata: decision.routeMetadata,
+      routeEvent: decision.routeMetadata.routeEvent,
+    };
+
+    // Execute the selected candidate
+    if (selected.locality === "local" && localRuntime) {
+      let firstOutputEmitted = false;
+      try {
+        for await (const event of this.streamLocal(request, localRuntime)) {
+          if (event.type !== "done") {
+            firstOutputEmitted = true;
+          }
+          yield event;
+        }
+      } catch (error) {
+        // Streaming no-fallback-after-first-token rule
+        if (
+          !firstOutputEmitted &&
+          fallbackAllowed &&
+          candidates.some((c) => c.locality === "cloud")
+        ) {
+          yield* this.streamCloud(request);
+          return;
+        }
+        throw error;
+      }
+    } else {
+      yield* this.streamCloud(request);
+    }
+
+    // Emit route event
+    if (this.telemetry && decision.routeMetadata.routeEvent) {
+      this.telemetry.track("route.completed", decision.routeMetadata.routeEvent as unknown as Record<string, unknown>);
     }
   }
 

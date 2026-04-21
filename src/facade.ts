@@ -18,7 +18,7 @@ import type {
   ResponseOutput,
   ResponseStreamEvent,
 } from "./responses.js";
-import { embed } from "./embeddings.js";
+import { embed, embedWithPlanner } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import { validatePublishableKey } from "./auth-config.js";
 import { configure } from "./configure.js";
@@ -30,6 +30,7 @@ import {
   localRunnerMultipartPost,
   localRunnerPost,
 } from "./local.js";
+import { PlannerClient } from "./runtime/routing/planner-client.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -55,6 +56,18 @@ export interface OctomilFacadeOptions {
   auth?: AuthConfig;
   serverUrl?: string;
   telemetry?: boolean;
+  /**
+   * Enable planner-routed request paths.
+   *
+   * When true, the SDK fetches runtime plans from the server planner API
+   * to resolve model refs and evaluate candidate routes end-to-end.
+   * Falls back to legacy direct routing if the planner is unavailable.
+   *
+   * Default: false (opt-in for now, will become default in a future release).
+   */
+  plannerRouting?: boolean;
+  /** External endpoint URL for local serve instances (opt-in). */
+  externalEndpoint?: string;
 }
 
 export interface OctomilFacadeEnvOptions {
@@ -206,10 +219,16 @@ class LocalFacadeResponses {
 export class FacadeEmbeddings {
   private readonly serverUrl: string;
   private readonly apiKey: string;
+  private readonly plannerClient: PlannerClient | null;
 
-  constructor(serverUrl: string, apiKey: string) {
+  constructor(
+    serverUrl: string,
+    apiKey: string,
+    plannerClient?: PlannerClient | null,
+  ) {
     this.serverUrl = serverUrl;
     this.apiKey = apiKey;
+    this.plannerClient = plannerClient ?? null;
   }
 
   async create(options: {
@@ -217,6 +236,18 @@ export class FacadeEmbeddings {
     input: string | string[];
     signal?: AbortSignal;
   }): Promise<EmbeddingResult> {
+    if (this.plannerClient) {
+      return embedWithPlanner(
+        {
+          serverUrl: this.serverUrl,
+          apiKey: this.apiKey,
+          plannerClient: this.plannerClient,
+        },
+        options.model,
+        options.input,
+        options.signal,
+      );
+    }
     return embed(
       { serverUrl: this.serverUrl, apiKey: this.apiKey },
       options.model,
@@ -321,6 +352,8 @@ export class Octomil {
   private readonly _localEndpoint: LocalRunnerEndpoint | null;
   private _localResponses: LocalFacadeResponses | undefined;
   private _localAudioTranscriptions: LocalFacadeAudioTranscriptions | undefined;
+  /** PlannerClient instance (created when plannerRouting is enabled). */
+  private readonly _plannerClient: PlannerClient | null;
 
   /**
    * Create a local-only Octomil client that uses the Python CLI's local runner.
@@ -378,6 +411,7 @@ export class Octomil {
       // Local mode: use the local runner endpoint for everything
       this.responsesClient = null;
       this._embeddings = new LocalFacadeEmbeddings(this._localEndpoint);
+      this._plannerClient = null;
     } else {
       // Hosted mode: build a ResponsesClient from the resolved auth credentials.
       const serverUrl = options.serverUrl ?? "https://api.octomil.com";
@@ -394,12 +428,28 @@ export class Octomil {
             : options.auth.bootstrapToken;
       }
 
+      // Build planner client when plannerRouting is enabled
+      if (options.plannerRouting && apiKey) {
+        this._plannerClient = new PlannerClient({
+          serverUrl,
+          apiKey,
+        });
+      } else {
+        this._plannerClient = null;
+      }
+
       this.responsesClient = new ResponsesClient({
         serverUrl,
         apiKey,
+        plannerClient: this._plannerClient,
+        externalEndpoint: options.externalEndpoint,
       });
 
-      this._embeddings = new FacadeEmbeddings(serverUrl, apiKey ?? "");
+      this._embeddings = new FacadeEmbeddings(
+        serverUrl,
+        apiKey ?? "",
+        this._plannerClient,
+      );
     }
   }
 
