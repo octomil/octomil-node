@@ -15,9 +15,17 @@ import type {
 } from "./responses-runtime.js";
 import {
   CandidateAttemptRunner,
+  AttemptStage,
+  AttemptStatus,
+  GateStatus,
+  type AttemptLoopResult,
   type CandidatePlan,
   type RuntimeChecker,
 } from "./runtime/routing/attempt-runner.js";
+import type { PlannerClient } from "./runtime/routing/planner-client.js";
+import type { RouteMetadata } from "./runtime/routing/request-router.js";
+import { buildRouteEvent, type RouteEvent } from "./runtime/routing/route-event.js";
+import { parseModelRef } from "./runtime/routing/model-ref-parser.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,6 +129,13 @@ export interface ResponsesClientOptions {
   apiKey?: string;
   telemetry?: TelemetryReporter | null;
   localRuntime?: LocalResponsesRuntime | LocalResponsesRuntimeResolver | null;
+  plannerClient?: PlannerClient | null;
+  externalEndpoint?: string;
+}
+
+export interface ResponseRouteInfo {
+  routeMetadata: RouteMetadata;
+  routeEvent?: RouteEvent;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,9 +242,12 @@ export class ResponsesClient {
     | LocalResponsesRuntime
     | LocalResponsesRuntimeResolver
     | null;
+  private readonly plannerClient: PlannerClient | null;
+  private readonly externalEndpoint: string | null;
   private readonly responseCache = new Map<string, ResponseObj>();
   private readonly messageCache = new Map<string, ResponseInputItem[]>();
   private readonly maxCache = 100;
+  lastRouteInfo: ResponseRouteInfo | null = null;
 
   constructor(options: ResponsesClientOptions = {}) {
     this.serverUrl = (options.serverUrl ?? "https://api.octomil.com").replace(
@@ -239,9 +257,15 @@ export class ResponsesClient {
     this.apiKey = options.apiKey;
     this.telemetry = options.telemetry ?? null;
     this.localRuntime = options.localRuntime ?? null;
+    this.plannerClient = options.plannerClient ?? null;
+    this.externalEndpoint = options.externalEndpoint ?? null;
   }
 
   async create(request: ResponseRequest): Promise<ResponseObj> {
+    if (this.plannerClient) {
+      return this.createWithPlanner(request);
+    }
+
     const localRuntime = this.resolveLocalRuntime(request.model);
     if (!localRuntime) {
       return this.createCloud(request);
@@ -270,6 +294,54 @@ export class ResponsesClient {
       result.error ??
       new OctomilError("INFERENCE_FAILED", "No response route succeeded")
     );
+  }
+
+  private async createWithPlanner(request: ResponseRequest): Promise<ResponseObj> {
+    const plan = await this.plannerClient!.getPlan({
+      model: request.model,
+      capability: "responses",
+      streaming: false,
+      routing_policy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+    const localRuntime = this.resolveLocalRuntime(request.model);
+    const candidates = this.plannerCandidates(plan, localRuntime);
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: this.plannerFallbackAllowed(plan, request),
+    });
+
+    const result = await runner.runWithInference<ResponseObj>(candidates, {
+      runtimeChecker: this.responsePlannerRuntimeChecker(localRuntime),
+      executeCandidate: async (candidate) => {
+        if (candidate.locality === "local") {
+          if (localRuntime) {
+            return this.createLocal(request, localRuntime);
+          }
+          if (this.externalEndpoint) {
+            return this.createExternal(request);
+          }
+        }
+        return this.createCloud(request);
+      },
+    });
+
+    if (!result.selectedAttempt || !result.value) {
+      throw (
+        result.error ??
+        new OctomilError("INFERENCE_FAILED", "No response route succeeded")
+      );
+    }
+
+    this.lastRouteInfo = this.buildResponseRouteInfo(
+      request,
+      plan,
+      result,
+      localRuntime,
+    );
+    if (this.telemetry && this.lastRouteInfo.routeEvent) {
+      this.telemetry.reportRouteEvent(this.lastRouteInfo.routeEvent);
+    }
+
+    return result.value;
   }
 
   private async createCloud(request: ResponseRequest): Promise<ResponseObj> {
@@ -301,6 +373,11 @@ export class ResponsesClient {
   }
 
   async *stream(request: ResponseRequest): AsyncGenerator<ResponseStreamEvent> {
+    if (this.plannerClient) {
+      yield* this.streamWithPlanner(request);
+      return;
+    }
+
     const localRuntime = this.resolveLocalRuntime(request.model);
     if (!localRuntime) {
       yield* this.streamCloud(request);
@@ -339,6 +416,104 @@ export class ResponsesClient {
         candidates.some((candidate) => candidate.locality === "cloud")
       ) {
         yield* this.streamCloud(request);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async *streamWithPlanner(
+    request: ResponseRequest,
+  ): AsyncGenerator<ResponseStreamEvent> {
+    const plan = await this.plannerClient!.getPlan({
+      model: request.model,
+      capability: "responses",
+      streaming: true,
+      routing_policy: request.metadata?.routing_policy ?? request.metadata?.routingPolicy,
+    });
+    const localRuntime = this.resolveLocalRuntime(request.model);
+    const candidates = this.plannerCandidates(plan, localRuntime);
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: this.plannerFallbackAllowed(plan, request),
+      streaming: true,
+    });
+    const readiness = runner.run(candidates, {
+      runtimeChecker: this.responsePlannerRuntimeChecker(localRuntime),
+    });
+    const selected = readiness.selectedAttempt;
+    if (!selected) {
+      throw new OctomilError("INFERENCE_FAILED", "No response route succeeded");
+    }
+
+    if (selected.locality === "cloud") {
+      this.lastRouteInfo = this.buildResponseRouteInfo(
+        request,
+        plan,
+        readiness,
+        localRuntime,
+      );
+      yield* this.streamCloud(request);
+      if (this.telemetry && this.lastRouteInfo.routeEvent) {
+        this.telemetry.reportRouteEvent(this.lastRouteInfo.routeEvent);
+      }
+      return;
+    }
+
+    this.lastRouteInfo = this.buildResponseRouteInfo(
+      request,
+      plan,
+      readiness,
+      localRuntime,
+    );
+
+    let firstOutputEmitted = false;
+    try {
+      const stream =
+        localRuntime != null
+          ? this.streamLocal(request, localRuntime)
+          : this.externalEndpoint
+            ? this.streamExternal(request)
+            : null;
+      if (!stream) {
+        throw new OctomilError(
+          "RUNTIME_UNAVAILABLE",
+          "No local response transport is available for the selected planner candidate",
+        );
+      }
+
+      for await (const event of stream) {
+        if (event.type !== "done") {
+          firstOutputEmitted = true;
+        }
+        yield event;
+      }
+      if (this.telemetry && this.lastRouteInfo.routeEvent) {
+        this.telemetry.reportRouteEvent(this.lastRouteInfo.routeEvent);
+      }
+    } catch (error) {
+      const cloudIndex = this.findCloudCandidateIndex(candidates, selected.index);
+      if (
+        !firstOutputEmitted &&
+        cloudIndex !== null &&
+        this.plannerFallbackAllowed(plan, request)
+      ) {
+        const fallbackResult = this.buildStreamingFallbackResult(
+          candidates,
+          readiness,
+          selected.index,
+          error,
+          localRuntime,
+        );
+        this.lastRouteInfo = this.buildResponseRouteInfo(
+          request,
+          plan,
+          fallbackResult,
+          null,
+        );
+        yield* this.streamCloud(request);
+        if (this.telemetry && this.lastRouteInfo.routeEvent) {
+          this.telemetry.reportRouteEvent(this.lastRouteInfo.routeEvent);
+        }
         return;
       }
       throw error;
@@ -517,13 +692,15 @@ export class ResponsesClient {
     localRuntime: LocalResponsesRuntime | null,
   ): CandidatePlan[] {
     const candidates: CandidatePlan[] = [];
-    if (localRuntime) {
+    if (localRuntime || this.externalEndpoint) {
       candidates.push({
         locality: "local",
-        engine: "localRuntime",
+        engine: localRuntime ? "localRuntime" : "external_endpoint",
         priority: 0,
         confidence: 1,
-        reason: "configured local responses runtime",
+        reason: localRuntime
+          ? "configured local responses runtime"
+          : "configured external responses endpoint",
       });
     }
     candidates.push({
@@ -544,17 +721,118 @@ export class ResponsesClient {
         if (locality === "cloud") {
           return { available: true };
         }
-        return localRuntime
-          ? { available: true }
-          : { available: false, reasonCode: "local_runtime_unavailable" };
+        if (localRuntime) {
+          return { available: true };
+        }
+        if (this.externalEndpoint) {
+          return { available: true };
+        }
+        return { available: false, reasonCode: "local_runtime_unavailable" };
       },
     };
+  }
+
+  private responsePlannerRuntimeChecker(
+    localRuntime: LocalResponsesRuntime | null,
+  ): RuntimeChecker {
+    return this.responseRuntimeChecker(localRuntime);
   }
 
   private cloudFallbackAllowed(request: ResponseRequest): boolean {
     const policy =
       request.metadata?.routing_policy ?? request.metadata?.routingPolicy;
     return policy !== "private" && policy !== "local_only";
+  }
+
+  private plannerCandidates(
+    plan: Awaited<ReturnType<PlannerClient["getPlan"]>>,
+    localRuntime: LocalResponsesRuntime | null,
+  ): CandidatePlan[] {
+    return plan?.candidates ?? this.responseCandidates(localRuntime);
+  }
+
+  private plannerFallbackAllowed(
+    plan: Awaited<ReturnType<PlannerClient["getPlan"]>>,
+    request: ResponseRequest,
+  ): boolean {
+    return (plan?.fallback_allowed ?? true) && this.cloudFallbackAllowed(request);
+  }
+
+  private findCloudCandidateIndex(
+    candidates: CandidatePlan[],
+    fromIndex: number,
+  ): number | null {
+    for (let index = fromIndex + 1; index < candidates.length; index++) {
+      if (candidates[index]?.locality === "cloud") {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  private buildStreamingFallbackResult(
+    candidates: CandidatePlan[],
+    readiness: AttemptLoopResult,
+    failedIndex: number,
+    error: unknown,
+    localRuntime: LocalResponsesRuntime | null,
+  ): AttemptLoopResult {
+    const cloudIndex = this.findCloudCandidateIndex(candidates, failedIndex);
+    if (cloudIndex === null || !readiness.selectedAttempt) {
+      return readiness;
+    }
+
+    const localMode: "sdk_runtime" | "external_endpoint" =
+      localRuntime != null ? "sdk_runtime" : "external_endpoint";
+
+    const failedAttempt = {
+      ...readiness.selectedAttempt,
+      mode: localMode,
+      status: AttemptStatus.Failed,
+      stage: AttemptStage.Inference,
+      reason: {
+        code: "inference_error_before_first_output",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+
+    const nextCandidate = candidates[cloudIndex]!;
+    const selectedCloudAttempt = {
+      index: cloudIndex,
+      locality: "cloud" as const,
+      mode: "hosted_gateway" as const,
+      engine: nextCandidate.engine ?? null,
+      artifact: null,
+      status: AttemptStatus.Selected,
+      stage: AttemptStage.Inference,
+      gate_results: [{ code: "runtime_available", status: GateStatus.Passed }],
+      reason: {
+        code: "selected",
+        message: "cloud fallback after local streaming failure before first output",
+      },
+    };
+
+    const attempts = readiness.attempts.map((attempt) =>
+      attempt.index === failedIndex
+        ? failedAttempt
+        : attempt.locality === "local"
+          ? { ...attempt, mode: localMode }
+          : attempt,
+    );
+    attempts.push(selectedCloudAttempt);
+
+    return {
+      selectedAttempt: selectedCloudAttempt,
+      attempts,
+      fallbackUsed: true,
+      fallbackTrigger: {
+        code: failedAttempt.reason.code,
+        stage: failedAttempt.stage,
+        message: failedAttempt.reason.message,
+      },
+      fromAttempt: failedIndex,
+      toAttempt: cloudIndex,
+    };
   }
 
   private resolveLocalRuntime(model: string): LocalResponsesRuntime | null {
@@ -596,6 +874,43 @@ export class ResponsesClient {
       });
       throw error;
     }
+  }
+
+  private async createExternal(request: ResponseRequest): Promise<ResponseObj> {
+    if (!this.externalEndpoint) {
+      throw new OctomilError(
+        "RUNTIME_UNAVAILABLE",
+        "ResponsesClient requires externalEndpoint for local endpoint requests",
+      );
+    }
+
+    const effectiveRequest = this.buildEffectiveRequest(request);
+    const body = this.buildRequestBody(effectiveRequest, false);
+    this.telemetry?.track("inference.started", {
+      "model.id": request.model,
+      locality: "local",
+      method: "responses.create",
+    });
+
+    const start = performance.now();
+    const response = await this.postToEndpoint(this.externalEndpoint, body, {
+      accept: "application/json",
+    });
+    const data = (await response.json()) as ChatCompletionResponse;
+    const result = this.parseResponse(data);
+    this.cacheResponse(result);
+    this.cacheMessages(result.id, [
+      ...this.normalizeInput(effectiveRequest.input),
+      this.responseToAssistantInput(result),
+    ]);
+    this.telemetry?.track("inference.completed", {
+      "model.id": request.model,
+      "inference.duration_ms": performance.now() - start,
+      locality: "local",
+      method: "responses.create",
+    });
+
+    return result;
   }
 
   private async *streamLocal(
@@ -641,6 +956,183 @@ export class ResponsesClient {
     }
   }
 
+  private async *streamExternal(
+    request: ResponseRequest,
+  ): AsyncGenerator<ResponseStreamEvent> {
+    if (!this.externalEndpoint) {
+      throw new OctomilError(
+        "RUNTIME_UNAVAILABLE",
+        "ResponsesClient requires externalEndpoint for local endpoint requests",
+      );
+    }
+
+    const effectiveRequest = this.buildEffectiveRequest(request);
+    const body = this.buildRequestBody(effectiveRequest, true);
+    this.telemetry?.track("inference.started", {
+      "model.id": request.model,
+      locality: "local",
+      method: "responses.stream",
+    });
+
+    const start = performance.now();
+    const response = await this.postToEndpoint(this.externalEndpoint, body, {
+      accept: "text/event-stream",
+    });
+    if (!response.body) {
+      throw new OctomilError(
+        "INFERENCE_FAILED",
+        "Streaming response returned empty body",
+      );
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let responseId = "";
+    let responseModel = request.model;
+    let finishReason = "stop";
+    const outputParts: ResponseOutput[] = [];
+    let currentTextContent = "";
+    let currentReasoningContent = "";
+    const toolCallAccumulators = new Map<
+      number,
+      { id?: string; name?: string; arguments: string }
+    >();
+    let usage: ResponseUsage | undefined;
+    let chunkIndex = 0;
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const chunk = this.parseSSEChunk(line);
+          if (!chunk) continue;
+
+          responseId = chunk.id || responseId;
+          responseModel = chunk.model || responseModel;
+          if (chunk.usage) {
+            usage = {
+              promptTokens: chunk.usage.prompt_tokens,
+              completionTokens: chunk.usage.completion_tokens,
+              totalTokens: chunk.usage.total_tokens,
+            };
+          }
+
+          for (const choice of chunk.choices) {
+            if (choice.finish_reason) {
+              finishReason = choice.finish_reason;
+            }
+
+            if (choice.delta.reasoning_content) {
+              currentReasoningContent += choice.delta.reasoning_content;
+              this.telemetry?.track("inference.chunk_produced", {
+                "model.id": request.model,
+                "inference.chunk_index": chunkIndex++,
+                locality: "local",
+              });
+              yield {
+                type: "reasoning_delta",
+                delta: choice.delta.reasoning_content,
+              };
+            }
+
+            if (choice.delta.content) {
+              currentTextContent += choice.delta.content;
+              this.telemetry?.track("inference.chunk_produced", {
+                "model.id": request.model,
+                "inference.chunk_index": chunkIndex++,
+                locality: "local",
+              });
+              yield {
+                type: "text_delta",
+                delta: choice.delta.content,
+              };
+            }
+
+            if (choice.delta.tool_calls) {
+              for (const tc of choice.delta.tool_calls) {
+                const acc = toolCallAccumulators.get(tc.index) ?? {
+                  arguments: "",
+                };
+                if (tc.id) acc.id = tc.id;
+                if (tc.function?.name) acc.name = tc.function.name;
+                if (tc.function?.arguments) {
+                  acc.arguments += tc.function.arguments;
+                }
+                toolCallAccumulators.set(tc.index, acc);
+
+                this.telemetry?.track("inference.chunk_produced", {
+                  "model.id": request.model,
+                  "inference.chunk_index": chunkIndex++,
+                  locality: "local",
+                });
+                yield {
+                  type: "tool_call_delta",
+                  index: tc.index,
+                  id: tc.id,
+                  name: tc.function?.name,
+                  argumentsDelta: tc.function?.arguments,
+                };
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (currentReasoningContent) {
+      outputParts.push({
+        type: "reasoning",
+        reasoningContent: currentReasoningContent,
+      });
+    }
+    if (currentTextContent) {
+      outputParts.push({ type: "text", text: currentTextContent });
+    }
+    for (const [, acc] of [...toolCallAccumulators.entries()].sort(
+      (a, b) => a[0] - b[0],
+    )) {
+      outputParts.push({
+        type: "tool_call",
+        toolCall: {
+          id: acc.id ?? generateId(),
+          name: acc.name ?? "",
+          arguments: acc.arguments,
+        },
+      });
+    }
+
+    const finalResponse: ResponseObj = {
+      id: responseId || generateId(),
+      model: responseModel,
+      output: outputParts,
+      finishReason: finishReason || "stop",
+      usage,
+    };
+
+    this.cacheResponse(finalResponse);
+    this.cacheMessages(finalResponse.id, [
+      ...this.normalizeInput(effectiveRequest.input),
+      this.responseToAssistantInput(finalResponse),
+    ]);
+    this.telemetry?.track("inference.completed", {
+      "model.id": request.model,
+      "inference.duration_ms": performance.now() - start,
+      locality: "local",
+      method: "responses.stream",
+    });
+
+    yield { type: "done", response: finalResponse };
+  }
+
   private buildEffectiveRequest(request: ResponseRequest): ResponseRequest {
     const input = this.normalizeInput(request.input);
 
@@ -671,6 +1163,93 @@ export class ResponsesClient {
       input,
       instructions: undefined,
       previousResponseId: undefined,
+    };
+  }
+
+  private buildResponseRouteInfo(
+    request: ResponseRequest,
+    plan: Awaited<ReturnType<PlannerClient["getPlan"]>>,
+    attemptResult: AttemptLoopResult,
+    localRuntime: LocalResponsesRuntime | null,
+  ): ResponseRouteInfo {
+    const parsedRef = parseModelRef(request.model);
+    const normalizedResult = this.normalizeLocalAttemptModes(
+      attemptResult,
+      localRuntime,
+    );
+    const selected = normalizedResult.selectedAttempt;
+    const locality = selected?.locality ?? "cloud";
+    const mode =
+      selected?.mode ??
+      (locality === "cloud"
+        ? "hosted_gateway"
+        : localRuntime
+          ? "sdk_runtime"
+          : this.externalEndpoint
+            ? "external_endpoint"
+            : "sdk_runtime");
+    const endpoint =
+      mode === "hosted_gateway"
+        ? this.serverUrl
+        : mode === "external_endpoint"
+          ? this.externalEndpoint ?? ""
+          : "";
+
+    const routeEvent = buildRouteEvent({
+      requestId: `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+      capability: "responses",
+      streaming: request.stream ?? false,
+      model: request.model,
+      modelRefKind: parsedRef.kind,
+      policy:
+        plan?.policy ??
+        request.metadata?.routing_policy ??
+        request.metadata?.routingPolicy,
+      plannerSource: plan ? (plan.planner_source ?? "server") : "none",
+      planId: plan?.plan_id,
+      attemptResult: normalizedResult,
+      deploymentId: parsedRef.deploymentId,
+      experimentId: parsedRef.experimentId,
+      variantId: parsedRef.variantId,
+      appId: plan?.app_resolution?.app_id,
+      appSlug: plan?.app_resolution?.app_slug ?? parsedRef.appSlug,
+    });
+
+    return {
+      routeMetadata: {
+        modelRefKind: parsedRef.kind,
+        parsedRef,
+        locality,
+        mode,
+        endpoint,
+        plannerUsed: !!plan,
+        attemptResult: normalizedResult,
+        routeEvent,
+      },
+      routeEvent,
+    };
+  }
+
+  private normalizeLocalAttemptModes(
+    result: AttemptLoopResult,
+    localRuntime: LocalResponsesRuntime | null,
+  ): AttemptLoopResult {
+    const localMode: "sdk_runtime" | "external_endpoint" =
+      localRuntime != null
+        ? "sdk_runtime"
+        : this.externalEndpoint
+          ? "external_endpoint"
+          : "sdk_runtime";
+
+    const normalizeAttempt = (attempt: AttemptLoopResult["attempts"][number]) =>
+      attempt.locality === "local" ? { ...attempt, mode: localMode } : attempt;
+
+    return {
+      ...result,
+      attempts: result.attempts.map(normalizeAttempt),
+      selectedAttempt: result.selectedAttempt
+        ? normalizeAttempt(result.selectedAttempt)
+        : null,
     };
   }
 
@@ -918,14 +1497,27 @@ export class ResponsesClient {
       );
     }
 
+    return this.postToEndpoint(this.serverUrl, body, {
+      apiKey: this.apiKey,
+      accept: body.stream ? "text/event-stream" : "application/json",
+    });
+  }
+
+  private async postToEndpoint(
+    baseUrl: string,
+    body: ChatCompletionRequest,
+    options: { apiKey?: string; accept: string },
+  ): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/v1/chat/completions`, {
+      response = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-          Accept: body.stream ? "text/event-stream" : "application/json",
+          ...(options.apiKey
+            ? { Authorization: `Bearer ${options.apiKey}` }
+            : {}),
+          Accept: options.accept,
           "User-Agent": "octomil-node/1.0",
         },
         body: JSON.stringify(body),
