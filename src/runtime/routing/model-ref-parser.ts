@@ -17,11 +17,14 @@
 // ---------------------------------------------------------------------------
 
 export type ModelRefKind =
+  | "model"
   | "app"
   | "capability"
   | "deployment"
   | "experiment"
-  | "model";
+  | "alias"
+  | "default"
+  | "unknown";
 
 export interface ParsedModelRef {
   /** Original string as passed by the caller. */
