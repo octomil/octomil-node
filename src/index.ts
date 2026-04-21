@@ -21,6 +21,8 @@ export type {
   LocalRunnerEndpoint,
   LocalRunnerDiscoveryOptions,
 } from "./local.js";
+export { buildLocalLifecycleStatus, buildUnavailableStatus } from "./local-lifecycle.js";
+export type { LocalLifecycleStatus, LocalCacheStatus } from "./local-lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Core tier (MUST) — required for all SDK consumers

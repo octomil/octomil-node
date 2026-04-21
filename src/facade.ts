@@ -29,8 +29,11 @@ import {
   discoverLocalRunner,
   localRunnerMultipartPost,
   localRunnerPost,
+  localRunnerHealthCheck,
 } from "./local.js";
 import { PlannerClient } from "./runtime/routing/planner-client.js";
+import type { LocalLifecycleStatus, LocalCacheStatus } from "./local-lifecycle.js";
+import { buildLocalLifecycleStatus, buildUnavailableStatus } from "./local-lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -490,6 +493,32 @@ export class Octomil {
    */
   get isLocal(): boolean {
     return this._localEndpoint !== null;
+  }
+
+  /**
+   * Check the local runtime lifecycle status.
+   *
+   * Returns status indicating runner availability, cache state, and
+   * execution locality. Useful for pre-flight checks and telemetry.
+   *
+   * For non-local clients, returns a status with `runnerAvailable: false`
+   * and `cacheStatus: "not_applicable"`.
+   */
+  async getLocalStatus(): Promise<LocalLifecycleStatus> {
+    if (!this._localEndpoint) {
+      return buildUnavailableStatus("not_local_client");
+    }
+
+    const healthy = await localRunnerHealthCheck(this._localEndpoint);
+    if (!healthy) {
+      return buildUnavailableStatus("runner_unreachable");
+    }
+
+    return buildLocalLifecycleStatus({
+      runnerAvailable: true,
+      cacheStatus: "hit", // runner manages its own model cache
+      engine: null, // engine is resolved per-request by the runner
+    });
   }
 
   /**
