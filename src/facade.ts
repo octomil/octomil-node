@@ -34,6 +34,7 @@ import {
 import { PlannerClient } from "./runtime/routing/planner-client.js";
 import type { LocalLifecycleStatus } from "./local-lifecycle.js";
 import { buildLocalLifecycleStatus, buildUnavailableStatus } from "./local-lifecycle.js";
+import { resolvePlannerEnabled } from "./planner-defaults.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -424,7 +425,14 @@ export class Octomil {
             : options.auth.bootstrapToken;
       }
 
-      if (options.plannerRouting && apiKey) {
+      const plannerEnabled = resolvePlannerEnabled({
+        plannerRouting: options.plannerRouting,
+        apiKey,
+        publishableKey: options.publishableKey,
+        hasAuth: !!options.auth,
+      });
+
+      if (plannerEnabled && apiKey) {
         this._plannerClient = new PlannerClient({
           serverUrl,
           apiKey,
