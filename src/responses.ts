@@ -1205,7 +1205,7 @@ export class ResponsesClient {
         plan?.policy ??
         request.metadata?.routing_policy ??
         request.metadata?.routingPolicy,
-      plannerSource: plan ? (plan.planner_source ?? "server") : "none",
+      plannerSource: plan ? (plan.planner_source ?? "server") : "offline",
       planId: plan?.plan_id,
       attemptResult: normalizedResult,
       deploymentId: parsedRef.deploymentId,

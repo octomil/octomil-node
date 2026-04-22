@@ -23,6 +23,7 @@ import {
 } from "./attempt-runner.js";
 import { parseModelRef, type ParsedModelRef } from "./model-ref-parser.js";
 import { buildRouteEvent, type RouteEvent } from "./route-event.js";
+import { normalizePlannerSource } from "../../planner/types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -218,7 +219,7 @@ export class RequestRouter {
       model: ctx.model,
       modelRefKind: parsedRef.kind,
       policy: plan.policy,
-      plannerSource: plan.planner_source ?? "server",
+      plannerSource: normalizePlannerSource(plan.planner_source ?? "server"),
       planId: plan.plan_id,
       attemptResult: result,
       deploymentId: parsedRef.deploymentId,
@@ -293,7 +294,7 @@ export class RequestRouter {
       streaming: ctx.streaming,
       model: ctx.model,
       modelRefKind: parsedRef.kind,
-      plannerSource: "none",
+      plannerSource: "offline",
       attemptResult: result,
       deploymentId: parsedRef.deploymentId,
       experimentId: parsedRef.experimentId,

@@ -208,9 +208,43 @@ export interface RouteArtifact {
   cache: ArtifactCache;
 }
 
+// ---------------------------------------------------------------------------
+// Planner source normalization
+// ---------------------------------------------------------------------------
+
+/** Canonical planner source values. */
+export type PlannerSource = "server" | "cache" | "offline";
+
+/** Canonical set for runtime validation. */
+export const CANONICAL_PLANNER_SOURCES: ReadonlySet<PlannerSource> = new Set([
+  "server",
+  "cache",
+  "offline",
+]);
+
+const PLANNER_SOURCE_ALIASES: Record<string, PlannerSource> = {
+  local_default: "offline",
+  server_plan: "server",
+  cached: "cache",
+  fallback: "offline",
+  none: "offline",
+  local_benchmark: "offline",
+};
+
+/**
+ * Normalize a planner source string to a canonical value.
+ *
+ * Canonical values: "server", "cache", "offline".
+ * Deprecated aliases are mapped to their canonical equivalent.
+ * Unknown values pass through as-is (cast to PlannerSource).
+ */
+export function normalizePlannerSource(source: string): PlannerSource {
+  return PLANNER_SOURCE_ALIASES[source] ?? (source as PlannerSource);
+}
+
 /** How the routing plan was obtained. */
 export interface PlannerInfo {
-  source: "server" | "cache" | "offline";
+  source: PlannerSource;
 }
 
 /** Whether a fallback path was used. */
