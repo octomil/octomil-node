@@ -4,6 +4,12 @@
  * These types describe the request/response shapes for the server-side runtime
  * planner API (POST /api/v2/runtime/plan, POST /api/v2/runtime/benchmarks,
  * GET /api/v2/runtime/defaults).
+ *
+ * TODO(contracts): Many types in this file are hand-maintained and should be
+ * replaced by contract-generated equivalents from octomil-contracts codegen
+ * when SDK type adoption lands. See _generated/routing_policy.ts for an
+ * example of a generated type. Hand-maintained types risk drifting from the
+ * canonical contract definitions and other SDKs (browser, Python, iOS, Android).
  */
 
 // ---------------------------------------------------------------------------
@@ -20,6 +26,10 @@
  * - `performance_first` — pick whichever is fastest (local or cloud)
  *
  * `quality_first` is intentionally excluded.
+ *
+ * TODO(contracts): Replace with generated RoutingPolicy enum from
+ * _generated/routing_policy.ts. Note the generated enum includes "auto"
+ * which is missing here — reconcile when adopting generated types.
  */
 export const SUPPORTED_POLICIES = [
   "private",
@@ -41,6 +51,10 @@ export function isSupportedPolicy(value: string): value is SupportedPolicy {
 // Planner capability — the task type requested
 // ---------------------------------------------------------------------------
 
+/**
+ * TODO(contracts): Replace with generated ModelCapability from
+ * _generated/model_capability.ts when SDK type adoption lands.
+ */
 export type PlannerCapability =
   | "chat"
   | "responses"
@@ -165,7 +179,14 @@ export interface RuntimeDefaultsResponse {
 // Route metadata — attached to inference responses
 // ---------------------------------------------------------------------------
 
-/** Execution details for a routed request. */
+/**
+ * Execution details for a routed request.
+ *
+ * TODO(contracts): The `mode` union should be generated from the contract's
+ * RuntimeExecutionMode enum. The `locality` union should come from
+ * RouteLocality. These hand-maintained string literals match the browser SDK
+ * but could drift from the canonical contract definition.
+ */
 export interface RouteExecution {
   locality: "local" | "cloud";
   mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
@@ -212,7 +233,12 @@ export interface RouteArtifact {
 // Planner source normalization
 // ---------------------------------------------------------------------------
 
-/** Canonical planner source values. */
+/**
+ * Canonical planner source values.
+ *
+ * TODO(contracts): Replace with generated PlannerSource from
+ * octomil-contracts codegen when SDK type adoption lands.
+ */
 export type PlannerSource = "server" | "cache" | "offline";
 
 /** Canonical set for runtime validation. */

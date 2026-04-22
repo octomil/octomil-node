@@ -41,6 +41,12 @@ export interface AttemptDetail {
  * Safe for telemetry upload. NEVER includes prompt, input, output, audio,
  * file_path, content, or messages.
  */
+/**
+ * TODO(contracts): Replace with generated RouteEvent type from
+ * octomil-contracts codegen when SDK type adoption lands. The field names
+ * and shapes here are hand-maintained to match the browser SDK and Python
+ * SDK — they should all converge on a single generated definition.
+ */
 export interface RouteEvent {
   route_id: string;
   request_id: string;

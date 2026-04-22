@@ -12,6 +12,12 @@
 
 // ---------------------------------------------------------------------------
 // Enums — match contract enum values exactly
+//
+// TODO(contracts): These enums (AttemptStage, AttemptStatus, GateStatus) and
+// the GATE_CODES array are hand-maintained to match the contract. Replace with
+// generated equivalents from octomil-contracts codegen when SDK type adoption
+// lands. The browser SDK has identical string unions (not enums) — reconcile
+// enum vs union representation when adopting generated types.
 // ---------------------------------------------------------------------------
 
 /** Stage at which an attempt resolved (succeeded or failed). */
@@ -82,7 +88,13 @@ export interface AttemptArtifact {
   cache: { status: string; managed_by: string | null };
 }
 
-/** A single attempt in the per-request candidate evaluation loop. */
+/**
+ * A single attempt in the per-request candidate evaluation loop.
+ *
+ * TODO(contracts): The `locality` and `mode` string unions should be replaced
+ * by generated types (RouteLocality, RuntimeExecutionMode) from
+ * octomil-contracts codegen. Currently matches the browser SDK's type aliases.
+ */
 export interface RouteAttempt {
   index: number;
   locality: "local" | "cloud";
