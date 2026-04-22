@@ -10,10 +10,10 @@ permissions:
 
 jobs:
   conformance:
-    uses: octomil/octomil-contracts/.github/workflows/sdk-conformance.yml@v1.17.0
+    uses: octomil/octomil-contracts/.github/workflows/sdk-conformance.yml@v1.18.0
     with:
       sdk: node
-      contract-version: "1.17.0"
+      contract-version: "1.18.0"
       setup-command: "corepack enable && pnpm install --frozen-lockfile"
       codegen-command: "python3 .contract/scripts/sync_generated.py --sdk node --check --target-dir src/_generated"
       test-command: "pnpm vitest run tests/conformance/contract.test.ts --reporter=default && python3 .contract/ci/audit-sdks.py --sdk node --sdk-path . --out parity_report.json"
