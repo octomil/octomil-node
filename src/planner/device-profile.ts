@@ -12,7 +12,7 @@ function getSdkVersion(): string {
   // We cannot do a synchronous import of package.json in ESM,
   // so we hardcode the version and update it at release time.
   // This matches the pattern used by other parts of the SDK.
-  return "1.2.0";
+  return "1.3.0";
 }
 
 /**

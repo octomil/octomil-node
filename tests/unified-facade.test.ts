@@ -39,6 +39,10 @@ const mockEmbed = vi.fn<() => Promise<EmbeddingResult>>();
 
 vi.mock("../src/embeddings.js", () => ({
   embed: (...args: unknown[]) => mockEmbed(...args),
+  embedWithPlanner: (
+    config: { serverUrl: string; apiKey: string },
+    ...args: unknown[]
+  ) => mockEmbed({ serverUrl: config.serverUrl, apiKey: config.apiKey }, ...args),
 }));
 
 // ---------------------------------------------------------------------------
