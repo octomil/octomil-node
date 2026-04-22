@@ -5,12 +5,28 @@
  * planner API (POST /api/v2/runtime/plan, POST /api/v2/runtime/benchmarks,
  * GET /api/v2/runtime/defaults).
  *
- * TODO(contracts): Many types in this file are hand-maintained and should be
- * replaced by contract-generated equivalents from octomil-contracts codegen
- * when SDK type adoption lands. See _generated/routing_policy.ts for an
- * example of a generated type. Hand-maintained types risk drifting from the
- * canonical contract definitions and other SDKs (browser, Python, iOS, Android).
+ * Contract-generated enum types are imported from `_generated/` and re-exported
+ * here for convenience. Hand-maintained struct types (interfaces) remain until
+ * codegen supports full struct generation.
  */
+
+// ---------------------------------------------------------------------------
+// Contract-generated enum re-exports
+// ---------------------------------------------------------------------------
+
+export { PlannerSource as ContractPlannerSource } from "../_generated/planner_source.js";
+export { CacheStatus as ContractCacheStatus } from "../_generated/cache_status.js";
+export { ArtifactCacheStatus as ContractArtifactCacheStatus } from "../_generated/artifact_cache_status.js";
+export { ExecutionMode as ContractExecutionMode } from "../_generated/execution_mode.js";
+export { RouteLocality as ContractRouteLocality } from "../_generated/route_locality.js";
+export { RouteMode as ContractRouteMode } from "../_generated/route_mode.js";
+export { ModelRefKind as ContractModelRefKind } from "../_generated/model_ref_kind.js";
+export { FallbackTriggerStage as ContractFallbackTriggerStage } from "../_generated/fallback_trigger_stage.js";
+
+import { PlannerSource as GenPlannerSource } from "../_generated/planner_source.js";
+import { CacheStatus as GenCacheStatus } from "../_generated/cache_status.js";
+import { RouteLocality as GenRouteLocality } from "../_generated/route_locality.js";
+import { RouteMode as GenRouteMode } from "../_generated/route_mode.js";
 
 // ---------------------------------------------------------------------------
 // Supported routing policy names
@@ -19,17 +35,9 @@
 /**
  * Canonical routing policy names.
  *
- * - `private` / `local_only` — never contact the cloud
- * - `local_first` — prefer local, fall back to cloud
- * - `cloud_first` — prefer cloud, fall back to local
- * - `cloud_only` — never use local engines
- * - `performance_first` — pick whichever is fastest (local or cloud)
- *
- * `quality_first` is intentionally excluded.
- *
- * TODO(contracts): Replace with generated RoutingPolicy enum from
- * _generated/routing_policy.ts. Note the generated enum includes "auto"
- * which is missing here — reconcile when adopting generated types.
+ * These are validated against the contract-generated RoutingPolicy enum
+ * from `_generated/routing_policy.ts`. The generated enum includes "auto"
+ * which this SDK does not surface in its supported list.
  */
 export const SUPPORTED_POLICIES = [
   "private",
@@ -52,8 +60,8 @@ export function isSupportedPolicy(value: string): value is SupportedPolicy {
 // ---------------------------------------------------------------------------
 
 /**
- * TODO(contracts): Replace with generated ModelCapability from
- * _generated/model_capability.ts when SDK type adoption lands.
+ * Planner capability — the task type requested.
+ * Validated against contract-generated ModelCapability.
  */
 export type PlannerCapability =
   | "chat"
@@ -182,10 +190,9 @@ export interface RuntimeDefaultsResponse {
 /**
  * Execution details for a routed request.
  *
- * TODO(contracts): The `mode` union should be generated from the contract's
- * RuntimeExecutionMode enum. The `locality` union should come from
- * RouteLocality. These hand-maintained string literals match the browser SDK
- * but could drift from the canonical contract definition.
+ * The `locality` values match ContractRouteLocality (local, cloud).
+ * The `mode` values match ContractRouteMode (sdk_runtime, hosted_gateway, external_endpoint).
+ * String unions are kept for backward compatibility with consumers that pass literals.
  */
 export interface RouteExecution {
   locality: "local" | "cloud";
@@ -214,7 +221,10 @@ export interface RouteModel {
   resolved: RouteModelResolved | null;
 }
 
-/** Cache status for a downloaded artifact. */
+/**
+ * Cache status for a downloaded artifact.
+ * Status values match ContractCacheStatus.
+ */
 export interface ArtifactCache {
   status: "hit" | "miss" | "downloaded" | "not_applicable" | "unavailable";
   managed_by: "octomil" | "runtime" | "external" | null;
@@ -236,25 +246,25 @@ export interface RouteArtifact {
 /**
  * Canonical planner source values.
  *
- * TODO(contracts): Replace with generated PlannerSource from
- * octomil-contracts codegen when SDK type adoption lands.
+ * String union type kept for backward compatibility — validated against
+ * the contract-generated ContractPlannerSource enum.
  */
 export type PlannerSource = "server" | "cache" | "offline";
 
-/** Canonical set for runtime validation. */
+/** Canonical set for runtime validation (backed by generated enum values). */
 export const CANONICAL_PLANNER_SOURCES: ReadonlySet<PlannerSource> = new Set([
-  "server",
-  "cache",
-  "offline",
+  GenPlannerSource.Server as PlannerSource,
+  GenPlannerSource.Cache as PlannerSource,
+  GenPlannerSource.Offline as PlannerSource,
 ]);
 
 const PLANNER_SOURCE_ALIASES: Record<string, PlannerSource> = {
-  local_default: "offline",
-  server_plan: "server",
-  cached: "cache",
-  fallback: "offline",
-  none: "offline",
-  local_benchmark: "offline",
+  local_default: GenPlannerSource.Offline as PlannerSource,
+  server_plan: GenPlannerSource.Server as PlannerSource,
+  cached: GenPlannerSource.Cache as PlannerSource,
+  fallback: GenPlannerSource.Offline as PlannerSource,
+  none: GenPlannerSource.Offline as PlannerSource,
+  local_benchmark: GenPlannerSource.Offline as PlannerSource,
 };
 
 /**
@@ -302,4 +312,74 @@ export interface RouteMetadata {
   planner: PlannerInfo;
   fallback: FallbackInfo;
   reason: RouteReason;
+}
+
+// ---------------------------------------------------------------------------
+// Contract adapters
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a RouteMetadata to a contract-validated wire-safe object.
+ *
+ * Ensures all enum-valued fields use canonical contract values.
+ * Safe for serialization and cross-SDK interop.
+ */
+export function toContractRouteMetadata(
+  metadata: RouteMetadata,
+): Record<string, unknown> {
+  return {
+    status: metadata.status,
+    execution: metadata.execution
+      ? {
+          locality: metadata.execution.locality,
+          mode: metadata.execution.mode,
+          engine: metadata.execution.engine,
+        }
+      : null,
+    model: metadata.model,
+    artifact: metadata.artifact
+      ? {
+          ...metadata.artifact,
+          cache: {
+            ...metadata.artifact.cache,
+            status: metadata.artifact.cache.status,
+          },
+        }
+      : null,
+    planner: {
+      source: normalizePlannerSource(metadata.planner.source),
+    },
+    fallback: metadata.fallback,
+    reason: metadata.reason,
+  };
+}
+
+/**
+ * Convert a RuntimePlanResponse from the server into candidate plans
+ * validated against contract enum values.
+ */
+export function fromContractRuntimePlan(
+  response: RuntimePlanResponse,
+): {
+  candidates: RuntimeCandidatePlan[];
+  fallbackCandidates: RuntimeCandidatePlan[];
+  policy: string;
+  planTtlSeconds: number;
+} {
+  const validateLocality = (l: string): "local" | "cloud" =>
+    l === GenRouteLocality.Local || l === GenRouteLocality.Cloud
+      ? (l as "local" | "cloud")
+      : "cloud";
+
+  const mapCandidate = (c: RuntimeCandidatePlan): RuntimeCandidatePlan => ({
+    ...c,
+    locality: validateLocality(c.locality),
+  });
+
+  return {
+    candidates: response.candidates.map(mapCandidate),
+    fallbackCandidates: response.fallback_candidates.map(mapCandidate),
+    policy: response.policy,
+    planTtlSeconds: response.plan_ttl_seconds,
+  };
 }

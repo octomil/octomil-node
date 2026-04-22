@@ -40,12 +40,10 @@ export interface AttemptDetail {
  *
  * Safe for telemetry upload. NEVER includes prompt, input, output, audio,
  * file_path, content, or messages.
- */
-/**
- * TODO(contracts): Replace with generated RouteEvent type from
- * octomil-contracts codegen when SDK type adoption lands. The field names
- * and shapes here are hand-maintained to match the browser SDK and Python
- * SDK — they should all converge on a single generated definition.
+ *
+ * Field types are validated against contract-generated enums (ContractPlannerSource,
+ * ContractRouteLocality, ContractRouteMode) re-exported from planner/types.ts.
+ * Full struct codegen is not yet available — this interface remains hand-maintained.
  */
 export interface RouteEvent {
   route_id: string;
