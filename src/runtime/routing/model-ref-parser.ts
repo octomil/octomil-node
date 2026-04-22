@@ -31,6 +31,8 @@ export interface ParsedModelRef {
   raw: string;
   /** Classification of the reference. */
   kind: ModelRefKind;
+  /** For model refs: the model slug (same as raw). */
+  modelSlug?: string;
   /** For app refs: the app slug. */
   appSlug?: string;
   /** For app/capability refs: the capability string. */
@@ -49,9 +51,7 @@ export interface ParsedModelRef {
 
 const APP_REF_RE = /^@app\/([^/]+)\/([^/]+)$/;
 const CAPABILITY_REF_RE = /^@capability\/([^/]+)$/;
-const DEPLOY_REF_RE = /^deploy_(.+)$/;
-const EXPERIMENT_REF_RE = /^exp[_/]([^/]+)(?:\/(.+))?$/;
-const ALIAS_REF_RE = /^alias:(.+)$/;
+const EXPERIMENT_REF_RE = /^(exp_[^/]+)\/(.+)$/;
 
 /**
  * Parse a model string into a structured reference.
@@ -98,25 +98,22 @@ export function parseModelRef(model: string): ParsedModelRef {
     };
   }
 
-  // deploy_xxx
-  const deployMatch = DEPLOY_REF_RE.exec(trimmed);
-  if (deployMatch) {
-    return {
-      raw: trimmed,
-      kind: "deployment",
-      deploymentId: trimmed,
-    };
-  }
-
-  // exp_id/variant
-  const expMatch = EXPERIMENT_REF_RE.exec(trimmed);
-  if (expMatch) {
-    if (!expMatch[2]) {
+  // deploy_xxx — must have non-empty suffix
+  if (trimmed.startsWith("deploy_")) {
+    const suffix = trimmed.slice(7);
+    if (suffix) {
       return {
         raw: trimmed,
-        kind: "unknown",
+        kind: "deployment",
+        deploymentId: trimmed,
       };
     }
+    return { raw: trimmed, kind: "unknown" };
+  }
+
+  // exp_id/variant — requires non-empty variant after slash
+  const expMatch = EXPERIMENT_REF_RE.exec(trimmed);
+  if (expMatch) {
     return {
       raw: trimmed,
       kind: "experiment",
@@ -125,24 +122,17 @@ export function parseModelRef(model: string): ParsedModelRef {
     };
   }
 
-  // Also catch "exp_id/variant" pattern from fixtures (e.g. "exp_test_001/variant_a")
-  if (trimmed.includes("/") && !trimmed.startsWith("@")) {
-    const [first, ...rest] = trimmed.split("/");
-    if (first && rest.length > 0) {
-      return {
-        raw: trimmed,
-        kind: "experiment",
-        experimentId: first,
-        variantId: rest.join("/"),
-      };
-    }
+  // exp_ prefix with trailing slash but empty variant → unknown
+  if (trimmed.startsWith("exp_") && trimmed.includes("/")) {
+    return { raw: trimmed, kind: "unknown" };
   }
 
-  const aliasMatch = ALIAS_REF_RE.exec(trimmed);
-  if (aliasMatch) {
+  // alias:name — must have non-empty name after colon
+  if (trimmed.startsWith("alias:")) {
+    const name = trimmed.slice(6);
     return {
       raw: trimmed,
-      kind: aliasMatch[1] ? "alias" : "unknown",
+      kind: name ? "alias" : "unknown",
     };
   }
 
@@ -157,5 +147,6 @@ export function parseModelRef(model: string): ParsedModelRef {
   return {
     raw: trimmed,
     kind: "model",
+    modelSlug: trimmed,
   };
 }
