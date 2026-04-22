@@ -86,8 +86,8 @@ describe("normalizePlannerSource", () => {
     expect(normalizePlannerSource("local_benchmark")).toBe("offline");
   });
 
-  it("passes through unknown values as-is", () => {
-    expect(normalizePlannerSource("custom_source")).toBe("custom_source");
+  it("collapses unknown values to offline", () => {
+    expect(normalizePlannerSource("custom_source")).toBe("offline");
   });
 });
 

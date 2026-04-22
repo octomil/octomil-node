@@ -236,10 +236,14 @@ const PLANNER_SOURCE_ALIASES: Record<string, PlannerSource> = {
  *
  * Canonical values: "server", "cache", "offline".
  * Deprecated aliases are mapped to their canonical equivalent.
- * Unknown values pass through as-is (cast to PlannerSource).
+ * Unknown values collapse to "offline" so SDK output boundaries never emit a
+ * contract-invalid planner source.
  */
 export function normalizePlannerSource(source: string): PlannerSource {
-  return PLANNER_SOURCE_ALIASES[source] ?? (source as PlannerSource);
+  if (CANONICAL_PLANNER_SOURCES.has(source as PlannerSource)) {
+    return source as PlannerSource;
+  }
+  return PLANNER_SOURCE_ALIASES[source] ?? "offline";
 }
 
 /** How the routing plan was obtained. */
