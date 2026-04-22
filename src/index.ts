@@ -292,6 +292,7 @@ export type {
   RequestRoutingContext,
   RouteMetadata,
   RouteMetadata as RuntimeRouteMetadata,
+  CanonicalRouteMetadata,
   RoutingDecision as RuntimeRoutingDecision,
   RouterConfig,
   RoutableCapability,
