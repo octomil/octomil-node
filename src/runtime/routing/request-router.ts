@@ -293,7 +293,7 @@ export class RequestRouter {
       streaming: ctx.streaming,
       model: ctx.model,
       modelRefKind: parsedRef.kind,
-      plannerSource: "none",
+      plannerSource: "offline",
       attemptResult: result,
       deploymentId: parsedRef.deploymentId,
       experimentId: parsedRef.experimentId,

@@ -135,6 +135,30 @@ export function stripForbiddenKeys<T extends object>(obj: T): Partial<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Planner source normalization
+// ---------------------------------------------------------------------------
+
+const PLANNER_SOURCE_ALIASES: Record<string, string> = {
+  server_plan: "server",
+  cached: "cache",
+  local_default: "offline",
+  fallback: "offline",
+  none: "offline",
+  local_benchmark: "offline",
+};
+
+/**
+ * Normalize a planner source string to a canonical value.
+ *
+ * Canonical values: "server", "cache", "offline".
+ * Legacy aliases are mapped to their canonical equivalent.
+ * Unknown values pass through unchanged.
+ */
+export function normalizePlannerSource(raw: string): string {
+  return PLANNER_SOURCE_ALIASES[raw] ?? raw;
+}
+
+// ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
 
@@ -175,7 +199,7 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
     plan_id: input.planId,
     capability: input.capability,
     policy: input.policy,
-    planner_source: input.plannerSource,
+    planner_source: input.plannerSource ? normalizePlannerSource(input.plannerSource) : undefined,
     final_locality: locality,
     selected_locality: locality,
     final_mode: mode,
