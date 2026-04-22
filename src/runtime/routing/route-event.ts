@@ -9,6 +9,7 @@
  */
 
 import type { AttemptLoopResult, RouteAttempt } from "./attempt-runner.js";
+import { normalizePlannerSource } from "../../planner/types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,7 +176,9 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
     plan_id: input.planId,
     capability: input.capability,
     policy: input.policy,
-    planner_source: input.plannerSource,
+    planner_source: input.plannerSource
+      ? normalizePlannerSource(input.plannerSource)
+      : undefined,
     final_locality: locality,
     selected_locality: locality,
     final_mode: mode,

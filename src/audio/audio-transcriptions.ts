@@ -337,7 +337,7 @@ export class AudioTranscriptions {
       model,
       modelRefKind: parsedRef.kind,
       policy: plan?.policy,
-      plannerSource: plan ? (plan.planner_source ?? "server") : "none",
+      plannerSource: plan ? (plan.planner_source ?? "server") : "offline",
       planId: plan?.plan_id,
       attemptResult: normalizedResult,
       deploymentId: parsedRef.deploymentId,
