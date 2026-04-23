@@ -61,6 +61,20 @@ describe("production routing integration", () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       "https://api.example.com/api/v2/runtime/plan",
     );
+
+    const rawBody = fetchSpy.mock.calls[0]?.[1]?.body;
+    expect(typeof rawBody).toBe("string");
+
+    const body = JSON.parse(rawBody as string) as {
+      model: string;
+      capability: string;
+      device?: Record<string, unknown>;
+    };
+    expect(body.model).toBe("phi-4-mini");
+    expect(body.capability).toBe("responses");
+    expect(body.device).toBeDefined();
+    expect(body.device?.sdk).toBe("node");
+    expect(body.device?.supported_gate_codes).toEqual([]);
   });
 
   it("planner-routed responses keep injected local runtime execution", async () => {
