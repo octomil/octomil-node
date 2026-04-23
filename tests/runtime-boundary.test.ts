@@ -204,11 +204,13 @@ describe("Runtime boundary — CandidateAttemptRunner", () => {
     expect(result.fallbackUsed).toBe(false);
   });
 
-  it("GATE_CODES contains all 18 canonical gate codes", () => {
-    expect(GATE_CODES).toHaveLength(18);
+  it("GATE_CODES contains all 22 canonical gate codes", () => {
+    expect(GATE_CODES).toHaveLength(22);
     expect(GATE_CODES).toContain("artifact_verified");
     expect(GATE_CODES).toContain("runtime_available");
     expect(GATE_CODES).toContain("benchmark_fresh");
+    expect(GATE_CODES).toContain("require_wifi");
+    expect(GATE_CODES).toContain("min_battery_pct");
     expect(GATE_CODES).toContain("schema_valid");
     expect(GATE_CODES).toContain("tool_call_valid");
     expect(GATE_CODES).toContain("max_refusal_rate");

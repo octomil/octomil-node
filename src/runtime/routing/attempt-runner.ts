@@ -218,6 +218,13 @@ export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
   },
 };
 
+const DEVICE_ENVIRONMENT_GATE_CODES = new Set<string>([
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
+]);
+
 /**
  * Look up the gate classification for a code. Returns undefined for unknown codes.
  */
@@ -387,7 +394,10 @@ export class NoOpRuntimeChecker implements RuntimeChecker {
 }
 
 /**
- * Default GateEvaluator: required gates pass, optional gates return not_required.
+ * Default GateEvaluator: required generic gates are unknown and optional gates
+ * return not_required. Required device-environment gates fail closed because the
+ * Node SDK cannot prove battery, thermal, charging, or Wi-Fi state unless the
+ * caller injects a platform-specific evaluator.
  *
  * Used when no gate evaluator is provided. In production, the facade injects
  * a real evaluator that reads benchmark history, memory stats, etc.
@@ -396,9 +406,31 @@ export class NoOpGateEvaluator implements GateEvaluator {
   evaluate(
     gate: CandidateGate,
     _engine: string | null,
-    _locality: string,
+    locality: string,
   ): GateResult {
     const classification = classifyGate(gate.code);
+    if (DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) {
+      return {
+        code: gate.code,
+        status:
+          locality !== "local"
+            ? GateStatus.NotRequired
+            : gate.required
+              ? GateStatus.Failed
+              : GateStatus.Unknown,
+        threshold_number: gate.threshold_number,
+        reason_code:
+          locality === "local" && gate.required
+            ? gate.code === "require_wifi"
+              ? "network_state_unavailable"
+              : "device_metric_unavailable"
+            : undefined,
+        gate_class: gate.gate_class ?? classification?.gate_class,
+        evaluation_phase:
+          gate.evaluation_phase ?? classification?.evaluation_phase,
+      };
+    }
+
     const base: GateResult = {
       code: gate.code,
       status: gate.required ? GateStatus.Unknown : GateStatus.NotRequired,
@@ -649,7 +681,8 @@ export class CandidateAttemptRunner {
         if (
           gate.required &&
           result.status === GateStatus.Unknown &&
-          !classifyGate(gate.code) &&
+          (!classifyGate(gate.code) ||
+            DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) &&
           gateFailure === null
         ) {
           gateFailure = {

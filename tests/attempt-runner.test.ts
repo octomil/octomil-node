@@ -169,7 +169,7 @@ describe("GateStatus", () => {
 });
 
 describe("GATE_CODES", () => {
-  it("contains exactly the 18 canonical gate codes", () => {
+  it("contains exactly the 22 canonical gate codes", () => {
     expect(GATE_CODES).toEqual([
       "artifact_verified",
       "runtime_available",
@@ -183,6 +183,10 @@ describe("GATE_CODES", () => {
       "min_free_memory_bytes",
       "min_free_storage_bytes",
       "benchmark_fresh",
+      "min_battery_pct",
+      "max_thermal_state",
+      "require_charging",
+      "require_wifi",
       "schema_valid",
       "tool_call_valid",
       "safety_passed",
@@ -190,7 +194,7 @@ describe("GATE_CODES", () => {
       "json_parseable",
       "max_refusal_rate",
     ]);
-    expect(GATE_CODES).toHaveLength(18);
+    expect(GATE_CODES).toHaveLength(22);
   });
 });
 
@@ -233,6 +237,18 @@ describe("NoOpGateEvaluator", () => {
     };
     const result = evaluator.evaluate(gate, null, "cloud");
     expect(result.status).toBe(GateStatus.Unknown);
+  });
+
+  it("fails closed for required device-environment gates on local candidates", () => {
+    const evaluator = new NoOpGateEvaluator();
+    const result = evaluator.evaluate(
+      { code: "require_wifi", required: true, source: "server" },
+      null,
+      "local",
+    );
+
+    expect(result.status).toBe(GateStatus.Failed);
+    expect(result.reason_code).toBe("network_state_unavailable");
   });
 });
 
@@ -1022,8 +1038,8 @@ describe("CandidateAttemptRunner.runWithInference", () => {
 // ---------------------------------------------------------------------------
 
 describe("GATE_CLASSIFICATION", () => {
-  it("covers all 18 gate codes", () => {
-    expect(Object.keys(GATE_CLASSIFICATION)).toHaveLength(18);
+  it("covers all 22 gate codes", () => {
+    expect(Object.keys(GATE_CLASSIFICATION)).toHaveLength(22);
     for (const code of GATE_CODES) {
       expect(GATE_CLASSIFICATION[code]).toBeDefined();
     }
@@ -1588,6 +1604,30 @@ describe("CandidateAttemptRunner — unknown gate handling", () => {
 
     // Should fallback to cloud
     expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("cloud");
+  });
+
+  it("required device gate fails local candidate and falls back", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = runner.run(
+      [
+        localCandidate({
+          gates: [
+            { code: "require_wifi", required: true, source: "server" },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+      },
+    );
+
+    expect(result.attempts[0]!.status).toBe(AttemptStatus.Failed);
+    expect(result.attempts[0]!.stage).toBe(AttemptStage.Gate);
+    expect(result.attempts[0]!.gate_results.some(
+      (gate) => gate.code === "require_wifi" && gate.reason_code === "network_state_unavailable",
+    )).toBe(true);
     expect(result.selectedAttempt!.locality).toBe("cloud");
   });
 
