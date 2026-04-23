@@ -8,11 +8,11 @@ import type { StreamToken, StreamingConfig } from "../src/streaming.js";
 
 describe("parseSSELine", () => {
   it("should parse a normal token line", () => {
-    const token = parseSSELine('data: {"token": "The", "done": false, "provider": "ollama"}');
+    const token = parseSSELine('data: {"token": "The", "done": false, "provider": "cloud"}');
     expect(token).not.toBeNull();
     expect(token!.token).toBe("The");
     expect(token!.done).toBe(false);
-    expect(token!.provider).toBe("ollama");
+    expect(token!.provider).toBe("cloud");
     expect(token!.latencyMs).toBeUndefined();
     expect(token!.sessionId).toBeUndefined();
   });
@@ -97,7 +97,7 @@ describe("streamInference", () => {
 
   it("should yield StreamToken objects from SSE", async () => {
     const mockResponse = makeSSEResponse([
-      'data: {"token": "Hello", "done": false, "provider": "ollama"}',
+      'data: {"token": "Hello", "done": false, "provider": "cloud"}',
       'data: {"token": " world", "done": false}',
       'data: {"done": true, "latency_ms": 100.5, "session_id": "s1"}',
     ]);
@@ -110,7 +110,7 @@ describe("streamInference", () => {
 
     expect(tokens).toHaveLength(3);
     expect(tokens[0]!.token).toBe("Hello");
-    expect(tokens[0]!.provider).toBe("ollama");
+    expect(tokens[0]!.provider).toBe("cloud");
     expect(tokens[1]!.token).toBe(" world");
     expect(tokens[2]!.done).toBe(true);
     expect(tokens[2]!.latencyMs).toBe(100.5);
