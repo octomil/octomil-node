@@ -12,8 +12,9 @@
  * Gate taxonomy (v1.19.0):
  * - readiness gates: artifact_verified, runtime_available, model_loads,
  *   context_fits, modality_supported, tool_support — pre_inference
- * - performance gates: min_tokens_per_second, max_ttft_ms, max_error_rate,
- *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh — pre_inference
+ * - performance gates: min_tokens_per_second, max_error_rate,
+ *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh — pre_inference;
+ *   max_ttft_ms — during_inference
  * - output_quality gates: schema_valid, tool_call_valid, safety_passed,
  *   evaluator_score_min, json_parseable, max_refusal_rate — post_inference
  */
@@ -137,7 +138,7 @@ export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
   },
   max_ttft_ms: {
     gate_class: "performance",
-    evaluation_phase: "pre_inference",
+    evaluation_phase: "during_inference",
     blocking_default: false,
   },
   max_error_rate: {
@@ -214,6 +215,8 @@ export interface GateResult {
   reason_code?: string | null;
   gate_class?: GateClassValue;
   evaluation_phase?: EvaluationPhaseValue;
+  observed_string?: string;
+  safe_metadata?: Record<string, unknown>;
 }
 
 /** Artifact state at time of attempt. */
@@ -799,7 +802,7 @@ export class CandidateAttemptRunner {
           isOutputQualityGate,
         );
 
-        if (outputQualityGates.length > 0 && opts.outputQualityEvaluator) {
+        if (outputQualityGates.length > 0) {
           let qualityFailure: {
             gate: CandidateGate;
             result: GateResult;
@@ -807,7 +810,15 @@ export class CandidateAttemptRunner {
 
           for (const gate of outputQualityGates) {
             const result = enrichGateResult(
-              opts.outputQualityEvaluator.evaluate(gate, value),
+              opts.outputQualityEvaluator
+                ? opts.outputQualityEvaluator.evaluate(gate, value)
+                : {
+                    code: gate.code,
+                    status: gate.required
+                      ? GateStatus.Failed
+                      : GateStatus.Unknown,
+                    reason_code: "no_evaluator",
+                  },
               gate,
             );
             selectedAttempt.gate_results.push(result);

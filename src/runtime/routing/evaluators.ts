@@ -15,7 +15,7 @@
  */
 
 import { GateStatus } from "./attempt-runner.js";
-import type { GateResult } from "./attempt-runner.js";
+import type { CandidateGate, GateResult } from "./attempt-runner.js";
 
 // ---------------------------------------------------------------------------
 // EvaluatorResult
@@ -417,9 +417,8 @@ export class RegexPredicateEvaluator implements OutputQualityEvaluator {
  * Adapter stub for app-provided safety evaluation.
  *
  * This evaluator does NOT implement a classifier itself. It delegates to
- * an app-provided `check` callback. If no callback is provided, it
- * passes by default (fail-open for advisory, fail-closed handled by the
- * runner when no evaluator is registered).
+ * an app-provided `check` callback. If no callback is provided, it fails
+ * closed so required `safety_passed` gates cannot accidentally pass.
  *
  * Maps to gate code `safety_passed`.
  */
@@ -442,7 +441,7 @@ export class SafetyPassedEvaluator implements OutputQualityEvaluator {
   }): EvaluatorResult {
     if (this.check === undefined) {
       return {
-        passed: true,
+        passed: false,
         reason_code: "no_safety_checker_configured",
         safe_metadata: { evaluator_name: this.name },
       };
@@ -516,10 +515,12 @@ export class EvaluatorRegistry {
       new JsonSchemaEvaluator({ defaultSchema: opts?.jsonSchema }),
     );
     reg.register("tool_call_valid", new ToolCallValidEvaluator());
-    reg.register(
-      "safety_passed",
-      new SafetyPassedEvaluator({ check: opts?.safetyCheck }),
-    );
+    if (opts?.safetyCheck !== undefined) {
+      reg.register(
+        "safety_passed",
+        new SafetyPassedEvaluator({ check: opts.safetyCheck }),
+      );
+    }
     if (opts?.extra) {
       for (const [code, evaluator] of Object.entries(opts.extra)) {
         reg.register(code, evaluator);
@@ -554,8 +555,8 @@ export class RegistryBackedEvaluator {
    *
    * Returns a GateResult for the attempt runner.
    */
-  evaluate(gate: Record<string, unknown>, output: unknown): GateResult {
-    const code = (gate["code"] as string) ?? "";
+  evaluate(gate: CandidateGate, output: unknown): GateResult {
+    const code = gate.code ?? "";
     const evaluator = this.registry.get(code);
     if (evaluator === undefined) {
       return {
@@ -564,12 +565,14 @@ export class RegistryBackedEvaluator {
         reason_code: "evaluator_missing",
       };
     }
-    const result = evaluator.evaluate({ gate, response: output });
+    const gateRecord = gate as unknown as Record<string, unknown>;
+    const result = evaluator.evaluate({ gate: gateRecord, response: output });
     return {
       code,
       status: result.passed ? GateStatus.Passed : GateStatus.Failed,
       observed_number: result.score,
       reason_code: result.reason_code,
+      safe_metadata: result.safe_metadata,
     };
   }
 }

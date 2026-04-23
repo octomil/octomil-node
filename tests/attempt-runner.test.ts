@@ -1046,7 +1046,7 @@ describe("GATE_CLASSIFICATION", () => {
     }
   });
 
-  it("classifies performance gates as pre_inference", () => {
+  it("classifies performance gates with canonical phases", () => {
     const performance = [
       "min_tokens_per_second",
       "max_ttft_ms",
@@ -1058,7 +1058,9 @@ describe("GATE_CLASSIFICATION", () => {
     for (const code of performance) {
       const c = GATE_CLASSIFICATION[code]!;
       expect(c.gate_class).toBe("performance");
-      expect(c.evaluation_phase).toBe("pre_inference");
+      expect(c.evaluation_phase).toBe(
+        code === "max_ttft_ms" ? "during_inference" : "pre_inference",
+      );
     }
   });
 
@@ -1494,7 +1496,7 @@ describe("CandidateAttemptRunner — output quality gate failure via runWithInfe
     expect(result.advisoryFailures![0]!.gate_class).toBe("output_quality");
   });
 
-  it("passes when output quality evaluator is not provided", async () => {
+  it("fails closed when a required output quality evaluator is not provided", async () => {
     const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
     const result = await runner.runWithInference(
       [
@@ -1508,13 +1510,14 @@ describe("CandidateAttemptRunner — output quality gate failure via runWithInfe
       {
         runtimeChecker: new AlwaysAvailableChecker(),
         gateEvaluator: new AllPassGateEvaluator(),
-        // No outputQualityEvaluator — should skip quality gates
+        // No outputQualityEvaluator — required quality gates fail closed.
         executeCandidate: async () => "local-output",
       },
     );
 
-    expect(result.selectedAttempt).not.toBeNull();
-    expect(result.value).toBe("local-output");
+    expect(result.selectedAttempt).toBeNull();
+    expect(result.value).toBeUndefined();
+    expect(result.attempts[0]?.stage).toBe(AttemptStage.OutputQuality);
   });
 
   it("output quality gates evaluated with inference result", async () => {
@@ -1647,7 +1650,7 @@ describe("CandidateAttemptRunner — FallbackTrigger enriched fields", () => {
     expect(result.fallbackTrigger).not.toBeNull();
     expect(result.fallbackTrigger!.gate_code).toBe("max_ttft_ms");
     expect(result.fallbackTrigger!.gate_class).toBe("performance");
-    expect(result.fallbackTrigger!.evaluation_phase).toBe("pre_inference");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("during_inference");
     expect(result.fallbackTrigger!.candidate_index).toBe(0);
     expect(result.fallbackTrigger!.output_visible_before_failure).toBe(false);
   });

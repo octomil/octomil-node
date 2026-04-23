@@ -457,7 +457,7 @@ export class RequestRouter {
     locality: "local" | "cloud",
     mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint",
     plannerSource: string,
-    policy?: string,
+    _policy?: string,
     attemptResult?: AttemptLoopResult,
     engine?: string | null,
   ): ContractRouteMetadata {
@@ -488,7 +488,7 @@ export class RequestRouter {
       code: attemptResult?.selectedAttempt
         ? "ok"
         : "no_candidate",
-      message: attemptResult?.selectedAttempt?.reason ?? "direct hosted",
+      message: attemptResult?.selectedAttempt?.reason.message ?? "direct hosted",
     };
 
     return {
