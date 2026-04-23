@@ -31,6 +31,8 @@ export interface ParsedModelRef {
   raw: string;
   /** Classification of the reference. */
   kind: ModelRefKind;
+  /** For bare model refs: canonical model slug. */
+  modelSlug?: string;
   /** For app refs: the app slug. */
   appSlug?: string;
   /** For app/capability refs: the capability string. */
@@ -49,8 +51,6 @@ export interface ParsedModelRef {
 
 const APP_REF_RE = /^@app\/([^/]+)\/([^/]+)$/;
 const CAPABILITY_REF_RE = /^@capability\/([^/]+)$/;
-const DEPLOY_REF_RE = /^deploy_(.+)$/;
-const EXPERIMENT_REF_RE = /^exp[_/]([^/]+)(?:\/(.+))?$/;
 const ALIAS_REF_RE = /^alias:(.+)$/;
 
 /**
@@ -98,20 +98,24 @@ export function parseModelRef(model: string): ParsedModelRef {
     };
   }
 
-  // deploy_xxx
-  const deployMatch = DEPLOY_REF_RE.exec(trimmed);
-  if (deployMatch) {
+  if (trimmed.startsWith("deploy_") && trimmed.length > "deploy_".length) {
     return {
       raw: trimmed,
       kind: "deployment",
       deploymentId: trimmed,
     };
   }
+  if (trimmed === "deploy_") {
+    return {
+      raw: trimmed,
+      kind: "unknown",
+    };
+  }
 
   // exp_id/variant
-  const expMatch = EXPERIMENT_REF_RE.exec(trimmed);
-  if (expMatch) {
-    if (!expMatch[2]) {
+  if (trimmed.startsWith("exp_") && trimmed.includes("/")) {
+    const [experimentId, variantId] = trimmed.split("/", 2);
+    if (!experimentId || !variantId) {
       return {
         raw: trimmed,
         kind: "unknown",
@@ -120,22 +124,9 @@ export function parseModelRef(model: string): ParsedModelRef {
     return {
       raw: trimmed,
       kind: "experiment",
-      experimentId: expMatch[1],
-      variantId: expMatch[2],
+      experimentId,
+      variantId,
     };
-  }
-
-  // Also catch "exp_id/variant" pattern from fixtures (e.g. "exp_test_001/variant_a")
-  if (trimmed.includes("/") && !trimmed.startsWith("@")) {
-    const [first, ...rest] = trimmed.split("/");
-    if (first && rest.length > 0) {
-      return {
-        raw: trimmed,
-        kind: "experiment",
-        experimentId: first,
-        variantId: rest.join("/"),
-      };
-    }
   }
 
   const aliasMatch = ALIAS_REF_RE.exec(trimmed);
@@ -143,6 +134,12 @@ export function parseModelRef(model: string): ParsedModelRef {
     return {
       raw: trimmed,
       kind: aliasMatch[1] ? "alias" : "unknown",
+    };
+  }
+  if (trimmed === "alias:") {
+    return {
+      raw: trimmed,
+      kind: "unknown",
     };
   }
 
@@ -157,5 +154,6 @@ export function parseModelRef(model: string): ParsedModelRef {
   return {
     raw: trimmed,
     kind: "model",
+    modelSlug: trimmed,
   };
 }

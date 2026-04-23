@@ -1,134 +1,56 @@
 /**
- * Data-driven conformance tests for parseModelRef using the canonical
- * fixture from octomil-contracts (fixtures/model_refs/canonical.json).
+ * Fixture-driven conformance tests for parseModelRef.
  *
- * The fixture is the single source of truth for model ref classification.
- * If this test fails, fix the parser -- not the fixture.
+ * Uses the canonical contract fixture mirrored from octomil-contracts:
+ * tests/fixtures/contract_parse_cases.json
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { parseModelRef } from "../src/runtime/routing/model-ref-parser.js";
 
-interface CanonicalCase {
+interface ContractCase {
+  id: string;
   input: string;
-  expected_kind: string;
-  description?: string;
-  expected_app_slug?: string;
-  expected_capability?: string;
-  expected_deployment_id?: string;
-  expected_experiment_id?: string;
-  expected_variant_id?: string;
-  expected_alias?: string;
+  expected: {
+    kind: string;
+    raw: string;
+    model_slug?: string;
+    app_slug?: string;
+    capability?: string;
+    deployment_id?: string;
+    experiment_id?: string;
+    variant_id?: string;
+  };
 }
 
-interface CanonicalFixture {
+interface ContractFixture {
   description: string;
-  contract_version: string;
-  cases: CanonicalCase[];
+  cases: ContractCase[];
 }
 
-interface DeprecatedAliases {
-  deprecated_to_canonical: Record<string, string>;
-}
+const fixturePath = join(__dirname, "fixtures", "contract_parse_cases.json");
+const fixture: ContractFixture = JSON.parse(readFileSync(fixturePath, "utf-8"));
+const cases = fixture.cases;
 
-const fixtureDir = join(__dirname, "fixtures", "model_refs");
-const canonical: CanonicalFixture = JSON.parse(
-  readFileSync(join(fixtureDir, "canonical.json"), "utf-8"),
-);
-const deprecated: DeprecatedAliases = JSON.parse(
-  readFileSync(join(fixtureDir, "deprecated_aliases.json"), "utf-8"),
-);
+describe("fixture-driven model ref conformance", () => {
+  it.each(cases.map((c) => [c.id, c]))("%s", (_id, c) => {
+    const result = parseModelRef(c.input);
+    const expected = c.expected;
 
-const cases = canonical.cases;
-
-// =========================================================================
-// Kind classification
-// =========================================================================
-
-describe("canonical model ref kind classification", () => {
-  it.each(cases.map((c) => [c.description ?? c.input ?? "<empty>", c]))(
-    "kind for %s",
-    (_desc, c) => {
-      const result = parseModelRef(c.input);
-      expect(result.kind).toBe(c.expected_kind);
-    },
-  );
-});
-
-// =========================================================================
-// App ref field extraction
-// =========================================================================
-
-describe("app ref field extraction", () => {
-  const appCases = cases.filter((c) => c.expected_kind === "app");
-
-  it.each(appCases.map((c) => [c.input, c]))(
-    "app ref fields for %s",
-    (_input, c) => {
-      const result = parseModelRef(c.input);
-      expect(result.appSlug).toBe(c.expected_app_slug);
-      expect(result.capability).toBe(c.expected_capability);
-    },
-  );
-});
-
-// =========================================================================
-// Deployment ref field extraction
-// =========================================================================
-
-describe("deployment ref field extraction", () => {
-  const deployCases = cases.filter((c) => c.expected_kind === "deployment");
-
-  it.each(deployCases.map((c) => [c.input, c]))(
-    "deployment id for %s",
-    (_input, c) => {
-      const result = parseModelRef(c.input);
-      expect(result.deploymentId).toBe(c.expected_deployment_id);
-    },
-  );
-});
-
-// =========================================================================
-// Experiment ref field extraction
-// =========================================================================
-
-describe("experiment ref field extraction", () => {
-  const expCases = cases.filter((c) => c.expected_kind === "experiment");
-
-  it.each(expCases.map((c) => [c.input, c]))(
-    "experiment fields for %s",
-    (_input, c) => {
-      const result = parseModelRef(c.input);
-      expect(result.experimentId).toBe(c.expected_experiment_id);
-      expect(result.variantId).toBe(c.expected_variant_id);
-    },
-  );
-});
-
-// =========================================================================
-// Deprecated aliases
-// =========================================================================
-
-describe("deprecated aliases", () => {
-  const deprecatedKinds = Object.keys(deprecated.deprecated_to_canonical);
-
-  it("parser never produces deprecated kind values", () => {
-    for (const c of cases) {
-      const result = parseModelRef(c.input);
-      expect(deprecatedKinds).not.toContain(result.kind);
-    }
+    expect(result.kind).toBe(expected.kind);
+    expect(result.raw).toBe(expected.raw);
+    expect(result.modelSlug).toBe(expected.model_slug);
+    expect(result.appSlug).toBe(expected.app_slug);
+    expect(result.capability).toBe(expected.capability);
+    expect(result.deploymentId).toBe(expected.deployment_id);
+    expect(result.experimentId).toBe(expected.experiment_id);
+    expect(result.variantId).toBe(expected.variant_id);
   });
-});
 
-// =========================================================================
-// All 8 canonical kinds covered
-// =========================================================================
-
-describe("canonical kind coverage", () => {
   it("fixture covers all 8 canonical kinds", () => {
-    const expected = new Set([
+    const expectedKinds = new Set([
       "model",
       "app",
       "capability",
@@ -138,7 +60,7 @@ describe("canonical kind coverage", () => {
       "default",
       "unknown",
     ]);
-    const covered = new Set(cases.map((c) => c.expected_kind));
-    expect(covered).toEqual(expected);
+    const covered = new Set(cases.map((c) => c.expected.kind));
+    expect(covered).toEqual(expectedKinds);
   });
 });
