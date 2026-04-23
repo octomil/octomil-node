@@ -7,6 +7,8 @@ import {
   AttemptStatus,
   GateStatus,
   GATE_CODES,
+  GATE_CLASSIFICATION,
+  classifyGate,
 } from "../src/runtime/routing/attempt-runner.js";
 import type {
   GateCode,
@@ -14,6 +16,7 @@ import type {
   RouteAttempt,
   RuntimeChecker,
   GateEvaluator,
+  OutputQualityGateEvaluator,
   CandidateGate,
   CandidatePlan,
   AttemptLoopResult,
@@ -132,7 +135,7 @@ function cloudCandidate(overrides?: Partial<CandidatePlan>): CandidatePlan {
 // ---------------------------------------------------------------------------
 
 describe("AttemptStage", () => {
-  it("has exactly the 8 contract-defined stages", () => {
+  it("has exactly the 9 contract-defined stages", () => {
     const stages = Object.values(AttemptStage);
     expect(stages).toEqual([
       "policy",
@@ -143,8 +146,9 @@ describe("AttemptStage", () => {
       "benchmark",
       "gate",
       "inference",
+      "output_quality",
     ]);
-    expect(stages).toHaveLength(8);
+    expect(stages).toHaveLength(9);
   });
 });
 
@@ -165,7 +169,7 @@ describe("GateStatus", () => {
 });
 
 describe("GATE_CODES", () => {
-  it("contains exactly the 12 canonical gate codes", () => {
+  it("contains exactly the 18 canonical gate codes", () => {
     expect(GATE_CODES).toEqual([
       "artifact_verified",
       "runtime_available",
@@ -179,8 +183,14 @@ describe("GATE_CODES", () => {
       "min_free_memory_bytes",
       "min_free_storage_bytes",
       "benchmark_fresh",
+      "schema_valid",
+      "tool_call_valid",
+      "safety_passed",
+      "evaluator_score_min",
+      "json_parseable",
+      "max_refusal_rate",
     ]);
-    expect(GATE_CODES).toHaveLength(12);
+    expect(GATE_CODES).toHaveLength(18);
   });
 });
 
@@ -575,6 +585,7 @@ describe("CandidateAttemptRunner — output shape matches contract", () => {
       "benchmark",
       "gate",
       "inference",
+      "output_quality",
     ]).toContain(attempt.stage);
     expect(attempt.reason).toHaveProperty("code");
     expect(attempt.reason).toHaveProperty("message");
@@ -1003,5 +1014,653 @@ describe("CandidateAttemptRunner.runWithInference", () => {
     expect(result.attempts[0]?.reason.code).toBe(
       "inference_error_after_first_output",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate classification
+// ---------------------------------------------------------------------------
+
+describe("GATE_CLASSIFICATION", () => {
+  it("covers all 18 gate codes", () => {
+    expect(Object.keys(GATE_CLASSIFICATION)).toHaveLength(18);
+    for (const code of GATE_CODES) {
+      expect(GATE_CLASSIFICATION[code]).toBeDefined();
+    }
+  });
+
+  it("classifies readiness gates as pre_inference with blocking_default true", () => {
+    const readiness = [
+      "artifact_verified",
+      "runtime_available",
+      "model_loads",
+      "context_fits",
+      "modality_supported",
+      "tool_support",
+    ];
+    for (const code of readiness) {
+      const c = GATE_CLASSIFICATION[code]!;
+      expect(c.gate_class).toBe("readiness");
+      expect(c.evaluation_phase).toBe("pre_inference");
+      expect(c.blocking_default).toBe(true);
+    }
+  });
+
+  it("classifies performance gates as pre_inference", () => {
+    const performance = [
+      "min_tokens_per_second",
+      "max_ttft_ms",
+      "max_error_rate",
+      "min_free_memory_bytes",
+      "min_free_storage_bytes",
+      "benchmark_fresh",
+    ];
+    for (const code of performance) {
+      const c = GATE_CLASSIFICATION[code]!;
+      expect(c.gate_class).toBe("performance");
+      expect(c.evaluation_phase).toBe("pre_inference");
+    }
+  });
+
+  it("classifies output_quality gates as post_inference", () => {
+    const oq = [
+      "schema_valid",
+      "tool_call_valid",
+      "safety_passed",
+      "evaluator_score_min",
+      "json_parseable",
+      "max_refusal_rate",
+    ];
+    for (const code of oq) {
+      const c = GATE_CLASSIFICATION[code]!;
+      expect(c.gate_class).toBe("output_quality");
+      expect(c.evaluation_phase).toBe("post_inference");
+    }
+  });
+
+  it("classifyGate returns undefined for unknown codes", () => {
+    expect(classifyGate("totally_unknown_gate")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate results include gate_class and evaluation_phase
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — gate results include classification", () => {
+  it("all gate results include gate_class and evaluation_phase", () => {
+    const runner = new CandidateAttemptRunner();
+    const result = runner.run([localCandidate()], {
+      runtimeChecker: new AlwaysAvailableChecker(),
+      gateEvaluator: new AllPassGateEvaluator(),
+    });
+
+    for (const gate of result.selectedAttempt!.gate_results) {
+      expect(gate.gate_class).toBeDefined();
+      expect(gate.evaluation_phase).toBeDefined();
+      expect(["readiness", "performance", "output_quality"]).toContain(
+        gate.gate_class,
+      );
+      expect([
+        "pre_inference",
+        "during_inference",
+        "post_inference",
+      ]).toContain(gate.evaluation_phase);
+    }
+  });
+
+  it("runtime_available gate has readiness class and pre_inference phase", () => {
+    const runner = new CandidateAttemptRunner();
+    const result = runner.run([localCandidate()], {
+      runtimeChecker: new AlwaysAvailableChecker(),
+      gateEvaluator: new AllPassGateEvaluator(),
+    });
+
+    const runtimeGate = result.selectedAttempt!.gate_results.find(
+      (g) => g.code === "runtime_available",
+    );
+    expect(runtimeGate!.gate_class).toBe("readiness");
+    expect(runtimeGate!.evaluation_phase).toBe("pre_inference");
+  });
+
+  it("failed runtime_available gate also has classification", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: false });
+    const result = runner.run([localCandidate()], {
+      runtimeChecker: new LocalUnavailableChecker(),
+    });
+
+    const failedGate = result.attempts[0]!.gate_results[0]!;
+    expect(failedGate.gate_class).toBe("readiness");
+    expect(failedGate.evaluation_phase).toBe("pre_inference");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate phase: readiness hard failure falls back
+// (mirrors gate_readiness_fail_cloud_fallback.json)
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — readiness gate failure", () => {
+  it("readiness hard failure falls back to cloud", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const candidates = [
+      localCandidate({
+        gates: [
+          { code: "runtime_available", required: true, source: "server" },
+          {
+            code: "artifact_verified",
+            required: true,
+            source: "server",
+          },
+        ],
+      }),
+      cloudCandidate(),
+    ];
+
+    const result = runner.run(candidates, {
+      runtimeChecker: new AlwaysAvailableChecker(),
+      gateEvaluator: new FailSpecificGateEvaluator("artifact_verified"),
+    });
+
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("cloud");
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackTrigger!.gate_code).toBe("artifact_verified");
+    expect(result.fallbackTrigger!.gate_class).toBe("readiness");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("pre_inference");
+    expect(result.fallbackTrigger!.candidate_index).toBe(0);
+    expect(result.fallbackTrigger!.output_visible_before_failure).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate phase: performance hard failure falls back
+// (mirrors gate_performance_hard_fail_cloud_fallback.json)
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — performance gate failure", () => {
+  it("performance hard failure falls back to cloud", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const candidates = [
+      localCandidate({
+        gates: [
+          { code: "runtime_available", required: true, source: "server" },
+          {
+            code: "min_tokens_per_second",
+            required: true,
+            threshold_number: 5.0,
+            source: "server",
+          },
+        ],
+      }),
+      cloudCandidate(),
+    ];
+
+    const result = runner.run(candidates, {
+      runtimeChecker: new AlwaysAvailableChecker(),
+      gateEvaluator: new FailSpecificGateEvaluator(
+        "min_tokens_per_second",
+        2.1,
+      ),
+    });
+
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("cloud");
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackTrigger!.gate_code).toBe("min_tokens_per_second");
+    expect(result.fallbackTrigger!.gate_class).toBe("performance");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("pre_inference");
+  });
+
+  it("performance advisory failure does NOT cause fallback", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const candidates = [
+      localCandidate({
+        gates: [
+          { code: "runtime_available", required: true, source: "server" },
+          {
+            code: "min_tokens_per_second",
+            required: false, // advisory
+            threshold_number: 5.0,
+            source: "server",
+          },
+        ],
+      }),
+      cloudCandidate(),
+    ];
+
+    const result = runner.run(candidates, {
+      runtimeChecker: new AlwaysAvailableChecker(),
+      gateEvaluator: new FailSpecificGateEvaluator(
+        "min_tokens_per_second",
+        3.2,
+      ),
+    });
+
+    // Local should still be selected despite advisory failure
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("local");
+    expect(result.fallbackUsed).toBe(false);
+
+    // Gate result should show the failure
+    const tpsGate = result.selectedAttempt!.gate_results.find(
+      (g) => g.code === "min_tokens_per_second",
+    );
+    expect(tpsGate!.status).toBe(GateStatus.Failed);
+    expect(tpsGate!.gate_class).toBe("performance");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate phase: output quality gates are skipped during pre-inference run()
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — output quality gates skipped in run()", () => {
+  it("skips output_quality gates during pre-inference evaluation", () => {
+    const runner = new CandidateAttemptRunner();
+    const result = runner.run(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            { code: "model_loads", required: true, source: "server" },
+            {
+              code: "schema_valid",
+              required: true,
+              source: "server",
+            },
+          ],
+        }),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+      },
+    );
+
+    // schema_valid is output_quality — should be skipped
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.status).toBe(AttemptStatus.Selected);
+
+    const codes = result.selectedAttempt!.gate_results.map((g) => g.code);
+    expect(codes).not.toContain("schema_valid");
+    expect(codes).toContain("runtime_available");
+    expect(codes).toContain("model_loads");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate phase: output quality failure before return -> fallback
+// (mirrors gate_output_quality_fail_before_return.json)
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — output quality gate failure via runWithInference", () => {
+  /** OutputQualityGateEvaluator that fails a specific gate code. */
+  class FailingOutputQualityEvaluator implements OutputQualityGateEvaluator {
+    constructor(
+      private readonly failCode: string,
+      private readonly reasonCode = "validation_error",
+    ) {}
+
+    evaluate(gate: CandidateGate, _output: unknown): GateResult {
+      if (gate.code === this.failCode) {
+        return {
+          code: gate.code,
+          status: GateStatus.Failed,
+          reason_code: this.reasonCode,
+        };
+      }
+      return { code: gate.code, status: GateStatus.Passed };
+    }
+  }
+
+  /** OutputQualityGateEvaluator that passes all gates. */
+  class PassingOutputQualityEvaluator implements OutputQualityGateEvaluator {
+    evaluate(gate: CandidateGate, _output: unknown): GateResult {
+      return { code: gate.code, status: GateStatus.Passed };
+    }
+  }
+
+  it("output quality failure before return triggers fallback", async () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            { code: "model_loads", required: true, source: "server" },
+            { code: "schema_valid", required: true, source: "server" },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        outputQualityEvaluator: new FailingOutputQualityEvaluator(
+          "schema_valid",
+          "schema_validation_error",
+        ),
+        executeCandidate: async (candidate) => {
+          if (candidate.locality === "local") {
+            return "local-output";
+          }
+          return "cloud-output";
+        },
+        firstOutputEmitted: () => false, // output not visible yet
+      },
+    );
+
+    expect(result.value).toBe("cloud-output");
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("cloud");
+    expect(result.fallbackUsed).toBe(true);
+
+    // First attempt should have failed at output_quality stage
+    expect(result.attempts[0]!.status).toBe(AttemptStatus.Failed);
+    expect(result.attempts[0]!.stage).toBe(AttemptStage.OutputQuality);
+
+    // Fallback trigger should have output quality metadata
+    expect(result.fallbackTrigger!.stage).toBe("output_quality");
+    expect(result.fallbackTrigger!.gate_code).toBe("schema_valid");
+    expect(result.fallbackTrigger!.gate_class).toBe("output_quality");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("post_inference");
+    expect(result.fallbackTrigger!.output_visible_before_failure).toBe(false);
+  });
+
+  it("output quality failure after first token does NOT fallback", async () => {
+    const runner = new CandidateAttemptRunner({
+      fallbackAllowed: true,
+      streaming: true,
+    });
+    const result = await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            { code: "model_loads", required: true, source: "server" },
+            { code: "schema_valid", required: true, source: "server" },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        outputQualityEvaluator: new FailingOutputQualityEvaluator(
+          "schema_valid",
+          "schema_validation_error",
+        ),
+        executeCandidate: async () => "local-streamed-output",
+        firstOutputEmitted: () => true, // first token already emitted
+      },
+    );
+
+    // No fallback because output was already visible
+    expect(result.selectedAttempt).toBeNull();
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.error).toBeDefined();
+
+    // Trigger should record output_visible_before_failure = true
+    expect(result.fallbackTrigger).not.toBeNull();
+    expect(result.fallbackTrigger!.output_visible_before_failure).toBe(true);
+    expect(result.fallbackTrigger!.gate_code).toBe("schema_valid");
+  });
+
+  it("private/local_only policy prevents cloud fallback on quality failure", async () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: false });
+    const result = await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            {
+              code: "json_parseable",
+              required: true,
+              source: "server",
+            },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        outputQualityEvaluator: new FailingOutputQualityEvaluator(
+          "json_parseable",
+          "json_parse_error",
+        ),
+        executeCandidate: async () => "local-output",
+        firstOutputEmitted: () => false,
+      },
+    );
+
+    // No fallback due to private policy
+    expect(result.selectedAttempt).toBeNull();
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts[0]!.stage).toBe(AttemptStage.OutputQuality);
+    expect(result.fallbackTrigger!.gate_code).toBe("json_parseable");
+    expect(result.fallbackTrigger!.gate_class).toBe("output_quality");
+  });
+
+  it("advisory output quality failure records but does not block", async () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            {
+              code: "evaluator_score_min",
+              required: false, // advisory
+              threshold_number: 0.8,
+              source: "server",
+            },
+          ],
+        }),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        outputQualityEvaluator: {
+          evaluate(gate: CandidateGate, _output: unknown): GateResult {
+            if (gate.code === "evaluator_score_min") {
+              return {
+                code: gate.code,
+                status: GateStatus.Failed,
+                observed_number: 0.5,
+                threshold_number: 0.8,
+                reason_code: "below_threshold",
+              };
+            }
+            return { code: gate.code, status: GateStatus.Passed };
+          },
+        },
+        executeCandidate: async () => "local-output",
+        firstOutputEmitted: () => false,
+      },
+    );
+
+    // Should still succeed — advisory failure doesn't block
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("local");
+    expect(result.value).toBe("local-output");
+
+    // Advisory failure should be recorded
+    expect(result.advisoryFailures).toBeDefined();
+    expect(result.advisoryFailures).toHaveLength(1);
+    expect(result.advisoryFailures![0]!.code).toBe("evaluator_score_min");
+    expect(result.advisoryFailures![0]!.gate_class).toBe("output_quality");
+  });
+
+  it("passes when output quality evaluator is not provided", async () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            { code: "schema_valid", required: true, source: "server" },
+          ],
+        }),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        // No outputQualityEvaluator — should skip quality gates
+        executeCandidate: async () => "local-output",
+      },
+    );
+
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.value).toBe("local-output");
+  });
+
+  it("output quality gates evaluated with inference result", async () => {
+    let receivedOutput: unknown;
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    await runner.runWithInference(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            { code: "schema_valid", required: true, source: "server" },
+          ],
+        }),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new AllPassGateEvaluator(),
+        outputQualityEvaluator: {
+          evaluate(gate: CandidateGate, output: unknown): GateResult {
+            receivedOutput = output;
+            return { code: gate.code, status: GateStatus.Passed };
+          },
+        },
+        executeCandidate: async () => ({
+          text: "hello world",
+          model: "gemma3-1b",
+        }),
+      },
+    );
+
+    expect(receivedOutput).toEqual({
+      text: "hello world",
+      model: "gemma3-1b",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gate phase: unknown required gate fails closed
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — unknown gate handling", () => {
+  it("unknown required gate fails closed", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = runner.run(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            {
+              code: "totally_new_gate_xyz",
+              required: true,
+              source: "server",
+            },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        // NoOp evaluator returns GateStatus.Unknown for required gates
+      },
+    );
+
+    // Unknown required gate should cause failure (fail closed)
+    expect(result.attempts[0]!.status).toBe(AttemptStatus.Failed);
+    expect(result.attempts[0]!.stage).toBe(AttemptStage.Gate);
+
+    // Should fallback to cloud
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("cloud");
+  });
+
+  it("unknown advisory gate records and continues", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = runner.run(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            {
+              code: "totally_new_gate_xyz",
+              required: false, // advisory
+              source: "server",
+            },
+          ],
+        }),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        // NoOp evaluator returns not_required for non-required gates
+      },
+    );
+
+    // Should still select local — advisory unknown gate doesn't block
+    expect(result.selectedAttempt).not.toBeNull();
+    expect(result.selectedAttempt!.locality).toBe("local");
+    expect(result.fallbackUsed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FallbackTrigger enriched fields
+// ---------------------------------------------------------------------------
+
+describe("CandidateAttemptRunner — FallbackTrigger enriched fields", () => {
+  it("fallback trigger includes gate_code, gate_class, evaluation_phase, candidate_index", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = runner.run(
+      [
+        localCandidate({
+          gates: [
+            { code: "runtime_available", required: true, source: "server" },
+            {
+              code: "max_ttft_ms",
+              required: true,
+              threshold_number: 2000,
+              source: "server",
+            },
+          ],
+        }),
+        cloudCandidate(),
+      ],
+      {
+        runtimeChecker: new AlwaysAvailableChecker(),
+        gateEvaluator: new FailSpecificGateEvaluator("max_ttft_ms", 3200),
+      },
+    );
+
+    expect(result.fallbackTrigger).not.toBeNull();
+    expect(result.fallbackTrigger!.gate_code).toBe("max_ttft_ms");
+    expect(result.fallbackTrigger!.gate_class).toBe("performance");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("pre_inference");
+    expect(result.fallbackTrigger!.candidate_index).toBe(0);
+    expect(result.fallbackTrigger!.output_visible_before_failure).toBe(false);
+  });
+
+  it("runtime unavailable trigger includes readiness classification", () => {
+    const runner = new CandidateAttemptRunner({ fallbackAllowed: true });
+    const result = runner.run([localCandidate(), cloudCandidate()], {
+      runtimeChecker: new LocalUnavailableChecker(),
+      gateEvaluator: new AllPassGateEvaluator(),
+    });
+
+    expect(result.fallbackTrigger!.gate_code).toBe("runtime_available");
+    expect(result.fallbackTrigger!.gate_class).toBe("readiness");
+    expect(result.fallbackTrigger!.evaluation_phase).toBe("pre_inference");
   });
 });
