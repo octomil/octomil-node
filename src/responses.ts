@@ -23,7 +23,10 @@ import {
   type RuntimeChecker,
 } from "./runtime/routing/attempt-runner.js";
 import type { PlannerClient } from "./runtime/routing/planner-client.js";
-import type { RouteMetadata } from "./runtime/routing/request-router.js";
+import {
+  buildRouteMetadata,
+  type RouteMetadata,
+} from "./runtime/routing/request-router.js";
 import { buildRouteEvent, type RouteEvent } from "./runtime/routing/route-event.js";
 import { parseModelRef } from "./runtime/routing/model-ref-parser.js";
 
@@ -1188,13 +1191,6 @@ export class ResponsesClient {
           : this.externalEndpoint
             ? "external_endpoint"
             : "sdk_runtime");
-    const endpoint =
-      mode === "hosted_gateway"
-        ? this.serverUrl
-        : mode === "external_endpoint"
-          ? this.externalEndpoint ?? ""
-          : "";
-
     const routeEvent = buildRouteEvent({
       requestId: `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
       capability: "responses",
@@ -1216,16 +1212,13 @@ export class ResponsesClient {
     });
 
     return {
-      routeMetadata: {
-        modelRefKind: parsedRef.kind,
+      routeMetadata: buildRouteMetadata(
         parsedRef,
         locality,
         mode,
-        endpoint,
-        plannerUsed: !!plan,
-        attemptResult: normalizedResult,
-        routeEvent,
-      },
+        plan ? (plan.planner_source ?? "server") : "offline",
+        normalizedResult,
+      ),
       routeEvent,
     };
   }

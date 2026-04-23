@@ -147,7 +147,7 @@ export async function embedWithPlanner(
   return Object.assign(result, {
     _routeInfo: {
       routeMetadata: decision.routeMetadata,
-      routeEvent: decision.routeMetadata.routeEvent,
+      routeEvent: decision.routeEvent,
     },
   });
 }
