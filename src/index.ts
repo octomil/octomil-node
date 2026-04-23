@@ -307,6 +307,26 @@ export {
 export type { RouteEvent, AttemptDetail } from "./runtime/routing/route-event.js";
 
 // ---------------------------------------------------------------------------
+// Output quality evaluators (post-inference gate evaluation)
+// ---------------------------------------------------------------------------
+
+export {
+  JsonParseableEvaluator,
+  JsonSchemaEvaluator,
+  ToolCallValidEvaluator,
+  RegexPredicateEvaluator,
+  SafetyPassedEvaluator,
+  EvaluatorRegistry,
+  RegistryBackedEvaluator,
+  extractText,
+  extractToolCalls,
+} from "./runtime/routing/evaluators.js";
+export type {
+  EvaluatorResult,
+  OutputQualityEvaluator,
+} from "./runtime/routing/evaluators.js";
+
+// ---------------------------------------------------------------------------
 // Infrastructure — internal utilities exposed for advanced use
 // ---------------------------------------------------------------------------
 
