@@ -9,7 +9,6 @@ export enum RuntimeExecutor {
   Mnn = "mnn",
   Transformersjs = "transformersjs",
   Cloud = "cloud",
-  Ollama = "ollama",
   Whisper = "whisper",
   Mlc = "mlc",
   Cactus = "cactus",
