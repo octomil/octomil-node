@@ -1,5 +1,7 @@
 // Auto-generated from octomil-contracts runtime_planner schemas. Do not edit.
 
+import type { ModelRefKind } from "../runtime/routing/model-ref-parser.js";
+
 export interface AppResolution {
   app_id: string;
   app_slug?: string | null;
