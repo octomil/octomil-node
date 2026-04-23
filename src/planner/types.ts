@@ -24,9 +24,7 @@ export { ModelRefKind as ContractModelRefKind } from "../_generated/model_ref_ki
 export { FallbackTriggerStage as ContractFallbackTriggerStage } from "../_generated/fallback_trigger_stage.js";
 
 import { PlannerSource as GenPlannerSource } from "../_generated/planner_source.js";
-import { CacheStatus as GenCacheStatus } from "../_generated/cache_status.js";
 import { RouteLocality as GenRouteLocality } from "../_generated/route_locality.js";
-import { RouteMode as GenRouteMode } from "../_generated/route_mode.js";
 
 // ---------------------------------------------------------------------------
 // Supported routing policy names
