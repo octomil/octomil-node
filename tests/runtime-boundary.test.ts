@@ -244,7 +244,7 @@ describe("Runtime boundary — RequestRouter", () => {
     expect(decision.locality).toBe("cloud");
     expect(decision.mode).toBe("hosted_gateway");
     expect(decision.endpoint).toBe("https://api.example.com");
-    expect(decision.routeMetadata.plannerUsed).toBe(false);
+    expect(decision.routeMetadata.planner.source).toBe("offline");
   });
 
   it("routes to hosted_gateway with cloud-only planner result", () => {
@@ -268,7 +268,7 @@ describe("Runtime boundary — RequestRouter", () => {
 
     expect(decision.locality).toBe("cloud");
     expect(decision.mode).toBe("hosted_gateway");
-    expect(decision.routeMetadata.plannerUsed).toBe(true);
+    expect(decision.routeMetadata.planner.source).toBe("server");
     expect(decision.attemptResult.selectedAttempt).not.toBeNull();
   });
 
@@ -309,9 +309,9 @@ describe("Runtime boundary — RequestRouter", () => {
       streaming: false,
     });
 
-    expect(decision.routeMetadata.routeEvent).toBeDefined();
+    expect(decision.routeEvent).toBeDefined();
     // validateRouteEvent would have thrown if forbidden keys existed
-    expect(() => validateRouteEvent(decision.routeMetadata.routeEvent!)).not.toThrow();
+    expect(() => validateRouteEvent(decision.routeEvent)).not.toThrow();
   });
 });
 

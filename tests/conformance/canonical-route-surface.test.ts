@@ -1,154 +1,128 @@
 /**
- * Canonical route surface conformance test.
+ * Route surface conformance test.
  *
- * Verifies that the RequestRouter populates the contract-backed
- * canonicalMetadata field alongside the deprecated flat routeMetadata,
- * and that the canonical shape matches the contract structure.
+ * The runtime router exposes one public metadata shape: the contract-generated
+ * nested RouteMetadata object. The old flat routeMetadata/canonicalMetadata
+ * compatibility bridge is intentionally gone.
  */
 
 import { describe, expect, it } from "vitest";
 import { RequestRouter } from "../../src/runtime/routing/request-router.js";
-import type { CanonicalRouteMetadata } from "../../src/runtime/routing/request-router.js";
+import type { RouteMetadata } from "../../src/runtime/routing/request-router.js";
 
 const CLOUD_ENDPOINT = "https://api.octomil.com/v2";
 
-describe("canonical route surface", () => {
-  describe("RoutingDecision.canonicalMetadata", () => {
-    it("is populated on legacy (no plan) resolution", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
-        model: "gemma-2b",
-        capability: "chat",
-        streaming: false,
-      });
-
-      expect(decision.canonicalMetadata).toBeDefined();
-      const meta: CanonicalRouteMetadata = decision.canonicalMetadata;
-
-      expect(meta.status).toBe("selected");
-      expect(meta.execution).toBeDefined();
-      expect(meta.execution!.locality).toBe("cloud");
-      expect(meta.execution!.mode).toBe("hosted_gateway");
-      expect(meta.model.requested.ref).toBe("gemma-2b");
-      expect(meta.model.requested.kind).toBe("model");
-      expect(meta.planner.source).toBe("offline");
-      expect(meta.fallback.used).toBe(false);
+describe("route surface hard cutover", () => {
+  it("populates the generated nested metadata on legacy resolution", () => {
+    const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
+    const decision = router.resolve({
+      model: "gemma-2b",
+      capability: "chat",
+      streaming: false,
     });
 
-    it("is populated on plan-based resolution", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
-        model: "gemma-2b",
-        capability: "chat",
-        streaming: false,
-        plannerResult: {
-          model: "gemma-2b",
-          capability: "chat",
-          policy: "cloud_only",
-          candidates: [
-            {
-              locality: "cloud",
-              engine: "cloud",
-              priority: 0,
-              confidence: 1,
-              reason: "cloud primary",
-            },
-          ],
-          fallback_allowed: false,
-          planner_source: "server",
-        },
-      });
+    const meta: RouteMetadata = decision.routeMetadata;
 
-      const meta = decision.canonicalMetadata;
-      expect(meta.status).toBe("selected");
-      expect(meta.execution!.locality).toBe("cloud");
-      expect(meta.planner.source).toBe("server");
-    });
-
-    it("has contract-required nested structure", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
-        model: "@app/myapp/chat",
-        capability: "chat",
-        streaming: false,
-      });
-
-      const meta = decision.canonicalMetadata;
-
-      // All top-level contract fields present
-      expect(meta).toHaveProperty("status");
-      expect(meta).toHaveProperty("execution");
-      expect(meta).toHaveProperty("model");
-      expect(meta).toHaveProperty("artifact");
-      expect(meta).toHaveProperty("planner");
-      expect(meta).toHaveProperty("fallback");
-      expect(meta).toHaveProperty("reason");
-
-      // Nested model structure
-      expect(meta.model).toHaveProperty("requested");
-      expect(meta.model.requested).toHaveProperty("ref");
-      expect(meta.model.requested).toHaveProperty("kind");
-      expect(meta.model).toHaveProperty("resolved");
-
-      // Model ref kind correctly parsed
-      expect(meta.model.requested.kind).toBe("app");
-    });
-
-    it("normalizes planner source in canonical metadata", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
-        model: "gemma-2b",
-        capability: "chat",
-        streaming: false,
-        plannerResult: {
-          model: "gemma-2b",
-          capability: "chat",
-          policy: "auto",
-          candidates: [
-            {
-              locality: "cloud",
-              engine: "cloud",
-              priority: 0,
-              confidence: 1,
-              reason: "test",
-            },
-          ],
-          fallback_allowed: true,
-          planner_source: "server_plan",
-        },
-      });
-
-      // server_plan should be normalized to "server"
-      expect(decision.canonicalMetadata.planner.source).toBe("server");
-    });
+    expect(meta.status).toBe("selected");
+    expect(meta.execution?.locality).toBe("cloud");
+    expect(meta.execution?.mode).toBe("hosted_gateway");
+    expect(meta.model.requested.ref).toBe("gemma-2b");
+    expect(meta.model.requested.kind).toBe("model");
+    expect(meta.planner.source).toBe("offline");
+    expect(meta.fallback.used).toBe(false);
   });
 
-  describe("backward compatibility", () => {
-    it("flat routeMetadata is still populated", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
+  it("populates the generated nested metadata on planner resolution", () => {
+    const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
+    const decision = router.resolve({
+      model: "gemma-2b",
+      capability: "chat",
+      streaming: false,
+      plannerResult: {
         model: "gemma-2b",
         capability: "chat",
-        streaming: false,
-      });
-
-      // Flat shape still present for backward compat
-      expect(decision.routeMetadata).toBeDefined();
-      expect(decision.routeMetadata.locality).toBe("cloud");
-      expect(decision.routeMetadata.mode).toBe("hosted_gateway");
-      expect(decision.routeMetadata.modelRefKind).toBe("model");
+        policy: "cloud_only",
+        candidates: [
+          {
+            locality: "cloud",
+            engine: "cloud",
+            priority: 0,
+            confidence: 1,
+            reason: "cloud primary",
+          },
+        ],
+        fallback_allowed: false,
+        planner_source: "server",
+      },
     });
 
-    it("both shapes agree on locality and mode", () => {
-      const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
-      const decision = router.resolve({
+    expect(decision.routeMetadata.status).toBe("selected");
+    expect(decision.routeMetadata.execution?.locality).toBe("cloud");
+    expect(decision.routeMetadata.planner.source).toBe("server");
+  });
+
+  it("contains the contract-required nested structure", () => {
+    const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
+    const decision = router.resolve({
+      model: "@app/myapp/chat",
+      capability: "chat",
+      streaming: false,
+    });
+
+    const meta = decision.routeMetadata;
+
+    expect(meta).toHaveProperty("status");
+    expect(meta).toHaveProperty("execution");
+    expect(meta).toHaveProperty("model");
+    expect(meta).toHaveProperty("artifact");
+    expect(meta).toHaveProperty("planner");
+    expect(meta).toHaveProperty("fallback");
+    expect(meta).toHaveProperty("reason");
+    expect(meta.model).toHaveProperty("requested");
+    expect(meta.model.requested).toHaveProperty("ref");
+    expect(meta.model.requested).toHaveProperty("kind");
+    expect(meta.model).toHaveProperty("resolved");
+    expect(meta.model.requested.kind).toBe("app");
+  });
+
+  it("normalizes planner source at the output boundary", () => {
+    const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
+    const decision = router.resolve({
+      model: "gemma-2b",
+      capability: "chat",
+      streaming: false,
+      plannerResult: {
         model: "gemma-2b",
         capability: "chat",
-        streaming: false,
-      });
-
-      expect(decision.canonicalMetadata.execution!.locality).toBe(decision.routeMetadata.locality);
-      expect(decision.canonicalMetadata.execution!.mode).toBe(decision.routeMetadata.mode);
+        policy: "auto",
+        candidates: [
+          {
+            locality: "cloud",
+            engine: "cloud",
+            priority: 0,
+            confidence: 1,
+            reason: "test",
+          },
+        ],
+        fallback_allowed: true,
+        planner_source: "server_plan",
+      },
     });
+
+    expect(decision.routeMetadata.planner.source).toBe("server");
+  });
+
+  it("does not expose the removed compatibility fields", () => {
+    const router = new RequestRouter({ cloudEndpoint: CLOUD_ENDPOINT });
+    const decision = router.resolve({
+      model: "gemma-2b",
+      capability: "chat",
+      streaming: false,
+    }) as unknown as Record<string, unknown>;
+
+    expect(decision.canonicalMetadata).toBeUndefined();
+    expect((decision.routeMetadata as Record<string, unknown>).locality).toBeUndefined();
+    expect((decision.routeMetadata as Record<string, unknown>).mode).toBeUndefined();
+    expect((decision.routeMetadata as Record<string, unknown>).modelRefKind).toBeUndefined();
   });
 });

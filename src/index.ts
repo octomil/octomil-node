@@ -286,13 +286,14 @@ export type {
 } from "./runtime/routing/attempt-runner.js";
 export { PlannerClient } from "./runtime/routing/planner-client.js";
 export type { PlannerClientConfig, PlanRequest } from "./runtime/routing/planner-client.js";
-export { RequestRouter } from "./runtime/routing/request-router.js";
+export {
+  RequestRouter,
+  buildRouteMetadata,
+} from "./runtime/routing/request-router.js";
 export type {
   PlannerResult,
   RequestRoutingContext,
   RouteMetadata,
-  RouteMetadata as RuntimeRouteMetadata,
-  CanonicalRouteMetadata,
   RoutingDecision as RuntimeRoutingDecision,
   RouterConfig,
   RoutableCapability,
