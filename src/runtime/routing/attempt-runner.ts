@@ -11,10 +11,10 @@
  *
  * Gate taxonomy (v1.19.0):
  * - readiness gates: artifact_verified, runtime_available, model_loads,
- *   context_fits, modality_supported, tool_support — pre_inference
+ *   context_fits, modality_supported, tool_support, require_wifi — pre_inference
  * - performance gates: min_tokens_per_second, max_error_rate,
- *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh — pre_inference;
- *   max_ttft_ms — during_inference
+ *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh, min_battery_pct,
+ *   max_thermal_state, require_charging — pre_inference; max_ttft_ms — during_inference
  * - output_quality gates: schema_valid, tool_call_valid, safety_passed,
  *   evaluator_score_min, json_parseable, max_refusal_rate — post_inference
  */
@@ -58,7 +58,7 @@ export enum GateStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Gate codes — the 18 canonical codes from the contract (v1.19.0)
+// Gate codes — the 22 canonical codes from the contract (v1.19.0)
 // ---------------------------------------------------------------------------
 
 export const GATE_CODES = [
@@ -74,6 +74,10 @@ export const GATE_CODES = [
   "min_free_memory_bytes",
   "min_free_storage_bytes",
   "benchmark_fresh",
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
   "schema_valid",
   "tool_call_valid",
   "safety_passed",
@@ -161,6 +165,27 @@ export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
     evaluation_phase: "pre_inference",
     blocking_default: false,
   },
+  // Device-environment gates
+  min_battery_pct: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  max_thermal_state: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_charging: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_wifi: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
   schema_valid: {
     gate_class: "output_quality",
     evaluation_phase: "post_inference",
@@ -192,6 +217,13 @@ export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
     blocking_default: false,
   },
 };
+
+const DEVICE_ENVIRONMENT_GATE_CODES = new Set<string>([
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
+]);
 
 /**
  * Look up the gate classification for a code. Returns undefined for unknown codes.
@@ -362,7 +394,10 @@ export class NoOpRuntimeChecker implements RuntimeChecker {
 }
 
 /**
- * Default GateEvaluator: required gates pass, optional gates return not_required.
+ * Default GateEvaluator: required generic gates are unknown and optional gates
+ * return not_required. Required device-environment gates fail closed because the
+ * Node SDK cannot prove battery, thermal, charging, or Wi-Fi state unless the
+ * caller injects a platform-specific evaluator.
  *
  * Used when no gate evaluator is provided. In production, the facade injects
  * a real evaluator that reads benchmark history, memory stats, etc.
@@ -371,9 +406,31 @@ export class NoOpGateEvaluator implements GateEvaluator {
   evaluate(
     gate: CandidateGate,
     _engine: string | null,
-    _locality: string,
+    locality: string,
   ): GateResult {
     const classification = classifyGate(gate.code);
+    if (DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) {
+      return {
+        code: gate.code,
+        status:
+          locality !== "local"
+            ? GateStatus.NotRequired
+            : gate.required
+              ? GateStatus.Failed
+              : GateStatus.Unknown,
+        threshold_number: gate.threshold_number,
+        reason_code:
+          locality === "local" && gate.required
+            ? gate.code === "require_wifi"
+              ? "network_state_unavailable"
+              : "device_metric_unavailable"
+            : undefined,
+        gate_class: gate.gate_class ?? classification?.gate_class,
+        evaluation_phase:
+          gate.evaluation_phase ?? classification?.evaluation_phase,
+      };
+    }
+
     const base: GateResult = {
       code: gate.code,
       status: gate.required ? GateStatus.Unknown : GateStatus.NotRequired,
@@ -624,7 +681,8 @@ export class CandidateAttemptRunner {
         if (
           gate.required &&
           result.status === GateStatus.Unknown &&
-          !classifyGate(gate.code) &&
+          (!classifyGate(gate.code) ||
+            DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) &&
           gateFailure === null
         ) {
           gateFailure = {
