@@ -93,6 +93,7 @@ export interface DeviceRuntimeProfile {
   gpu_core_count?: number;
   accelerators?: string[];
   installed_runtimes?: InstalledRuntime[];
+  supported_gate_codes?: string[];
 }
 
 // ---------------------------------------------------------------------------

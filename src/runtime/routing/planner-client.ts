@@ -2,6 +2,8 @@
  * PlannerClient — fetches runtime plans from the server planner API.
  */
 
+import { collectDeviceRuntimeProfile } from "../../planner/device-profile.js";
+import type { DeviceRuntimeProfile } from "../../planner/types.js";
 import type { CandidatePlan } from "./attempt-runner.js";
 import type { PlannerResult, RoutableCapability } from "./request-router.js";
 
@@ -15,6 +17,7 @@ export interface PlanRequest {
   capability: RoutableCapability;
   streaming?: boolean;
   routing_policy?: string;
+  device?: DeviceRuntimeProfile;
 }
 
 /** Resolution metadata for non-app model ref types (deployment, experiment, etc.). */
@@ -59,6 +62,7 @@ export class PlannerClient {
   async getPlan(request: PlanRequest): Promise<PlannerResult | null> {
     let response: Response;
     try {
+      const device = request.device ?? await collectDeviceRuntimeProfile();
       response = await fetch(`${this.serverUrl}/api/v2/runtime/plan`, {
         method: "POST",
         headers: {
@@ -71,6 +75,7 @@ export class PlannerClient {
           capability: request.capability,
           streaming: request.streaming ?? false,
           routing_policy: request.routing_policy,
+          device,
         }),
       });
     } catch {

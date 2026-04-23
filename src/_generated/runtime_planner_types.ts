@@ -35,6 +35,7 @@ export interface DeviceRuntimeProfile {
   gpu_core_count?: number;
   accelerators?: Array<string>;
   installed_runtimes?: Array<InstalledRuntime>;
+  supported_gate_codes?: Array<string>;
 }
 
 export interface InstalledRuntime {
