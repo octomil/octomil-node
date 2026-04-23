@@ -11,10 +11,10 @@
  *
  * Gate taxonomy (v1.19.0):
  * - readiness gates: artifact_verified, runtime_available, model_loads,
- *   context_fits, modality_supported, tool_support — pre_inference
+ *   context_fits, modality_supported, tool_support, require_wifi — pre_inference
  * - performance gates: min_tokens_per_second, max_error_rate,
- *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh — pre_inference;
- *   max_ttft_ms — during_inference
+ *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh, min_battery_pct,
+ *   max_thermal_state, require_charging — pre_inference; max_ttft_ms — during_inference
  * - output_quality gates: schema_valid, tool_call_valid, safety_passed,
  *   evaluator_score_min, json_parseable, max_refusal_rate — post_inference
  */
@@ -58,7 +58,7 @@ export enum GateStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Gate codes — the 18 canonical codes from the contract (v1.19.0)
+// Gate codes — the 22 canonical codes from the contract (v1.19.0)
 // ---------------------------------------------------------------------------
 
 export const GATE_CODES = [
@@ -74,6 +74,10 @@ export const GATE_CODES = [
   "min_free_memory_bytes",
   "min_free_storage_bytes",
   "benchmark_fresh",
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
   "schema_valid",
   "tool_call_valid",
   "safety_passed",
@@ -160,6 +164,27 @@ export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
     gate_class: "performance",
     evaluation_phase: "pre_inference",
     blocking_default: false,
+  },
+  // Device-environment gates
+  min_battery_pct: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  max_thermal_state: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_charging: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_wifi: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
   },
   schema_valid: {
     gate_class: "output_quality",
