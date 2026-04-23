@@ -117,8 +117,8 @@ describe("production routing integration", () => {
 
     expect(response.id).toBe("resp_local");
     expect(localRuntime.create).toHaveBeenCalledOnce();
-    expect(client.lastRouteInfo?.routeMetadata.mode).toBe("sdk_runtime");
-    expect(client.lastRouteInfo?.routeMetadata.locality).toBe("local");
+    expect(client.lastRouteInfo?.routeMetadata.execution?.mode).toBe("sdk_runtime");
+    expect(client.lastRouteInfo?.routeMetadata.execution?.locality).toBe("local");
   });
 
   it("planner-routed responses execute against explicit external endpoints", async () => {
@@ -179,7 +179,7 @@ describe("production routing integration", () => {
 
     expect(response.id).toBe("resp_external");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(client.lastRouteInfo?.routeMetadata.mode).toBe("external_endpoint");
+    expect(client.lastRouteInfo?.routeMetadata.execution?.mode).toBe("external_endpoint");
   });
 
   it("planner-routed embeddings honor explicit external endpoints", async () => {
@@ -230,7 +230,7 @@ describe("production routing integration", () => {
 
     expect(result.embeddings).toEqual([[0.1, 0.2]]);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(result._routeInfo?.routeMetadata.mode).toBe("external_endpoint");
+    expect(result._routeInfo?.routeMetadata?.execution?.mode).toBe("external_endpoint");
   });
 
   it("planner-routed audio uses hosted transcription when cloud is selected", async () => {
@@ -286,7 +286,7 @@ describe("production routing integration", () => {
     expect(result.text).toBe("cloud transcript");
     expect(runtime.run).not.toHaveBeenCalled();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(client.lastRouteInfo?.routeMetadata.locality).toBe("cloud");
+    expect(client.lastRouteInfo?.routeMetadata.execution?.locality).toBe("cloud");
   });
 
   it("planner-routed streaming falls back to cloud before first output", async () => {
@@ -351,9 +351,9 @@ describe("production routing integration", () => {
     }
 
     expect(events.some((event) => event.type === "text_delta")).toBe(true);
-    expect(client.lastRouteInfo?.routeMetadata.locality).toBe("cloud");
+    expect(client.lastRouteInfo?.routeMetadata.execution?.locality).toBe("cloud");
     expect(
-      client.lastRouteInfo?.routeMetadata.attemptResult?.fallbackUsed,
+      client.lastRouteInfo?.routeMetadata.fallback.used,
     ).toBe(true);
   });
 
@@ -415,7 +415,7 @@ describe("production routing integration", () => {
 
       await client.create({ model, input: "hello" });
 
-      expect(client.lastRouteInfo?.routeMetadata.modelRefKind).toBe(
+      expect(client.lastRouteInfo?.routeMetadata.model.requested.kind).toBe(
         expectedKind,
       );
     },

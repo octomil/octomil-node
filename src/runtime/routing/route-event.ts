@@ -10,86 +10,16 @@
 
 import type { AttemptLoopResult, RouteAttempt } from "./attempt-runner.js";
 import { normalizePlannerSource } from "../../planner/types.js";
+import type {
+  RouteEvent,
+  RouteEventAttemptDetail,
+} from "../../_generated/runtime_planner_types.js";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/**
- * Summary of a single attempt for telemetry purposes.
- *
- * Intentionally does NOT include the full gate_results array — only a
- * compact gate_summary with passed/failed code lists.
- */
-export interface AttemptDetail {
-  index: number;
-  locality: string;
-  mode: string;
-  engine: string | null;
-  status: string;
-  stage: string;
-  gate_summary: {
-    passed: string[];
-    failed: string[];
-  };
-  reason_code: string;
-}
-
-/**
- * Structured route event emitted after each request completes.
- *
- * Safe for telemetry upload. NEVER includes prompt, input, output, audio,
- * file_path, content, or messages.
- */
-/**
- * TODO(contracts): Replace with generated RouteEvent type from
- * octomil-contracts codegen when SDK type adoption lands. The field names
- * and shapes here are hand-maintained to match the browser SDK and Python
- * SDK — they should all converge on a single generated definition.
- */
-export interface RouteEvent {
-  route_id: string;
-  request_id: string;
-  plan_id?: string;
-  capability: string;
-  policy?: string;
-  planner_source?: string;
-  /** The locality where inference was ultimately executed. */
-  final_locality: string;
-  /** Alias for final_locality — cross-SDK canonical name. */
-  selected_locality: string;
-  /** The execution mode used (e.g. sdk_runtime, hosted_gateway, external_endpoint). */
-  final_mode: string;
-  engine: string | null;
-  fallback_used: boolean;
-  fallback_trigger_code?: string;
-  fallback_trigger_stage?: string;
-  candidate_attempts: number;
-  attempt_details?: AttemptDetail[];
-  // Model ref metadata
-  model_ref?: string;
-  model_ref_kind?: string;
-  // Deployment / experiment correlation
-  app_slug?: string;
-  app_id?: string;
-  deployment_id?: string;
-  experiment_id?: string;
-  variant_id?: string;
-  // Artifact info
-  artifact_id?: string;
-  // Cache status
-  cache_status?: string; // "hit" | "miss" | "not_applicable"
-  // Output quality gate metadata
-  quality_evaluator_name?: string;
-  quality_score?: number;
-  quality_reason_code?: string;
-  advisory_failures?: Array<{
-    code: string;
-    gate_class: string;
-    observed: number;
-    threshold: number;
-  }>;
-}
+export type { RouteEvent, RouteEventAttemptDetail as AttemptDetail };
 
 // ---------------------------------------------------------------------------
 // Forbidden fields — MUST be checked before emission
@@ -183,8 +113,8 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
   const { attemptResult } = input;
   const selected = attemptResult.selectedAttempt;
 
-  const locality = selected?.locality ?? "unknown";
-  const mode = selected?.mode ?? "unknown";
+  const locality = selected?.locality ?? null;
+  const mode = selected?.mode ?? null;
 
   const event: RouteEvent = {
     route_id: generateRouteId(),
@@ -201,17 +131,18 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
     engine: selected?.engine ?? null,
     fallback_used: attemptResult.fallbackUsed,
     fallback_trigger_code: attemptResult.fallbackTrigger?.code,
-    fallback_trigger_stage: attemptResult.fallbackTrigger?.stage,
+    fallback_trigger_stage: attemptResult.fallbackTrigger
+      ?.stage as RouteEvent["fallback_trigger_stage"],
     candidate_attempts: attemptResult.attempts.length,
     model_ref: input.model,
-    model_ref_kind: input.modelRefKind,
+    model_ref_kind: input.modelRefKind as RouteEvent["model_ref_kind"],
     app_slug: input.appSlug,
     app_id: input.appId,
     deployment_id: input.deploymentId,
     experiment_id: input.experimentId,
     variant_id: input.variantId,
     artifact_id: selected?.artifact?.id ?? undefined,
-    cache_status: selected?.artifact?.cache.status,
+    cache_status: selected?.artifact?.cache.status as RouteEvent["cache_status"],
   };
 
   // Build attempt details
@@ -227,7 +158,7 @@ export function buildRouteEvent(input: RouteEventBuilderInput): RouteEvent {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function attemptToDetail(attempt: RouteAttempt): AttemptDetail {
+function attemptToDetail(attempt: RouteAttempt): RouteEventAttemptDetail {
   const passed: string[] = [];
   const failed: string[] = [];
 

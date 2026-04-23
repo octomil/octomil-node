@@ -28,7 +28,7 @@ import type {
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "sdk_parity");
 const fixtures = readdirSync(FIXTURES_DIR)
-  .filter((f) => f.endsWith(".json"))
+  .filter((f) => f.endsWith(".json") && !f.startsWith("."))
   .map((f) => ({
     name: f.replace(".json", ""),
     data: JSON.parse(readFileSync(join(FIXTURES_DIR, f), "utf-8")),
@@ -83,7 +83,7 @@ describe("Contract Conformance", () => {
       }
     });
 
-    test.each(fixtures.filter((f) => f.data.request.model?.startsWith?.("@app/")))(
+    test.each(fixtures.filter((f) => f.data.request?.model?.startsWith?.("@app/")))(
       "$name: app refs carry app_resolution",
       ({ data }) => {
         expect(data.planner_response.app_resolution).toBeDefined();

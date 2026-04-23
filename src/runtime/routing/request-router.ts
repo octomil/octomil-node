@@ -25,13 +25,17 @@ import { parseModelRef, type ParsedModelRef } from "./model-ref-parser.js";
 import { buildRouteEvent, type RouteEvent } from "./route-event.js";
 import {
   normalizePlannerSource,
-  type RouteMetadata as ContractRouteMetadata,
-  type RouteExecution,
-  type RouteModel,
-  type PlannerInfo,
-  type FallbackInfo,
-  type RouteReason,
 } from "../../planner/types.js";
+import type {
+  FallbackInfo,
+  PlannerInfo,
+  RouteExecution,
+  RouteMetadata,
+  RouteModel,
+  RouteReason,
+} from "../../_generated/runtime_planner_types.js";
+
+export type { RouteMetadata } from "../../_generated/runtime_planner_types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,42 +93,6 @@ export interface RequestRoutingContext {
   requestId?: string;
 }
 
-/**
- * Route metadata attached to the response object.
- *
- * @deprecated Use {@link CanonicalRouteMetadata} (the contract-backed nested shape)
- * instead. This flat shape is retained for backward compatibility and will be
- * removed in a future major version. Access the canonical shape via
- * `RoutingDecision.canonicalMetadata`.
- */
-export interface RouteMetadata {
-  /** Parsed model reference kind. */
-  modelRefKind: string;
-  /** Parsed model reference. */
-  parsedRef: ParsedModelRef;
-  /** Final locality where inference ran. */
-  locality: "local" | "cloud";
-  /** Execution mode used. */
-  mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
-  /** Endpoint URL used for the request. */
-  endpoint: string;
-  /** Whether a planner plan was used (vs legacy direct route). */
-  plannerUsed: boolean;
-  /** Attempt loop result from CandidateAttemptRunner (if plan was used). */
-  attemptResult?: AttemptLoopResult;
-  /** Built route event for telemetry. */
-  routeEvent?: RouteEvent;
-}
-
-/**
- * Contract-backed canonical route metadata shape.
- *
- * Re-export from `planner/types.ts` for convenience. This is the canonical
- * nested shape defined in octomil-contracts, shared across all SDKs.
- * Prefer this over the flat {@link RouteMetadata}.
- */
-export type { ContractRouteMetadata as CanonicalRouteMetadata };
-
 /** Output of RequestRouter.resolve(). */
 export interface RoutingDecision {
   /** Where inference will run. */
@@ -133,13 +101,10 @@ export interface RoutingDecision {
   mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
   /** Endpoint URL to send the request to. */
   endpoint: string;
-  /**
-   * Flat route metadata for response attachment.
-   * @deprecated Use {@link canonicalMetadata} instead.
-   */
+  /** Contract-generated route metadata attached to response objects. */
   routeMetadata: RouteMetadata;
-  /** Contract-backed canonical route metadata (nested shape). */
-  canonicalMetadata: ContractRouteMetadata;
+  /** Contract-generated route event for telemetry correlation. */
+  routeEvent: RouteEvent;
   /** Attempt loop result. */
   attemptResult: AttemptLoopResult;
 }
@@ -156,6 +121,59 @@ export interface RouterConfig {
   runtimeChecker?: RuntimeChecker;
   /** Custom gate evaluator. */
   gateEvaluator?: GateEvaluator;
+}
+
+/**
+ * Build the contract-backed route metadata from routing context.
+ *
+ * This is the one public metadata shape for runtime routing. Product surfaces
+ * may attach it directly, but should not add local flat fields around it.
+ */
+export function buildRouteMetadata(
+  parsedRef: ParsedModelRef,
+  locality: "local" | "cloud",
+  mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint",
+  plannerSource: string,
+  attemptResult?: AttemptLoopResult,
+  engine?: string | null,
+): RouteMetadata {
+  const execution: RouteExecution = {
+    locality,
+    mode,
+    engine: engine ?? attemptResult?.selectedAttempt?.engine ?? null,
+  };
+
+  const model: RouteModel = {
+    requested: {
+      ref: parsedRef.raw,
+      kind: parsedRef.kind as RouteMetadata["model"]["requested"]["kind"],
+      capability: null,
+    },
+    resolved: null,
+  };
+
+  const planner: PlannerInfo = {
+    source: normalizePlannerSource(plannerSource) as RouteMetadata["planner"]["source"],
+  };
+
+  const fallback: FallbackInfo = {
+    used: attemptResult?.fallbackUsed ?? false,
+  };
+
+  const reason: RouteReason = {
+    code: attemptResult?.selectedAttempt ? "ok" : "no_candidate",
+    message: attemptResult?.selectedAttempt?.reason.message ?? "direct hosted",
+  };
+
+  return {
+    status: attemptResult?.selectedAttempt ? "selected" : "unavailable",
+    execution,
+    model,
+    artifact: null,
+    planner,
+    fallback,
+    reason,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,24 +280,14 @@ export class RequestRouter {
       locality,
       mode,
       endpoint,
-      routeMetadata: {
-        modelRefKind: parsedRef.kind,
-        parsedRef,
-        locality,
-        mode,
-        endpoint,
-        plannerUsed: true,
-        attemptResult: result,
-        routeEvent,
-      },
-      canonicalMetadata: this.buildCanonicalMetadata(
+      routeMetadata: buildRouteMetadata(
         parsedRef,
         locality,
         mode,
         plan.planner_source ?? "server",
-        plan.policy,
         result,
       ),
+      routeEvent,
       attemptResult: result,
     };
   }
@@ -342,24 +350,14 @@ export class RequestRouter {
       locality: "cloud",
       mode,
       endpoint,
-      routeMetadata: {
-        modelRefKind: parsedRef.kind,
-        parsedRef,
-        locality: "cloud",
-        mode,
-        endpoint,
-        plannerUsed: false,
-        attemptResult: result,
-        routeEvent,
-      },
-      canonicalMetadata: this.buildCanonicalMetadata(
+      routeMetadata: buildRouteMetadata(
         parsedRef,
         "cloud",
         mode,
         "offline",
-        undefined,
         result,
       ),
+      routeEvent,
       attemptResult: result,
     };
   }
@@ -447,59 +445,6 @@ export class RequestRouter {
 
   private supportsExternalEndpoint(capability: RoutableCapability): boolean {
     return !!this.config.externalEndpoint && EXTERNAL_ENDPOINT_CAPABLE.has(capability);
-  }
-
-  /**
-   * Build the canonical contract-backed route metadata from routing context.
-   */
-  private buildCanonicalMetadata(
-    parsedRef: ParsedModelRef,
-    locality: "local" | "cloud",
-    mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint",
-    plannerSource: string,
-    _policy?: string,
-    attemptResult?: AttemptLoopResult,
-    engine?: string | null,
-  ): ContractRouteMetadata {
-    const execution: RouteExecution = {
-      locality,
-      mode,
-      engine: engine ?? attemptResult?.selectedAttempt?.engine ?? null,
-    };
-
-    const model: RouteModel = {
-      requested: {
-        ref: parsedRef.raw,
-        kind: parsedRef.kind as ContractRouteMetadata["model"]["requested"]["kind"],
-        capability: null,
-      },
-      resolved: null,
-    };
-
-    const planner: PlannerInfo = {
-      source: normalizePlannerSource(plannerSource) as ContractRouteMetadata["planner"]["source"],
-    };
-
-    const fallback: FallbackInfo = {
-      used: attemptResult?.fallbackUsed ?? false,
-    };
-
-    const reason: RouteReason = {
-      code: attemptResult?.selectedAttempt
-        ? "ok"
-        : "no_candidate",
-      message: attemptResult?.selectedAttempt?.reason.message ?? "direct hosted",
-    };
-
-    return {
-      status: attemptResult?.selectedAttempt ? "selected" : "unavailable",
-      execution,
-      model,
-      artifact: null,
-      planner,
-      fallback,
-      reason,
-    };
   }
 
   private normalizeAttemptModes(

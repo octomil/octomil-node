@@ -1,5 +1,6 @@
 // Auto-generated from octomil-contracts runtime_planner schemas. Do not edit.
 
+import { ModelRefKind } from "./model_ref_kind.js";
 export interface AppResolution {
   app_id: string;
   app_slug?: string | null;
@@ -48,17 +49,17 @@ export interface RouteAttempt {
   index: number;
   locality: "local" | "cloud";
   mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
-  engine?: unknown;
+  engine?: string | null;
   artifact?: AttemptArtifact | null;
   status: "skipped" | "failed" | "selected";
-  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference";
+  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
   gate_results?: Array<GateResult>;
   reason: Record<string, unknown>;
 }
 
 export interface AttemptArtifact {
-  id?: unknown;
-  digest?: unknown;
+  id?: string | null;
+  digest?: string | null;
   cache?: Record<string, unknown>;
 }
 
@@ -67,7 +68,55 @@ export interface GateResult {
   status: "passed" | "failed" | "unknown" | "not_required";
   observed_number?: number;
   threshold_number?: number;
-  reason_code?: unknown;
+  reason_code?: string | null;
+  gate_class?: "readiness" | "performance" | "output_quality";
+  evaluation_phase?: "pre_inference" | "during_inference" | "post_inference";
+  required?: boolean;
+  fallback_eligible?: boolean;
+  observed_string?: string;
+  safe_metadata?: Record<string, unknown>;
+}
+
+export interface RouteEvent {
+  route_id: string;
+  request_id: string;
+  plan_id?: string | null;
+  app_id?: string | null;
+  app_slug?: string | null;
+  deployment_id?: string | null;
+  experiment_id?: string | null;
+  variant_id?: string | null;
+  capability?: string | null;
+  policy?: string | null;
+  planner_source?: "server" | "cache" | "offline" | null;
+  model_ref?: string | null;
+  model_ref_kind?: ModelRefKind | null;
+  selected_locality?: "local" | "cloud" | null;
+  final_locality?: "local" | "cloud" | null;
+  final_mode?: "sdk_runtime" | "hosted_gateway" | "external_endpoint" | null;
+  engine?: string | null;
+  artifact_id?: string | null;
+  cache_status?: "hit" | "miss" | "downloaded" | "not_applicable" | "unavailable" | null;
+  fallback_used: boolean;
+  fallback_trigger_code?: string | null;
+  fallback_trigger_stage?: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality" | "timeout" | "not_applicable" | null;
+  candidate_attempts: number;
+  attempt_details?: Array<RouteEventAttemptDetail>;
+  ttft_ms?: number | null;
+  tokens_per_second?: number | null;
+  total_tokens?: number | null;
+  duration_ms?: number | null;
+}
+
+export interface RouteEventAttemptDetail {
+  index: number;
+  locality: "local" | "cloud";
+  mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
+  engine: string | null;
+  status: "skipped" | "failed" | "selected";
+  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
+  gate_summary: Record<string, unknown>;
+  reason_code: string;
 }
 
 export interface RouteMetadata {
@@ -167,7 +216,7 @@ export interface RuntimeBenchmarkSubmissionResponse {
 }
 
 export interface RuntimeDefaultsResponse {
-  default_engines: Record<string, unknown>;
+  default_engines: Record<string, Array<string>>;
   supported_capabilities: Array<string>;
   supported_policies: Array<string>;
   plan_ttl_seconds: number;
