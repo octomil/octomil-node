@@ -79,6 +79,16 @@ export interface RouteEvent {
   artifact_id?: string;
   // Cache status
   cache_status?: string; // "hit" | "miss" | "not_applicable"
+  // Output quality gate metadata
+  quality_evaluator_name?: string;
+  quality_score?: number;
+  quality_reason_code?: string;
+  advisory_failures?: Array<{
+    code: string;
+    gate_class: string;
+    observed: number;
+    threshold: number;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
