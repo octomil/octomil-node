@@ -52,5 +52,6 @@ export async function collectDeviceRuntimeProfile(): Promise<DeviceRuntimeProfil
         available: true,
       },
     ],
+    supported_gate_codes: [],
   };
 }
