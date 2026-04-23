@@ -800,9 +800,6 @@ export class CandidateAttemptRunner {
         );
 
         if (outputQualityGates.length > 0 && opts.outputQualityEvaluator) {
-          const firstOutputVisible =
-            opts.firstOutputEmitted?.() ?? false;
-
           let qualityFailure: {
             gate: CandidateGate;
             result: GateResult;
