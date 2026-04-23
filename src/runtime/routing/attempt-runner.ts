@@ -8,6 +8,15 @@
  * The Node SDK is server-side, so primary modes are `hosted_gateway` (cloud)
  * and `external_endpoint` (user's local serve instance). `sdk_runtime` is
  * supported for ONNX-backed local inference when an engine is installed.
+ *
+ * Gate taxonomy (v1.19.0):
+ * - readiness gates: artifact_verified, runtime_available, model_loads,
+ *   context_fits, modality_supported, tool_support, require_wifi — pre_inference
+ * - performance gates: min_tokens_per_second, max_error_rate,
+ *   min_free_memory_bytes, min_free_storage_bytes, benchmark_fresh, min_battery_pct,
+ *   max_thermal_state, require_charging — pre_inference; max_ttft_ms — during_inference
+ * - output_quality gates: schema_valid, tool_call_valid, safety_passed,
+ *   evaluator_score_min, json_parseable, max_refusal_rate — post_inference
  */
 
 // ---------------------------------------------------------------------------
@@ -30,6 +39,7 @@ export enum AttemptStage {
   Benchmark = "benchmark",
   Gate = "gate",
   Inference = "inference",
+  OutputQuality = "output_quality",
 }
 
 /** Outcome of an attempt. */
@@ -48,7 +58,7 @@ export enum GateStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Gate codes — the 12 canonical codes from the contract
+// Gate codes — the 22 canonical codes from the contract (v1.19.0)
 // ---------------------------------------------------------------------------
 
 export const GATE_CODES = [
@@ -64,9 +74,165 @@ export const GATE_CODES = [
   "min_free_memory_bytes",
   "min_free_storage_bytes",
   "benchmark_fresh",
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
+  "schema_valid",
+  "tool_call_valid",
+  "safety_passed",
+  "evaluator_score_min",
+  "json_parseable",
+  "max_refusal_rate",
 ] as const;
 
 export type GateCode = (typeof GATE_CODES)[number];
+
+// ---------------------------------------------------------------------------
+// Gate classification — canonical map from gate code to class and phase
+// ---------------------------------------------------------------------------
+
+export type GateClassValue = "readiness" | "performance" | "output_quality";
+export type EvaluationPhaseValue =
+  | "pre_inference"
+  | "during_inference"
+  | "post_inference";
+
+export interface GateClassification {
+  gate_class: GateClassValue;
+  evaluation_phase: EvaluationPhaseValue;
+  blocking_default: boolean;
+}
+
+export const GATE_CLASSIFICATION: Record<string, GateClassification> = {
+  artifact_verified: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  runtime_available: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  model_loads: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  context_fits: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  modality_supported: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  tool_support: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  min_tokens_per_second: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  max_ttft_ms: {
+    gate_class: "performance",
+    evaluation_phase: "during_inference",
+    blocking_default: false,
+  },
+  max_error_rate: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  min_free_memory_bytes: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  min_free_storage_bytes: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  benchmark_fresh: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  // Device-environment gates
+  min_battery_pct: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  max_thermal_state: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_charging: {
+    gate_class: "performance",
+    evaluation_phase: "pre_inference",
+    blocking_default: false,
+  },
+  require_wifi: {
+    gate_class: "readiness",
+    evaluation_phase: "pre_inference",
+    blocking_default: true,
+  },
+  schema_valid: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: true,
+  },
+  tool_call_valid: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: true,
+  },
+  safety_passed: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: true,
+  },
+  evaluator_score_min: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: false,
+  },
+  json_parseable: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: true,
+  },
+  max_refusal_rate: {
+    gate_class: "output_quality",
+    evaluation_phase: "post_inference",
+    blocking_default: false,
+  },
+};
+
+const DEVICE_ENVIRONMENT_GATE_CODES = new Set<string>([
+  "min_battery_pct",
+  "max_thermal_state",
+  "require_charging",
+  "require_wifi",
+]);
+
+/**
+ * Look up the gate classification for a code. Returns undefined for unknown codes.
+ */
+export function classifyGate(
+  code: string,
+): GateClassification | undefined {
+  return GATE_CLASSIFICATION[code];
+}
 
 // ---------------------------------------------------------------------------
 // Interfaces — wire-format aligned with route_attempt.schema.json
@@ -79,6 +245,10 @@ export interface GateResult {
   observed_number?: number;
   threshold_number?: number;
   reason_code?: string | null;
+  gate_class?: GateClassValue;
+  evaluation_phase?: EvaluationPhaseValue;
+  observed_string?: string;
+  safe_metadata?: Record<string, unknown>;
 }
 
 /** Artifact state at time of attempt. */
@@ -112,6 +282,11 @@ export interface FallbackTrigger {
   code: string;
   stage: string;
   message: string;
+  gate_code?: string;
+  gate_class?: GateClassValue;
+  evaluation_phase?: EvaluationPhaseValue;
+  candidate_index?: number;
+  output_visible_before_failure?: boolean;
 }
 
 /** Result of running the full attempt loop. */
@@ -124,6 +299,13 @@ export interface AttemptLoopResult<T = unknown> {
   toAttempt: number | null;
   value?: T;
   error?: unknown;
+  /** Advisory gate failures recorded but not blocking selection. */
+  advisoryFailures?: Array<{
+    code: string;
+    gate_class: string;
+    observed: number;
+    threshold: number;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +329,19 @@ export interface GateEvaluator {
   ): GateResult;
 }
 
+/**
+ * Evaluates output quality gates after inference completes.
+ *
+ * Called with the inference output to validate schema conformance,
+ * tool call validity, safety, etc.
+ */
+export interface OutputQualityGateEvaluator {
+  evaluate(
+    gate: CandidateGate,
+    output: unknown,
+  ): GateResult;
+}
+
 // ---------------------------------------------------------------------------
 // Candidate plan — input from the runtime planner
 // ---------------------------------------------------------------------------
@@ -159,6 +354,10 @@ export interface CandidateGate {
   threshold_string?: string;
   window_seconds?: number;
   source: "server" | "sdk" | "runtime";
+  gate_class?: GateClassValue;
+  evaluation_phase?: EvaluationPhaseValue;
+  fallback_eligible?: boolean;
+  blocking_default?: boolean;
 }
 
 /** A single candidate from the runtime plan response. */
@@ -195,7 +394,10 @@ export class NoOpRuntimeChecker implements RuntimeChecker {
 }
 
 /**
- * Default GateEvaluator: required gates pass, optional gates return not_required.
+ * Default GateEvaluator: required generic gates are unknown and optional gates
+ * return not_required. Required device-environment gates fail closed because the
+ * Node SDK cannot prove battery, thermal, charging, or Wi-Fi state unless the
+ * caller injects a platform-specific evaluator.
  *
  * Used when no gate evaluator is provided. In production, the facade injects
  * a real evaluator that reads benchmark history, memory stats, etc.
@@ -204,13 +406,89 @@ export class NoOpGateEvaluator implements GateEvaluator {
   evaluate(
     gate: CandidateGate,
     _engine: string | null,
-    _locality: string,
+    locality: string,
   ): GateResult {
-    if (!gate.required) {
-      return { code: gate.code, status: GateStatus.NotRequired };
+    const classification = classifyGate(gate.code);
+    if (DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) {
+      return {
+        code: gate.code,
+        status:
+          locality !== "local"
+            ? GateStatus.NotRequired
+            : gate.required
+              ? GateStatus.Failed
+              : GateStatus.Unknown,
+        threshold_number: gate.threshold_number,
+        reason_code:
+          locality === "local" && gate.required
+            ? gate.code === "require_wifi"
+              ? "network_state_unavailable"
+              : "device_metric_unavailable"
+            : undefined,
+        gate_class: gate.gate_class ?? classification?.gate_class,
+        evaluation_phase:
+          gate.evaluation_phase ?? classification?.evaluation_phase,
+      };
     }
-    return { code: gate.code, status: GateStatus.Unknown };
+
+    const base: GateResult = {
+      code: gate.code,
+      status: gate.required ? GateStatus.Unknown : GateStatus.NotRequired,
+      gate_class: gate.gate_class ?? classification?.gate_class,
+      evaluation_phase:
+        gate.evaluation_phase ?? classification?.evaluation_phase,
+    };
+    if (!gate.required) {
+      base.status = GateStatus.NotRequired;
+    }
+    return base;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers for gate classification
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the effective gate class and evaluation phase for a gate.
+ * Uses explicit values from the gate if present, otherwise falls back
+ * to the GATE_CLASSIFICATION map.
+ */
+function resolveGateClassification(gate: CandidateGate): {
+  gate_class: GateClassValue | undefined;
+  evaluation_phase: EvaluationPhaseValue | undefined;
+} {
+  const classification = classifyGate(gate.code);
+  return {
+    gate_class: gate.gate_class ?? classification?.gate_class,
+    evaluation_phase:
+      gate.evaluation_phase ?? classification?.evaluation_phase,
+  };
+}
+
+/**
+ * Enrich a GateResult with gate_class and evaluation_phase from the gate
+ * or the classification map.
+ */
+function enrichGateResult(
+  result: GateResult,
+  gate: CandidateGate,
+): GateResult {
+  const { gate_class, evaluation_phase } = resolveGateClassification(gate);
+  return {
+    ...result,
+    gate_class: result.gate_class ?? gate_class,
+    evaluation_phase: result.evaluation_phase ?? evaluation_phase,
+  };
+}
+
+/**
+ * Returns true if the gate is an output_quality gate that should be
+ * evaluated post-inference rather than pre-inference.
+ */
+function isOutputQualityGate(gate: CandidateGate): boolean {
+  const { evaluation_phase } = resolveGateClassification(gate);
+  return evaluation_phase === "post_inference";
 }
 
 // ---------------------------------------------------------------------------
@@ -223,9 +501,13 @@ export class NoOpGateEvaluator implements GateEvaluator {
  * Iterates over candidates in priority order. For each candidate:
  * 1. Determine execution mode from locality
  * 2. Check runtime availability (prepare stage)
- * 3. Evaluate all gates except runtime_available (already checked)
- * 4. If all required gates pass -> status=selected, stage=inference
+ * 3. Evaluate pre-inference gates (readiness + performance)
+ * 4. If all required pre-inference gates pass -> status=selected, stage=inference
  * 5. If any required gate fails -> status=failed, record trigger, try next
+ *
+ * Output quality gates (post_inference phase) are skipped during the
+ * pre-inference `run()` method. They are evaluated in `runWithInference()`
+ * after the inference call completes.
  *
  * When fallbackAllowed=false (private/local_only policy), the loop stops
  * after the first failure without attempting subsequent candidates.
@@ -260,6 +542,10 @@ export class CandidateAttemptRunner {
 
   /**
    * Run the attempt loop over the given candidates.
+   *
+   * Output quality gates (post_inference) are skipped here since there is
+   * no inference output to evaluate. Use `runWithInference()` for the full
+   * gate lifecycle including post-inference quality checks.
    *
    * @param candidates - Ordered list of candidates from the runtime planner.
    * @param opts - Optional runtime checker and gate evaluator.
@@ -303,6 +589,8 @@ export class CandidateAttemptRunner {
             code: "runtime_available",
             status: GateStatus.Failed,
             reason_code: runtimeCheck.reasonCode ?? "engine_not_installed",
+            gate_class: "readiness",
+            evaluation_phase: "pre_inference",
           },
         ];
 
@@ -330,6 +618,11 @@ export class CandidateAttemptRunner {
             code: "runtime_unavailable",
             stage: AttemptStage.Prepare,
             message: failedAttempt.reason.message,
+            gate_code: "runtime_available",
+            gate_class: "readiness",
+            evaluation_phase: "pre_inference",
+            candidate_index: i,
+            output_visible_before_failure: false,
           };
         }
 
@@ -340,7 +633,8 @@ export class CandidateAttemptRunner {
       }
 
       // ---------------------------------------------------------------
-      // Stage: gate — evaluate all gates
+      // Stage: gate — evaluate pre-inference gates only
+      // Output quality gates are deferred to post-inference evaluation.
       // ---------------------------------------------------------------
 
       const gates = candidate.gates ?? [];
@@ -350,9 +644,12 @@ export class CandidateAttemptRunner {
       gateResults.push({
         code: "runtime_available",
         status: GateStatus.Passed,
+        gate_class: "readiness",
+        evaluation_phase: "pre_inference",
       });
 
       let gateFailure: GateResult | null = null;
+      let failedGateCode: string | undefined;
 
       for (const gate of gates) {
         // Skip runtime_available — we already checked it
@@ -360,7 +657,15 @@ export class CandidateAttemptRunner {
           continue;
         }
 
-        const result = gateEvaluator.evaluate(gate, engine, candidate.locality);
+        // Skip output_quality gates — they are evaluated post-inference
+        if (isOutputQualityGate(gate)) {
+          continue;
+        }
+
+        const result = enrichGateResult(
+          gateEvaluator.evaluate(gate, engine, candidate.locality),
+          gate,
+        );
         gateResults.push(result);
 
         if (
@@ -369,6 +674,23 @@ export class CandidateAttemptRunner {
           gateFailure === null
         ) {
           gateFailure = result;
+          failedGateCode = gate.code;
+        }
+
+        // Unknown required gate: fail closed
+        if (
+          gate.required &&
+          result.status === GateStatus.Unknown &&
+          (!classifyGate(gate.code) ||
+            DEVICE_ENVIRONMENT_GATE_CODES.has(gate.code)) &&
+          gateFailure === null
+        ) {
+          gateFailure = {
+            ...result,
+            status: GateStatus.Failed,
+            reason_code: "unknown_required_gate",
+          };
+          failedGateCode = gate.code;
         }
       }
 
@@ -397,6 +719,11 @@ export class CandidateAttemptRunner {
             code: "gate_failed",
             stage: AttemptStage.Gate,
             message: failedAttempt.reason.message,
+            gate_code: failedGateCode,
+            gate_class: gateFailure.gate_class,
+            evaluation_phase: gateFailure.evaluation_phase,
+            candidate_index: i,
+            output_visible_before_failure: false,
           };
         }
 
@@ -407,7 +734,7 @@ export class CandidateAttemptRunner {
       }
 
       // ---------------------------------------------------------------
-      // All gates passed — mark selected
+      // All pre-inference gates passed — mark selected
       // ---------------------------------------------------------------
 
       const selected: RouteAttempt = {
@@ -453,14 +780,19 @@ export class CandidateAttemptRunner {
   /**
    * Run readiness checks and execute inference for the selected candidate.
    *
-   * This is the product-path API. It records inference-stage failures instead
-   * of declaring a candidate selected before the request actually runs.
+   * This is the product-path API. After pre-inference gates pass, inference
+   * is executed. Then output_quality gates are evaluated against the result.
+   *
+   * Post-inference gate failure before output is visible to the caller
+   * triggers fallback to the next candidate. After the first token is
+   * emitted (streaming), no fallback is possible.
    */
   async runWithInference<T>(
     candidates: CandidatePlan[],
     opts: {
       runtimeChecker?: RuntimeChecker;
       gateEvaluator?: GateEvaluator;
+      outputQualityEvaluator?: OutputQualityGateEvaluator;
       executeCandidate: (
         candidate: CandidatePlan,
         attempt: RouteAttempt,
@@ -477,6 +809,12 @@ export class CandidateAttemptRunner {
     let fromAttempt: number | null = null;
     let toAttempt: number | null = null;
     let lastError: unknown;
+    const advisoryFailures: Array<{
+      code: string;
+      gate_class: string;
+      observed: number;
+      threshold: number;
+    }> = [];
 
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i]!;
@@ -514,6 +852,130 @@ export class CandidateAttemptRunner {
 
       try {
         const value = await opts.executeCandidate(candidate, selectedAttempt);
+
+        // -----------------------------------------------------------
+        // Post-inference: evaluate output_quality gates
+        // -----------------------------------------------------------
+        const outputQualityGates = (candidate.gates ?? []).filter(
+          isOutputQualityGate,
+        );
+
+        if (outputQualityGates.length > 0) {
+          let qualityFailure: {
+            gate: CandidateGate;
+            result: GateResult;
+          } | null = null;
+
+          for (const gate of outputQualityGates) {
+            const result = enrichGateResult(
+              opts.outputQualityEvaluator
+                ? opts.outputQualityEvaluator.evaluate(gate, value)
+                : {
+                    code: gate.code,
+                    status: gate.required
+                      ? GateStatus.Failed
+                      : GateStatus.Unknown,
+                    reason_code: "no_evaluator",
+                  },
+              gate,
+            );
+            selectedAttempt.gate_results.push(result);
+
+            if (result.status === GateStatus.Failed) {
+              if (gate.required) {
+                if (qualityFailure === null) {
+                  qualityFailure = { gate, result };
+                }
+              } else {
+                // Advisory failure — record but don't block
+                advisoryFailures.push({
+                  code: gate.code,
+                  gate_class:
+                    result.gate_class ?? "output_quality",
+                  observed: result.observed_number ?? 0,
+                  threshold: result.threshold_number ?? 0,
+                });
+              }
+            }
+          }
+
+          if (qualityFailure !== null) {
+            const { gate, result } = qualityFailure;
+            const outputVisible =
+              opts.firstOutputEmitted?.() ?? false;
+
+            // Record as failed attempt at output_quality stage
+            const failedAttempt: RouteAttempt = {
+              ...selectedAttempt,
+              status: AttemptStatus.Failed,
+              stage: AttemptStage.OutputQuality,
+              reason: {
+                code: "gate_failed",
+                message: outputVisible
+                  ? `${gate.code} gate failed after first token; output already visible`
+                  : `${gate.code} gate failed`,
+              },
+            };
+            this.attempts.push(failedAttempt);
+
+            const trigger: FallbackTrigger = {
+              code: "gate_failed",
+              stage: AttemptStage.OutputQuality,
+              message: failedAttempt.reason.message,
+              gate_code: gate.code,
+              gate_class: result.gate_class ?? "output_quality",
+              evaluation_phase:
+                result.evaluation_phase ?? "post_inference",
+              candidate_index: i,
+              output_visible_before_failure: outputVisible,
+            };
+
+            if (outputVisible) {
+              // Output already visible — cannot fallback, record
+              // the trigger but don't use fallback
+              return {
+                selectedAttempt: null,
+                attempts: this.attempts,
+                fallbackUsed: false,
+                fallbackTrigger: trigger,
+                fromAttempt: null,
+                toAttempt: null,
+                error: new Error(failedAttempt.reason.message),
+                advisoryFailures:
+                  advisoryFailures.length > 0
+                    ? advisoryFailures
+                    : undefined,
+              };
+            }
+
+            // Output not visible — can try fallback
+            if (fallbackTrigger === null) {
+              fallbackTrigger = trigger;
+              fromAttempt = i;
+            }
+
+            if (this.fallbackAllowed && i < candidates.length - 1) {
+              continue;
+            }
+
+            // No fallback possible (disabled or last candidate)
+            return {
+              selectedAttempt: null,
+              attempts: this.attempts,
+              fallbackUsed: false,
+              fallbackTrigger: trigger,
+              fromAttempt: null,
+              toAttempt: null,
+              error: new Error(failedAttempt.reason.message),
+              advisoryFailures:
+                advisoryFailures.length > 0
+                  ? advisoryFailures
+                  : undefined,
+            };
+          }
+        }
+
+        // All gates (including output quality) passed
         this.attempts.push(selectedAttempt);
         if (fallbackTrigger !== null) {
           toAttempt = i;
@@ -527,6 +989,8 @@ export class CandidateAttemptRunner {
           fromAttempt: fallbackUsed ? fromAttempt : null,
           toAttempt: fallbackUsed ? toAttempt : null,
           value,
+          advisoryFailures:
+            advisoryFailures.length > 0 ? advisoryFailures : undefined,
         };
       } catch (error) {
         lastError = error;

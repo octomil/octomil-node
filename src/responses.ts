@@ -22,6 +22,10 @@ import {
   type CandidatePlan,
   type RuntimeChecker,
 } from "./runtime/routing/attempt-runner.js";
+import {
+  EvaluatorRegistry,
+  RegistryBackedEvaluator,
+} from "./runtime/routing/evaluators.js";
 import type { PlannerClient } from "./runtime/routing/planner-client.js";
 import {
   buildRouteMetadata,
@@ -281,6 +285,7 @@ export class ResponsesClient {
       this.responseCandidates(localRuntime),
       {
         runtimeChecker: this.responseRuntimeChecker(localRuntime),
+        outputQualityEvaluator: this.outputQualityEvaluatorForRequest(request),
         executeCandidate: async (candidate) => {
           if (candidate.locality === "local") {
             return this.createLocal(request, localRuntime);
@@ -314,6 +319,7 @@ export class ResponsesClient {
 
     const result = await runner.runWithInference<ResponseObj>(candidates, {
       runtimeChecker: this.responsePlannerRuntimeChecker(localRuntime),
+      outputQualityEvaluator: this.outputQualityEvaluatorForRequest(request),
       executeCandidate: async (candidate) => {
         if (candidate.locality === "local") {
           if (localRuntime) {
@@ -759,6 +765,35 @@ export class ResponsesClient {
     request: ResponseRequest,
   ): boolean {
     return (plan?.fallback_allowed ?? true) && this.cloudFallbackAllowed(request);
+  }
+
+  private outputQualityEvaluatorForRequest(
+    request: ResponseRequest,
+  ): RegistryBackedEvaluator {
+    return new RegistryBackedEvaluator(
+      EvaluatorRegistry.withDefaults({
+        jsonSchema: this.parseJsonSchemaMetadata(request),
+      }),
+    );
+  }
+
+  private parseJsonSchemaMetadata(
+    request: ResponseRequest,
+  ): Record<string, unknown> | undefined {
+    const raw =
+      request.metadata?.json_schema ??
+      request.metadata?.jsonSchema ??
+      request.metadata?.response_schema ??
+      request.metadata?.responseSchema;
+    if (!raw) return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private findCloudCandidateIndex(
