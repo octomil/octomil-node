@@ -23,9 +23,7 @@ import {
 } from "./attempt-runner.js";
 import { parseModelRef, type ParsedModelRef } from "./model-ref-parser.js";
 import { buildRouteEvent, type RouteEvent } from "./route-event.js";
-import {
-  normalizePlannerSource,
-} from "../../planner/types.js";
+import { normalizePlannerSource } from "../../planner/types.js";
 import type {
   FallbackInfo,
   PlannerInfo,
@@ -42,7 +40,12 @@ export type { RouteMetadata } from "../../_generated/runtime_planner_types.js";
 // ---------------------------------------------------------------------------
 
 /** Capability surface being routed. */
-export type RoutableCapability = "chat" | "embeddings" | "audio" | "responses";
+export type RoutableCapability =
+  | "chat"
+  | "embeddings"
+  | "audio"
+  | "responses"
+  | "tts";
 
 /** A planner result from the server planner API. */
 export interface PlannerResult {
@@ -153,7 +156,9 @@ export function buildRouteMetadata(
   };
 
   const planner: PlannerInfo = {
-    source: normalizePlannerSource(plannerSource) as RouteMetadata["planner"]["source"],
+    source: normalizePlannerSource(
+      plannerSource,
+    ) as RouteMetadata["planner"]["source"],
   };
 
   const fallback: FallbackInfo = {
@@ -181,14 +186,14 @@ export function buildRouteMetadata(
 // ---------------------------------------------------------------------------
 
 /**
- * Only chat and responses support external_endpoint routing.
- * Embeddings and audio are cloud-only in the Node SDK unless an
- * external_endpoint is explicitly configured.
+ * Only capabilities with an OpenAI-compatible local endpoint support
+ * external_endpoint routing.
  */
 const EXTERNAL_ENDPOINT_CAPABLE: Set<RoutableCapability> = new Set([
   "chat",
   "responses",
   "embeddings",
+  "tts",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -215,7 +220,8 @@ export class RequestRouter {
   resolve(ctx: RequestRoutingContext): RoutingDecision {
     const parsedRef = parseModelRef(ctx.model);
     const requestId =
-      ctx.requestId ?? `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      ctx.requestId ??
+      `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
     // If we have a planner result, use the attempt runner
     if (ctx.plannerResult) {
@@ -235,7 +241,8 @@ export class RequestRouter {
     requestId: string,
   ): RoutingDecision {
     const plan = ctx.plannerResult!;
-    const fallbackAllowed = plan.fallback_allowed && !this.isPolicyRestricted(ctx);
+    const fallbackAllowed =
+      plan.fallback_allowed && !this.isPolicyRestricted(ctx);
 
     // Build a runtime checker that understands Node SDK capabilities
     const runtimeChecker = this.buildRuntimeChecker(ctx.capability);
@@ -374,7 +381,8 @@ export class RequestRouter {
    */
   private buildRuntimeChecker(capability: RoutableCapability): RuntimeChecker {
     const externalConfigured = !!this.config.externalEndpoint;
-    const capabilitySupportsExternal = EXTERNAL_ENDPOINT_CAPABLE.has(capability);
+    const capabilitySupportsExternal =
+      EXTERNAL_ENDPOINT_CAPABLE.has(capability);
     const injected = this.config.runtimeChecker;
 
     return {
@@ -417,7 +425,9 @@ export class RequestRouter {
     if (locality === "cloud") {
       return "hosted_gateway";
     }
-    return this.supportsExternalEndpoint(capability) ? "external_endpoint" : "sdk_runtime";
+    return this.supportsExternalEndpoint(capability)
+      ? "external_endpoint"
+      : "sdk_runtime";
   }
 
   /**
@@ -444,16 +454,20 @@ export class RequestRouter {
   }
 
   private supportsExternalEndpoint(capability: RoutableCapability): boolean {
-    return !!this.config.externalEndpoint && EXTERNAL_ENDPOINT_CAPABLE.has(capability);
+    return (
+      !!this.config.externalEndpoint &&
+      EXTERNAL_ENDPOINT_CAPABLE.has(capability)
+    );
   }
 
   private normalizeAttemptModes(
     result: AttemptLoopResult,
     capability: RoutableCapability,
   ): AttemptLoopResult {
-    const localMode: "external_endpoint" | "sdk_runtime" = this.supportsExternalEndpoint(capability)
-      ? "external_endpoint"
-      : "sdk_runtime";
+    const localMode: "external_endpoint" | "sdk_runtime" =
+      this.supportsExternalEndpoint(capability)
+        ? "external_endpoint"
+        : "sdk_runtime";
 
     const normalizeAttempt = (
       attempt: AttemptLoopResult["attempts"][number],
