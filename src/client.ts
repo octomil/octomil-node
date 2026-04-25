@@ -14,7 +14,14 @@ import { ControlClient } from "./control.js";
 import { ModelsClient } from "./models.js";
 import { embed as embedFn } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
-import type { OctomilClientOptions, PullOptions, LoadOptions, PredictInput, PredictOutput, CacheInfo } from "./types.js";
+import type {
+  OctomilClientOptions,
+  PullOptions,
+  LoadOptions,
+  PredictInput,
+  PredictOutput,
+  CacheInfo,
+} from "./types.js";
 import { OctomilError } from "./types.js";
 import { streamInference } from "./streaming.js";
 import type { StreamToken, StreamInput } from "./streaming.js";
@@ -78,16 +85,26 @@ export class OctomilClient {
     }
     this.serverUrl = auth.serverUrl ?? DEFAULT_SERVER_URL;
     this.cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
-    this.downloader = new ModelDownloader(this.serverUrl, this.apiKey, this.orgId);
+    this.downloader = new ModelDownloader(
+      this.serverUrl,
+      this.apiKey,
+      this.orgId,
+    );
     this.cache = new FileCache(this.cacheDir);
     const deviceId = auth.type === "device_token" ? auth.deviceId : undefined;
     const installId = DeviceContext.getOrCreateInstallationId();
-    this._telemetry = options.telemetry !== false
-      ? new TelemetryReporter(
-          this.serverUrl, this.apiKey, this.orgId,
-          undefined, undefined, deviceId, installId,
-        )
-      : null;
+    this._telemetry =
+      options.telemetry !== false
+        ? new TelemetryReporter(
+            this.serverUrl,
+            this.apiKey,
+            this.orgId,
+            undefined,
+            undefined,
+            deviceId,
+            installId,
+          )
+        : null;
     this.responsesRuntime = options.responsesRuntime;
   }
 
@@ -101,14 +118,22 @@ export class OctomilClient {
     if (!this._telemetry) return NOOP_TELEMETRY;
     const reporter = this._telemetry;
     return {
-      flush() { void reporter.flush(); },
-      track(name: string, attributes: Record<string, unknown>) { reporter.track(name, attributes); },
+      flush() {
+        void reporter.flush();
+      },
+      track(name: string, attributes: Record<string, unknown>) {
+        reporter.track(name, attributes);
+      },
     };
   }
 
   get integrations(): IntegrationsClient {
     if (!this._integrations) {
-      this._integrations = new IntegrationsClient(this.serverUrl, this.apiKey, this.orgId);
+      this._integrations = new IntegrationsClient(
+        this.serverUrl,
+        this.apiKey,
+        this.orgId,
+      );
     }
     return this._integrations;
   }
@@ -146,7 +171,11 @@ export class OctomilClient {
 
   get control(): ControlClient {
     if (!this._control) {
-      this._control = new ControlClient(this.serverUrl, this.apiKey, this.orgId);
+      this._control = new ControlClient(
+        this.serverUrl,
+        this.apiKey,
+        this.orgId,
+      );
     }
     return this._control;
   }
@@ -166,9 +195,11 @@ export class OctomilClient {
 
   get audio(): OctomilAudio {
     if (!this._audio) {
-      this._audio = new OctomilAudio((ref: ModelRef) =>
-        this._catalog?.runtimeForRef(ref),
-      );
+      this._audio = new OctomilAudio({
+        runtimeResolver: (ref: ModelRef) => this._catalog?.runtimeForRef(ref),
+        serverUrl: this.serverUrl,
+        apiKey: this.apiKey,
+      });
     }
     return this._audio;
   }
@@ -202,7 +233,11 @@ export class OctomilClient {
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {
     // Resolve from registry
-    const pullResult = await this.downloader.resolve(modelRef, options?.version, options?.format);
+    const pullResult = await this.downloader.resolve(
+      modelRef,
+      options?.version,
+      options?.format,
+    );
 
     // Check cache (unless force)
     if (!options?.force && this.cache.has(modelRef, pullResult.checksum)) {
@@ -210,8 +245,12 @@ export class OctomilClient {
       if (cachedPath) {
         this._telemetry?.track("cache_hit", { "model.id": modelRef });
         return new Model(
-          modelRef, cachedPath, new InferenceEngine(), this._telemetry,
-          pullResult.tag, pullResult.format,
+          modelRef,
+          cachedPath,
+          new InferenceEngine(),
+          this._telemetry,
+          pullResult.tag,
+          pullResult.format,
         );
       }
     }
@@ -219,7 +258,11 @@ export class OctomilClient {
     // Download
     const destDir = join(this.cacheDir, ...modelRef.split(":"));
     const destPath = join(destDir, "model.onnx");
-    await this.downloader.download(pullResult.downloadUrl, destPath, options?.onProgress);
+    await this.downloader.download(
+      pullResult.downloadUrl,
+      destPath,
+      options?.onProgress,
+    );
 
     // Verify integrity
     if (pullResult.checksum) {
@@ -242,14 +285,24 @@ export class OctomilClient {
       sizeBytes,
     });
 
-    this._telemetry?.track("model_download", { "model.id": modelRef, "model.size_bytes": sizeBytes });
+    this._telemetry?.track("model_download", {
+      "model.id": modelRef,
+      "model.size_bytes": sizeBytes,
+    });
     return new Model(
-      modelRef, destPath, new InferenceEngine(), this._telemetry,
-      pullResult.tag, pullResult.format,
+      modelRef,
+      destPath,
+      new InferenceEngine(),
+      this._telemetry,
+      pullResult.tag,
+      pullResult.format,
     );
   }
 
-  private async getModel(modelRef: string, options?: PullOptions & LoadOptions): Promise<Model> {
+  private async getModel(
+    modelRef: string,
+    options?: PullOptions & LoadOptions,
+  ): Promise<Model> {
     const cached = this._loadedModels.get(modelRef);
     if (cached?.isLoaded) return cached;
 
@@ -259,7 +312,11 @@ export class OctomilClient {
     return model;
   }
 
-  async predict(modelRef: string, input: PredictInput, options?: PullOptions & LoadOptions): Promise<PredictOutput> {
+  async predict(
+    modelRef: string,
+    input: PredictInput,
+    options?: PullOptions & LoadOptions,
+  ): Promise<PredictOutput> {
     const model = await this.getModel(modelRef, options);
     return model.predict(input);
   }
