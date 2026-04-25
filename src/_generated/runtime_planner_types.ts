@@ -1,6 +1,7 @@
 // Auto-generated from octomil-contracts runtime_planner schemas. Do not edit.
 
 import { ModelRefKind } from "./model_ref_kind.js";
+
 export interface AppResolution {
   app_id: string;
   app_slug?: string | null;
@@ -13,15 +14,42 @@ export interface AppResolution {
   preferred_engines?: Array<string>;
   fallback_policy?: string | null;
   plan_ttl_seconds?: number;
+  public_client_allowed?: boolean;
 }
 
 export interface CandidateGate {
-  code: "artifact_verified" | "runtime_available" | "model_loads" | "context_fits" | "modality_supported" | "tool_support" | "min_tokens_per_second" | "max_ttft_ms" | "max_error_rate" | "min_free_memory_bytes" | "min_free_storage_bytes" | "benchmark_fresh";
+  code:
+    | "artifact_verified"
+    | "runtime_available"
+    | "model_loads"
+    | "context_fits"
+    | "modality_supported"
+    | "tool_support"
+    | "min_tokens_per_second"
+    | "max_ttft_ms"
+    | "max_error_rate"
+    | "min_free_memory_bytes"
+    | "min_free_storage_bytes"
+    | "benchmark_fresh"
+    | "min_battery_pct"
+    | "max_thermal_state"
+    | "require_charging"
+    | "require_wifi"
+    | "schema_valid"
+    | "tool_call_valid"
+    | "safety_passed"
+    | "evaluator_score_min"
+    | "json_parseable"
+    | "max_refusal_rate";
   required: boolean;
   threshold_number?: number;
   threshold_string?: string;
   window_seconds?: number;
   source: "server" | "sdk" | "runtime";
+  gate_class: "readiness" | "performance" | "output_quality";
+  evaluation_phase: "pre_inference" | "during_inference" | "post_inference";
+  fallback_eligible: boolean;
+  blocking_default?: boolean;
 }
 
 export interface DeviceRuntimeProfile {
@@ -53,7 +81,16 @@ export interface RouteAttempt {
   engine?: string | null;
   artifact?: AttemptArtifact | null;
   status: "skipped" | "failed" | "selected";
-  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
+  stage:
+    | "policy"
+    | "prepare"
+    | "download"
+    | "verify"
+    | "load"
+    | "benchmark"
+    | "gate"
+    | "inference"
+    | "output_quality";
   gate_results?: Array<GateResult>;
   reason: Record<string, unknown>;
 }
@@ -69,9 +106,10 @@ export interface GateResult {
   status: "passed" | "failed" | "unknown" | "not_required";
   observed_number?: number;
   threshold_number?: number;
+  threshold_string?: string;
   reason_code?: string | null;
-  gate_class?: "readiness" | "performance" | "output_quality";
-  evaluation_phase?: "pre_inference" | "during_inference" | "post_inference";
+  gate_class: "readiness" | "performance" | "output_quality";
+  evaluation_phase: "pre_inference" | "during_inference" | "post_inference";
   required?: boolean;
   fallback_eligible?: boolean;
   observed_string?: string;
@@ -97,10 +135,28 @@ export interface RouteEvent {
   final_mode?: "sdk_runtime" | "hosted_gateway" | "external_endpoint" | null;
   engine?: string | null;
   artifact_id?: string | null;
-  cache_status?: "hit" | "miss" | "downloaded" | "not_applicable" | "unavailable" | null;
+  cache_status?:
+    | "hit"
+    | "miss"
+    | "downloaded"
+    | "not_applicable"
+    | "unavailable"
+    | null;
   fallback_used: boolean;
   fallback_trigger_code?: string | null;
-  fallback_trigger_stage?: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality" | "timeout" | "not_applicable" | null;
+  fallback_trigger_stage?:
+    | "policy"
+    | "prepare"
+    | "download"
+    | "verify"
+    | "load"
+    | "benchmark"
+    | "gate"
+    | "inference"
+    | "output_quality"
+    | "timeout"
+    | "not_applicable"
+    | null;
   candidate_attempts: number;
   attempt_details?: Array<RouteEventAttemptDetail>;
   ttft_ms?: number | null;
@@ -115,7 +171,16 @@ export interface RouteEventAttemptDetail {
   mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
   engine: string | null;
   status: "skipped" | "failed" | "selected";
-  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
+  stage:
+    | "policy"
+    | "prepare"
+    | "download"
+    | "verify"
+    | "load"
+    | "benchmark"
+    | "gate"
+    | "inference"
+    | "output_quality";
   gate_summary: Record<string, unknown>;
   reason_code: string;
 }
@@ -183,6 +248,11 @@ export interface FallbackTrigger {
   code: string;
   stage: string;
   message: string;
+  gate_code?: string;
+  gate_class?: "readiness" | "performance" | "output_quality";
+  evaluation_phase?: "pre_inference" | "during_inference" | "post_inference";
+  candidate_index?: number;
+  output_visible_before_failure?: boolean;
 }
 
 export interface RouteReason {
@@ -225,8 +295,21 @@ export interface RuntimeDefaultsResponse {
 
 export interface RuntimePlanRequest {
   model: string;
-  capability: "chat" | "responses" | "embeddings" | "transcription" | "audio";
-  routing_policy?: "private" | "local_only" | "local_first" | "cloud_first" | "cloud_only" | "performance_first" | "auto";
+  capability:
+    | "chat"
+    | "responses"
+    | "embeddings"
+    | "transcription"
+    | "audio"
+    | "tts";
+  routing_policy?:
+    | "private"
+    | "local_only"
+    | "local_first"
+    | "cloud_first"
+    | "cloud_only"
+    | "performance_first"
+    | "auto";
   app_id?: string;
   app_slug?: string;
   org_id?: string;
@@ -235,6 +318,7 @@ export interface RuntimePlanRequest {
 }
 
 export interface RuntimePlanResponse {
+  plan_schema_version?: number;
   model: string;
   capability: string;
   policy: string;
@@ -242,6 +326,7 @@ export interface RuntimePlanResponse {
   fallback_candidates?: Array<RuntimeCandidatePlan>;
   plan_ttl_seconds?: number;
   fallback_allowed?: boolean;
+  public_client_allowed?: boolean;
   server_generated_at: string;
   plan_correlation_id?: string;
   app_resolution?: AppResolution | null;
@@ -271,6 +356,9 @@ export interface RuntimeCandidatePlan {
   reason: string;
   benchmark_required?: boolean;
   gates?: Array<CandidateGate>;
+  delivery_mode?: "hosted_gateway" | "sdk_runtime" | "external_endpoint";
+  prepare_required?: boolean;
+  prepare_policy?: "lazy" | "explicit_only" | "disabled";
 }
 
 export interface RuntimeArtifactPlan {
@@ -283,4 +371,7 @@ export interface RuntimeArtifactPlan {
   digest?: string;
   size_bytes?: number;
   min_ram_bytes?: number;
+  required_files?: Array<string>;
+  download_urls?: Array<Record<string, unknown>>;
+  manifest_uri?: string;
 }

@@ -23,9 +23,7 @@ const TEST_DEVICE: DeviceRuntimeProfile = {
   os_version: "24.0.0",
   ram_total_bytes: 34_359_738_368,
   accelerators: ["metal"],
-  installed_runtimes: [
-    { engine: "onnxruntime-node", available: true },
-  ],
+  installed_runtimes: [{ engine: "onnxruntime-node", available: true }],
 };
 
 const TEST_PLAN_REQUEST: RuntimePlanRequest = {
@@ -74,7 +72,13 @@ const SERVER_DEFAULTS_RESPONSE: RuntimeDefaultsResponse = {
     embeddings: ["onnxruntime-node"],
     transcription: ["whisper.cpp"],
   },
-  supported_capabilities: ["chat", "responses", "embeddings", "transcription", "audio"],
+  supported_capabilities: [
+    "chat",
+    "responses",
+    "embeddings",
+    "transcription",
+    "audio",
+  ],
   supported_policies: [
     "private",
     "local_only",
@@ -254,9 +258,7 @@ describe("RuntimePlannerClient", () => {
 
     it("returns null on malformed JSON response", async () => {
       const client = new RuntimePlannerClient({ apiKey: "test-key" });
-      fetchSpy.mockResolvedValueOnce(
-        new Response("not json", { status: 200 }),
-      );
+      fetchSpy.mockResolvedValueOnce(new Response("not json", { status: 200 }));
 
       const result = await client.fetchPlan(TEST_PLAN_REQUEST);
       expect(result).toBeNull();
@@ -270,9 +272,7 @@ describe("RuntimePlannerClient", () => {
   describe("submitBenchmark", () => {
     it("sends POST to /api/v2/runtime/benchmarks and returns true on success", async () => {
       const client = new RuntimePlannerClient({ apiKey: "test-key" });
-      fetchSpy.mockResolvedValueOnce(
-        new Response(null, { status: 204 }),
-      );
+      fetchSpy.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
       const submission: RuntimeBenchmarkSubmission = {
         source: "planner",
@@ -468,6 +468,115 @@ describe("parsePlanResponse", () => {
     };
     const result = parsePlanResponse(data as Record<string, unknown>);
     expect(result.candidates[0]!.locality).toBe("local");
+  });
+
+  it("parses prepare-lifecycle metadata on candidates and response", () => {
+    const data = {
+      model: "kokoro-82m",
+      capability: "tts",
+      policy: "private",
+      candidates: [
+        {
+          locality: "local",
+          engine: "sherpa-onnx",
+          priority: 0,
+          confidence: 0.7,
+          reason: "tts heuristic",
+          delivery_mode: "sdk_runtime",
+          prepare_required: true,
+          prepare_policy: "lazy",
+          artifact: {
+            model_id: "kokoro-82m",
+            artifact_id: "kokoro-82m@v0_19",
+            required_files: [
+              "model.onnx",
+              "tokens.txt",
+              "voices.bin",
+              "espeak-ng-data/",
+            ],
+            download_urls: [
+              {
+                url: "https://cdn.example.com/kokoro/manifest.json",
+                expires_at: "2026-04-26T00:00:00Z",
+              },
+              { url: "https://origin.example.com/kokoro/manifest.json" },
+            ],
+            manifest_uri: "https://cdn.example.com/kokoro/manifest.json",
+          },
+        },
+      ],
+      fallback_candidates: [],
+      fallback_allowed: false,
+      public_client_allowed: false,
+      plan_ttl_seconds: 604800,
+      server_generated_at: "2026-04-25T19:00:00Z",
+    };
+
+    const result = parsePlanResponse(data as Record<string, unknown>);
+    const c = result.candidates[0]!;
+    expect(c.delivery_mode).toBe("sdk_runtime");
+    expect(c.prepare_required).toBe(true);
+    expect(c.prepare_policy).toBe("lazy");
+    expect(c.artifact!.required_files).toEqual([
+      "model.onnx",
+      "tokens.txt",
+      "voices.bin",
+      "espeak-ng-data/",
+    ]);
+    expect(c.artifact!.download_urls).toHaveLength(2);
+    expect(c.artifact!.download_urls![0]!.expires_at).toBe(
+      "2026-04-26T00:00:00Z",
+    );
+    expect(c.artifact!.manifest_uri).toBe(
+      "https://cdn.example.com/kokoro/manifest.json",
+    );
+    expect(result.fallback_allowed).toBe(false);
+    expect(result.public_client_allowed).toBe(false);
+  });
+
+  it("defaults prepare_policy to 'lazy' and prepare_required to false when missing", () => {
+    const data = {
+      model: "kokoro-82m",
+      candidates: [
+        {
+          locality: "local",
+          engine: "sherpa-onnx",
+          priority: 0,
+          confidence: 0.5,
+          reason: "minimal",
+        },
+      ],
+    };
+    const result = parsePlanResponse(data as Record<string, unknown>);
+    const c = result.candidates[0]!;
+    expect(c.prepare_required).toBe(false);
+    expect(c.prepare_policy).toBe("lazy");
+    expect(c.delivery_mode).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TTS planner request — added in the prepare-lifecycle PR 1 fix
+// ---------------------------------------------------------------------------
+
+describe("RuntimePlanRequest accepts tts capability", () => {
+  it("typecheck: capability='tts' compiles, app_slug is optional", () => {
+    // This test exists to lock the type surface. If 'tts' is removed from
+    // PlannerCapability or app_slug is removed from RuntimePlanRequest,
+    // the TypeScript build fails.
+    const req: import("../src/planner/types.js").RuntimePlanRequest = {
+      model: "@app/eternum/tts",
+      capability: "tts",
+      app_slug: "eternum",
+      device: {
+        sdk: "node",
+        sdk_version: "1.0.0",
+        platform: "darwin",
+        arch: "arm64",
+      },
+    };
+    expect(req.capability).toBe("tts");
+    expect(req.app_slug).toBe("eternum");
   });
 });
 
