@@ -1,15 +1,18 @@
 /**
  * AudioSpeech — hosted text-to-speech surface.
  *
- * Mirrors OpenAI's ``client.audio.speech.create(...)`` shape and posts to
- * the Octomil hosted ``/v1/audio/speech`` endpoint. Returns the raw audio
- * bytes plus Octomil routing metadata surfaced via ``X-Octomil-*``
- * response headers.
+ * Mirrors OpenAI's ``client.audio.speech.create(...)`` shape. Posts to
+ * the hosted ``{base}/audio/speech`` endpoint where ``{base}`` is the
+ * canonical hosted root (``https://api.octomil.com/v1``).
+ *
+ * v0.10.0 hosted API cutover: legacy control-plane bases (``/api/v1``)
+ * are rejected at construction time; no silent normalization.
  */
 
 import { OctomilError } from "../types.js";
 
-const SPEECH_PATH = "/v1/audio/speech";
+// Path is relative to the hosted /v1 API root.
+const SPEECH_PATH = "/audio/speech";
 
 export interface AudioSpeechOptions {
   serverUrl: string;
@@ -35,7 +38,7 @@ export interface SpeechResponse {
 }
 
 export class AudioSpeech {
-  private readonly serverUrl: string;
+  private readonly hostedBase: string;
   private readonly apiKey: string;
 
   constructor(options: AudioSpeechOptions) {
@@ -45,7 +48,17 @@ export class AudioSpeech {
         "AudioSpeech requires a serverUrl. Construct OctomilClient with serverUrl/apiKey for hosted speech.",
       );
     }
-    this.serverUrl = options.serverUrl.replace(/\/+$/, "");
+    const trimmed = options.serverUrl.replace(/\/+$/, "");
+    if (/\/api(\/v1)?$/.test(trimmed)) {
+      throw new OctomilError(
+        "INVALID_INPUT",
+        `Legacy control-plane base URLs are not supported by hosted clients; ` +
+          `got '${options.serverUrl}'. Use https://api.octomil.com/v1.`,
+      );
+    }
+    // Canonical hosted base ends in /v1; append it if the caller passed
+    // the bare host (the legacy OctomilClient default).
+    this.hostedBase = trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
     this.apiKey = options.apiKey;
   }
 
@@ -74,7 +87,7 @@ export class AudioSpeech {
 
     let resp: Response;
     try {
-      resp = await fetch(this.serverUrl + SPEECH_PATH, {
+      resp = await fetch(this.hostedBase + SPEECH_PATH, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
