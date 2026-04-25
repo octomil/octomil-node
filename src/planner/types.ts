@@ -59,14 +59,16 @@ export function isSupportedPolicy(value: string): value is SupportedPolicy {
 
 /**
  * Planner capability — the task type requested.
- * Validated against contract-generated ModelCapability.
+ * Validated against contract-generated ModelCapability and the server-side
+ * Literal in octomil-server/.../runtime_planner/schemas.py::RuntimePlanRequest.
  */
 export type PlannerCapability =
   | "chat"
   | "responses"
   | "embeddings"
   | "transcription"
-  | "audio";
+  | "audio"
+  | "tts";
 
 // ---------------------------------------------------------------------------
 // Device runtime profile — sent to the server
@@ -106,6 +108,9 @@ export interface RuntimePlanRequest {
   capability: PlannerCapability;
   routing_policy?: string;
   app_id?: string;
+  /** Slug for @app/<slug>/<capability> resolution when the model field
+   * does not encode it (e.g. legacy callers that pass a raw model id). */
+  app_slug?: string;
   org_id?: string;
   device: DeviceRuntimeProfile;
   allow_cloud_fallback?: boolean;
