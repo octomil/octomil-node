@@ -30,17 +30,19 @@ import type {
 } from "./local.js";
 import {
   discoverLocalRunner,
+  discoverFromEnv,
   localRunnerMultipartPost,
   localRunnerPost,
   localRunnerHealthCheck,
 } from "./local.js";
 import { PlannerClient } from "./runtime/routing/planner-client.js";
+import type { PlannerResult } from "./runtime/routing/request-router.js";
 import type { LocalLifecycleStatus } from "./local-lifecycle.js";
 import {
   buildLocalLifecycleStatus,
   buildUnavailableStatus,
 } from "./local-lifecycle.js";
-import { resolvePlannerEnabled } from "./planner-defaults.js";
+import { isCloudBlocked, resolvePlannerEnabled } from "./planner-defaults.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -73,6 +75,8 @@ export interface OctomilFacadeOptions {
 export interface OctomilFacadeEnvOptions {
   serverUrl?: string;
   telemetry?: boolean;
+  plannerRouting?: boolean;
+  externalEndpoint?: string;
 }
 
 /** Options for `Octomil.local()`. */
@@ -313,17 +317,35 @@ export interface FacadeSpeechResponse {
   unitKind: string | null;
 }
 
+type SpeechLocalEndpoint = {
+  baseUrl: string;
+  token?: string;
+};
+
+type SpeechResponseFormat =
+  | "mp3"
+  | "wav"
+  | "ogg"
+  | "opus"
+  | "flac"
+  | "aac"
+  | "pcm";
+
+interface FacadeSpeechCreateOptions {
+  model: string;
+  input: string;
+  voice?: string;
+  responseFormat?: SpeechResponseFormat;
+  speed?: number;
+}
+
 /** TTS via the local runner. Never sends requests to cloud. */
 class LocalFacadeAudioSpeech {
-  constructor(private readonly endpoint: LocalRunnerEndpoint) {}
+  constructor(private readonly endpoint: SpeechLocalEndpoint) {}
 
-  async create(options: {
-    model: string;
-    input: string;
-    voice?: string;
-    responseFormat?: "wav";
-    speed?: number;
-  }): Promise<FacadeSpeechResponse> {
+  async create(
+    options: FacadeSpeechCreateOptions,
+  ): Promise<FacadeSpeechResponse> {
     if (!options.input || !options.input.trim()) {
       throw new OctomilError(
         "INVALID_INPUT",
@@ -340,7 +362,7 @@ class LocalFacadeAudioSpeech {
     }
 
     const t0 = Date.now();
-    const response = await localRunnerPost(this.endpoint, "/v1/audio/speech", {
+    const response = await postLocalSpeech(this.endpoint, {
       model: options.model,
       input: options.input,
       voice: options.voice,
@@ -383,13 +405,9 @@ class HostedFacadeAudioSpeech {
     private readonly apiKey: string,
   ) {}
 
-  async create(options: {
-    model: string;
-    input: string;
-    voice?: string;
-    responseFormat?: "mp3" | "wav" | "ogg" | "opus" | "flac" | "aac" | "pcm";
-    speed?: number;
-  }): Promise<FacadeSpeechResponse> {
+  async create(
+    options: FacadeSpeechCreateOptions,
+  ): Promise<FacadeSpeechResponse> {
     if (!options.input || !options.input.trim()) {
       throw new OctomilError(
         "INVALID_INPUT",
@@ -410,7 +428,7 @@ class HostedFacadeAudioSpeech {
           model: options.model,
           input: options.input,
           voice: options.voice,
-          response_format: options.responseFormat ?? "mp3",
+          response_format: options.responseFormat ?? "wav",
           speed: options.speed ?? 1.0,
         }),
       });
@@ -435,7 +453,7 @@ class HostedFacadeAudioSpeech {
       audioBytes,
       contentType:
         resp.headers.get("content-type") ?? "application/octet-stream",
-      format: options.responseFormat ?? "mp3",
+      format: options.responseFormat ?? "wav",
       model: options.model,
       provider: resp.headers.get("x-octomil-provider"),
       voice: options.voice,
@@ -451,10 +469,177 @@ class HostedFacadeAudioSpeech {
   }
 }
 
+/** Planner-routed TTS for server-side Node clients. */
+class RoutedFacadeAudioSpeech {
+  private readonly hosted: HostedFacadeAudioSpeech;
+  private readonly local: LocalFacadeAudioSpeech | null;
+
+  constructor(
+    serverUrl: string,
+    apiKey: string,
+    private readonly plannerClient: PlannerClient,
+    localEndpoint: SpeechLocalEndpoint | null,
+  ) {
+    this.hosted = new HostedFacadeAudioSpeech(serverUrl, apiKey);
+    this.local = localEndpoint
+      ? new LocalFacadeAudioSpeech(localEndpoint)
+      : null;
+  }
+
+  async create(
+    options: FacadeSpeechCreateOptions,
+  ): Promise<FacadeSpeechResponse> {
+    const plan = await this.plannerClient.getPlan({
+      model: options.model,
+      capability: "tts",
+      streaming: false,
+    });
+    const policy = speechRoutingPolicy(plan);
+    const cloudBlocked = isCloudBlocked(policy);
+    const selectedLocality = speechSelectedLocality(plan);
+    const fallbackBlocked =
+      selectedLocality === "local" && plan?.fallback_allowed === false;
+    const localRequired = cloudBlocked || selectedLocality === "local";
+    const runtimeModel = speechRuntimeModel(plan, options.model);
+
+    if (localRequired) {
+      if (!this.local) {
+        if (cloudBlocked || fallbackBlocked) {
+          throw localTtsUnavailable(runtimeModel);
+        }
+      } else {
+        try {
+          return await this.local.create({ ...options, model: runtimeModel });
+        } catch (error) {
+          if (cloudBlocked || fallbackBlocked) throw error;
+        }
+      }
+    }
+
+    return this.hosted.create({
+      ...options,
+      model: isAppRef(options.model) ? options.model : runtimeModel,
+    });
+  }
+}
+
+async function postLocalSpeech(
+  endpoint: SpeechLocalEndpoint,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "User-Agent": "octomil-node/1.0",
+  };
+  if (endpoint.token) {
+    headers.Authorization = `Bearer ${endpoint.token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${endpoint.baseUrl.replace(/\/+$/, "")}/v1/audio/speech`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      },
+    );
+  } catch (err) {
+    throw new OctomilError(
+      "NETWORK_UNAVAILABLE",
+      "Failed to connect to local runner. Ensure the runner is started.",
+      err,
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new OctomilError(
+      "INFERENCE_FAILED",
+      `Local runner request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
+    );
+  }
+  return response;
+}
+
+function speechRoutingPolicy(plan: PlannerResult | null): string | undefined {
+  const appPolicy = plan?.app_resolution?.routing_policy;
+  if (typeof appPolicy === "string" && appPolicy.length > 0) {
+    return appPolicy;
+  }
+  const resolutionPolicy = plan?.resolution?.routing_policy;
+  if (typeof resolutionPolicy === "string" && resolutionPolicy.length > 0) {
+    return resolutionPolicy;
+  }
+  return plan?.policy;
+}
+
+function speechSelectedLocality(
+  plan: PlannerResult | null,
+): "local" | "cloud" | null {
+  if (!plan?.candidates.length) {
+    return null;
+  }
+  const selected = [...plan.candidates].sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
+  )[0];
+  return selected?.locality ?? null;
+}
+
+function speechRuntimeModel(
+  plan: PlannerResult | null,
+  requestedModel: string,
+): string {
+  const appModel = plan?.app_resolution?.selected_model;
+  if (typeof appModel === "string" && appModel.length > 0) {
+    return appModel;
+  }
+  const resolvedModel = plan?.resolution?.resolved_model;
+  if (typeof resolvedModel === "string" && resolvedModel.length > 0) {
+    return resolvedModel;
+  }
+  return requestedModel;
+}
+
+function localTtsUnavailable(model: string): OctomilError {
+  return new OctomilError(
+    "RUNTIME_UNAVAILABLE",
+    "local_tts_runtime_unavailable: local TTS is required by this app's " +
+      `routing policy, but no local runner endpoint is configured for '${model}'. ` +
+      "Set OCTOMIL_LOCAL_RUNNER_URL and OCTOMIL_LOCAL_RUNNER_TOKEN, or use Octomil.local().",
+  );
+}
+
+function isAppRef(model: string): boolean {
+  return model.startsWith("@app/");
+}
+
 function parseIntOrNull(v: string | null): number | null {
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function serverApiKeyFromOptions(
+  options: OctomilFacadeOptions,
+): string | undefined {
+  if (options.apiKey) return options.apiKey;
+  if (options.auth) {
+    return options.auth.type === "org_api_key"
+      ? options.auth.apiKey
+      : options.auth.bootstrapToken;
+  }
+  return undefined;
+}
+
+function speechLocalEndpointFromOptions(
+  options: OctomilFacadeOptions,
+): SpeechLocalEndpoint | null {
+  if (options.externalEndpoint) {
+    return { baseUrl: options.externalEndpoint.replace(/\/+$/, "") };
+  }
+  return discoverFromEnv();
 }
 
 // ---------------------------------------------------------------------------
@@ -524,8 +709,10 @@ export class Octomil {
   private _audioSpeech:
     | LocalFacadeAudioSpeech
     | HostedFacadeAudioSpeech
+    | RoutedFacadeAudioSpeech
     | undefined;
   private readonly _plannerClient: PlannerClient | null;
+  private readonly _speechLocalEndpoint: SpeechLocalEndpoint | null;
 
   /**
    * Create a local-only Octomil client that uses the Python CLI's local runner.
@@ -573,6 +760,8 @@ export class Octomil {
   ) {
     this.options = options;
     this._localEndpoint = localEndpoint ?? null;
+    this._speechLocalEndpoint =
+      this._localEndpoint ?? speechLocalEndpointFromOptions(options);
 
     // Validate publishable key eagerly so constructor throws on bad prefix.
     if (options.publishableKey) {
@@ -762,12 +951,14 @@ export class Octomil {
   /**
    * Audio speech (TTS) namespace.
    *
-   * Local mode (`Octomil.local()`) routes through the local runner's
-   * `/v1/audio/speech`. Hosted mode (`Octomil.fromEnv()`) routes through
-   * `api.octomil.com/v1/audio/speech`. Apps with `Private` policy stay in
-   * local mode and never call the hosted gateway.
+   * Server-side clients ask the runtime planner before dispatch. Apps with
+   * `Private`/`local_only` policy require a configured local runner endpoint
+   * and never call the hosted gateway.
    */
-  get audioSpeech(): LocalFacadeAudioSpeech | HostedFacadeAudioSpeech {
+  get audioSpeech():
+    | LocalFacadeAudioSpeech
+    | HostedFacadeAudioSpeech
+    | RoutedFacadeAudioSpeech {
     if (!this.initialized) {
       throw new OctomilNotInitializedError();
     }
@@ -775,15 +966,22 @@ export class Octomil {
       if (this._localEndpoint) {
         this._audioSpeech = new LocalFacadeAudioSpeech(this._localEndpoint);
       } else {
-        const apiKey = this.options.apiKey ?? this.options.publishableKey;
+        const apiKey = serverApiKeyFromOptions(this.options);
         if (!apiKey) {
           throw new OctomilError(
             "AUTHENTICATION_FAILED",
-            "Hosted audio.speech requires an apiKey or publishableKey.",
+            "audio.speech requires a server-side apiKey. Publishable keys cannot call hosted speech.",
           );
         }
         const serverUrl = this.options.serverUrl ?? "https://api.octomil.com";
-        this._audioSpeech = new HostedFacadeAudioSpeech(serverUrl, apiKey);
+        this._audioSpeech = this._plannerClient
+          ? new RoutedFacadeAudioSpeech(
+              serverUrl,
+              apiKey,
+              this._plannerClient,
+              this._speechLocalEndpoint,
+            )
+          : new HostedFacadeAudioSpeech(serverUrl, apiKey);
       }
     }
     return this._audioSpeech;

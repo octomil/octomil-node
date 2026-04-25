@@ -42,7 +42,8 @@ vi.mock("../src/embeddings.js", () => ({
   embedWithPlanner: (
     config: { serverUrl: string; apiKey: string },
     ...args: unknown[]
-  ) => mockEmbed({ serverUrl: config.serverUrl, apiKey: config.apiKey }, ...args),
+  ) =>
+    mockEmbed({ serverUrl: config.serverUrl, apiKey: config.apiKey }, ...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -54,8 +55,12 @@ describe("Octomil unified facade", () => {
     "OCTOMIL_SERVER_KEY",
     "OCTOMIL_API_KEY",
     "OCTOMIL_ORG_ID",
+    "OCTOMIL_DISABLE_PLANNER",
+    "OCTOMIL_LOCAL_RUNNER_URL",
+    "OCTOMIL_LOCAL_RUNNER_TOKEN",
   ] as const;
   const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,6 +78,7 @@ describe("Octomil unified facade", () => {
         process.env[key] = value;
       }
     }
+    globalThis.fetch = originalFetch;
   });
 
   // -- Constructor ----------------------------------------------------------
@@ -190,9 +196,7 @@ describe("Octomil unified facade", () => {
 
     it("throws when apiKey is provided without orgId", async () => {
       const client = new Octomil({ apiKey: "edg_sk_abc" });
-      await expect(client.initialize()).rejects.toThrow(
-        "orgId is required",
-      );
+      await expect(client.initialize()).rejects.toThrow("orgId is required");
     });
   });
 
@@ -297,7 +301,10 @@ describe("Octomil unified facade", () => {
         output: [
           { type: "reasoning", reasoningContent: "thinking..." },
           { type: "text", text: "Part 1 " },
-          { type: "tool_call", toolCall: { id: "tc1", name: "fn", arguments: "{}" } },
+          {
+            type: "tool_call",
+            toolCall: { id: "tc1", name: "fn", arguments: "{}" },
+          },
           { type: "text", text: "Part 2" },
         ],
         finishReason: "stop",
@@ -319,7 +326,10 @@ describe("Octomil unified facade", () => {
         id: "resp_4",
         model: "test",
         output: [
-          { type: "tool_call", toolCall: { id: "tc1", name: "fn", arguments: "{}" } },
+          {
+            type: "tool_call",
+            toolCall: { id: "tc1", name: "fn", arguments: "{}" },
+          },
         ],
         finishReason: "stop",
       };
@@ -435,6 +445,201 @@ describe("Octomil unified facade", () => {
         ["first document", "second document"],
         undefined,
       );
+    });
+  });
+
+  // -- audio.speech ----------------------------------------------------------
+
+  describe("audioSpeech", () => {
+    it("rejects publishable-key hosted speech", async () => {
+      const client = new Octomil({
+        publishableKey: "oct_pub_test_abc123",
+      });
+      await client.initialize();
+
+      expect(() => client.audioSpeech).toThrow("server-side apiKey");
+    });
+
+    it("does not fall through to hosted when app policy is private and no local runner is configured", async () => {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/v2/runtime/plan")) {
+          return new Response(
+            JSON.stringify({
+              model: "@app/tts-tester/tts",
+              capability: "tts",
+              policy: "private",
+              candidates: [
+                {
+                  locality: "local",
+                  engine: "sherpa-onnx",
+                  priority: 0,
+                  confidence: 1,
+                  reason: "private app policy",
+                },
+              ],
+              fallback_allowed: false,
+              app_resolution: {
+                app_slug: "tts-tester",
+                selected_model: "kokoro-82m",
+                routing_policy: "private",
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response("should not reach hosted", { status: 500 });
+      });
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const client = new Octomil({
+        apiKey: "edg_sk_abc",
+        orgId: "org_1",
+        serverUrl: "https://api.test.com",
+      });
+      await client.initialize();
+
+      await expect(
+        client.audioSpeech.create({
+          model: "@app/tts-tester/tts",
+          input: "hello",
+        }),
+      ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("routes private app TTS to the configured local runner with the resolved model", async () => {
+      process.env.OCTOMIL_LOCAL_RUNNER_URL = "http://127.0.0.1:5151";
+      process.env.OCTOMIL_LOCAL_RUNNER_TOKEN = "runner_token";
+      const fetchMock = vi.fn(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith("/api/v2/runtime/plan")) {
+            return new Response(
+              JSON.stringify({
+                model: "@app/tts-tester/tts",
+                capability: "tts",
+                policy: "private",
+                candidates: [
+                  {
+                    locality: "local",
+                    engine: "sherpa-onnx",
+                    priority: 0,
+                    confidence: 1,
+                    reason: "private app policy",
+                  },
+                ],
+                fallback_allowed: false,
+                app_resolution: {
+                  app_slug: "tts-tester",
+                  selected_model: "kokoro-82m",
+                  routing_policy: "private",
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          expect(url).toBe("http://127.0.0.1:5151/v1/audio/speech");
+          expect(init?.headers).toMatchObject({
+            Authorization: "Bearer runner_token",
+          });
+          expect(JSON.parse(String(init?.body))).toMatchObject({
+            model: "kokoro-82m",
+            input: "hello",
+            voice: "af_bella",
+            response_format: "wav",
+          });
+          return new Response(new Uint8Array([82, 73, 70, 70]), {
+            status: 200,
+            headers: {
+              "content-type": "audio/wav",
+              "x-octomil-voice": "af_bella",
+            },
+          });
+        },
+      );
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const client = new Octomil({
+        apiKey: "edg_sk_abc",
+        orgId: "org_1",
+        serverUrl: "https://api.test.com",
+      });
+      await client.initialize();
+
+      const response = await client.audioSpeech.create({
+        model: "@app/tts-tester/tts",
+        input: "hello",
+        voice: "af_bella",
+      });
+
+      expect(response.model).toBe("kokoro-82m");
+      expect(response.provider).toBeNull();
+      expect(response.route.locality).toBe("on_device");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps app refs on hosted speech dispatch so server policy is enforced", async () => {
+      const fetchMock = vi.fn(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith("/api/v2/runtime/plan")) {
+            return new Response(
+              JSON.stringify({
+                model: "@app/tts-tester/tts",
+                capability: "tts",
+                policy: "cloud_first",
+                candidates: [
+                  {
+                    locality: "cloud",
+                    engine: "cloud",
+                    priority: 0,
+                    confidence: 1,
+                    reason: "cloud app policy",
+                  },
+                ],
+                fallback_allowed: true,
+                app_resolution: {
+                  app_slug: "tts-tester",
+                  selected_model: "tts-1",
+                  routing_policy: "cloud_first",
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          expect(url).toBe("https://api.test.com/v1/audio/speech");
+          expect(JSON.parse(String(init?.body))).toMatchObject({
+            model: "@app/tts-tester/tts",
+            response_format: "wav",
+          });
+          return new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: {
+              "content-type": "audio/wav",
+              "x-octomil-provider": "openai",
+            },
+          });
+        },
+      );
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const client = new Octomil({
+        apiKey: "edg_sk_abc",
+        orgId: "org_1",
+        serverUrl: "https://api.test.com",
+      });
+      await client.initialize();
+
+      const response = await client.audioSpeech.create({
+        model: "@app/tts-tester/tts",
+        input: "hello",
+      });
+
+      expect(response.provider).toBe("openai");
+      expect(response.route.locality).toBe("cloud");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
