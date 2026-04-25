@@ -127,10 +127,7 @@ export class RuntimePlannerClient {
     return h;
   }
 
-  private async post(
-    path: string,
-    body: unknown,
-  ): Promise<Response | null> {
+  private async post(path: string, body: unknown): Promise<Response | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -187,9 +184,36 @@ function parseArtifact(
 ): RuntimeArtifactPlan | undefined {
   if (!data || typeof data !== "object") return undefined;
 
+  const downloadUrls: import("./types.js").ArtifactDownloadEndpoint[] = [];
+  if (Array.isArray(data.download_urls)) {
+    for (const ep of data.download_urls) {
+      if (ep && typeof ep === "object") {
+        const epd = ep as Record<string, unknown>;
+        if (typeof epd.url === "string") {
+          downloadUrls.push({
+            url: epd.url,
+            expires_at:
+              epd.expires_at != null ? String(epd.expires_at) : undefined,
+            headers:
+              epd.headers && typeof epd.headers === "object"
+                ? (epd.headers as Record<string, string>)
+                : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  const requiredFiles: string[] = Array.isArray(data.required_files)
+    ? (data.required_files as unknown[]).filter(
+        (x): x is string => typeof x === "string",
+      )
+    : [];
+
   return {
     model_id: String(data.model_id ?? ""),
-    artifact_id: data.artifact_id != null ? String(data.artifact_id) : undefined,
+    artifact_id:
+      data.artifact_id != null ? String(data.artifact_id) : undefined,
     model_version:
       data.model_version != null ? String(data.model_version) : undefined,
     format: data.format != null ? String(data.format) : undefined,
@@ -201,10 +225,29 @@ function parseArtifact(
       typeof data.size_bytes === "number" ? data.size_bytes : undefined,
     min_ram_bytes:
       typeof data.min_ram_bytes === "number" ? data.min_ram_bytes : undefined,
+    required_files: requiredFiles,
+    download_urls: downloadUrls,
+    manifest_uri:
+      data.manifest_uri != null ? String(data.manifest_uri) : undefined,
   };
 }
 
 function parseCandidate(data: Record<string, unknown>): RuntimeCandidatePlan {
+  const deliveryRaw = data.delivery_mode;
+  const delivery_mode: import("./types.js").DeliveryMode | undefined =
+    deliveryRaw === "hosted_gateway" ||
+    deliveryRaw === "sdk_runtime" ||
+    deliveryRaw === "external_endpoint"
+      ? deliveryRaw
+      : undefined;
+  const policyRaw = data.prepare_policy;
+  const prepare_policy: import("./types.js").PreparePolicy =
+    policyRaw === "lazy" ||
+    policyRaw === "explicit_only" ||
+    policyRaw === "disabled"
+      ? policyRaw
+      : "lazy";
+
   return {
     locality: data.locality === "cloud" ? "cloud" : "local",
     engine: data.engine != null ? String(data.engine) : undefined,
@@ -222,6 +265,12 @@ function parseCandidate(data: Record<string, unknown>): RuntimeCandidatePlan {
       typeof data.benchmark_required === "boolean"
         ? data.benchmark_required
         : false,
+    delivery_mode,
+    prepare_required:
+      typeof data.prepare_required === "boolean"
+        ? data.prepare_required
+        : false,
+    prepare_policy,
   };
 }
 
@@ -244,6 +293,14 @@ export function parsePlanResponse(
     fallback_candidates: rawFallback.map((c: Record<string, unknown>) =>
       parseCandidate(c),
     ),
+    fallback_allowed:
+      typeof data.fallback_allowed === "boolean"
+        ? data.fallback_allowed
+        : undefined,
+    public_client_allowed:
+      typeof data.public_client_allowed === "boolean"
+        ? data.public_client_allowed
+        : false,
     plan_ttl_seconds:
       typeof data.plan_ttl_seconds === "number"
         ? data.plan_ttl_seconds

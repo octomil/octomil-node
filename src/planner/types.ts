@@ -115,6 +115,23 @@ export interface RuntimePlanRequest {
 // Plan response
 // ---------------------------------------------------------------------------
 
+/** Server-issued download endpoint for a planner artifact. Multi-URL
+ * gives the SDK CDN/origin failover and parallel chunk fetches. */
+export interface ArtifactDownloadEndpoint {
+  url: string;
+  expires_at?: string;
+  headers?: Record<string, string>;
+}
+
+/** Delivery mode for a candidate. Drives the SDK's prepare/dispatch path. */
+export type DeliveryMode =
+  | "hosted_gateway"
+  | "sdk_runtime"
+  | "external_endpoint";
+
+/** Prepare policy for a candidate. */
+export type PreparePolicy = "lazy" | "explicit_only" | "disabled";
+
 /** Artifact recommendation from the server planner. */
 export interface RuntimeArtifactPlan {
   model_id: string;
@@ -126,6 +143,9 @@ export interface RuntimeArtifactPlan {
   digest?: string;
   size_bytes?: number;
   min_ram_bytes?: number;
+  required_files?: string[];
+  download_urls?: ArtifactDownloadEndpoint[];
+  manifest_uri?: string;
 }
 
 /** A single candidate in a runtime plan (local or cloud). */
@@ -138,6 +158,9 @@ export interface RuntimeCandidatePlan {
   confidence: number;
   reason: string;
   benchmark_required?: boolean;
+  delivery_mode?: DeliveryMode;
+  prepare_required?: boolean;
+  prepare_policy?: PreparePolicy;
 }
 
 /** Full plan response from POST /api/v2/runtime/plan. */
@@ -147,6 +170,8 @@ export interface RuntimePlanResponse {
   policy: string;
   candidates: RuntimeCandidatePlan[];
   fallback_candidates: RuntimeCandidatePlan[];
+  fallback_allowed?: boolean;
+  public_client_allowed?: boolean;
   plan_ttl_seconds: number;
   server_generated_at: string;
 }
@@ -357,9 +382,7 @@ export function toContractRouteMetadata(
  * Convert a RuntimePlanResponse from the server into candidate plans
  * validated against contract enum values.
  */
-export function fromContractRuntimePlan(
-  response: RuntimePlanResponse,
-): {
+export function fromContractRuntimePlan(response: RuntimePlanResponse): {
   candidates: RuntimeCandidatePlan[];
   fallbackCandidates: RuntimeCandidatePlan[];
   policy: string;
