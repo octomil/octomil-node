@@ -3,6 +3,11 @@
 // ---------------------------------------------------------------------------
 
 export { Octomil, OctomilNotInitializedError, FacadeEmbeddings } from "./facade.js";
+export {
+  PREPAREABLE_CAPABILITIES,
+  canPrepareCandidate,
+} from "./prepare/prepare.js";
+export type { PrepareOptions, PrepareOutcome } from "./prepare/prepare.js";
 export type {
   OctomilFacadeEnvOptions,
   OctomilFacadeOptions,

@@ -43,6 +43,9 @@ import {
   buildUnavailableStatus,
 } from "./local-lifecycle.js";
 import { isCloudBlocked, resolvePlannerEnabled } from "./planner-defaults.js";
+import { prepareForFacade } from "./prepare/prepare.js";
+import type { PrepareOptions, PrepareOutcome } from "./prepare/prepare.js";
+import { RuntimePlannerClient } from "./planner/client.js";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -713,6 +716,10 @@ export class Octomil {
     | undefined;
   private readonly _plannerClient: PlannerClient | null;
   private readonly _speechLocalEndpoint: SpeechLocalEndpoint | null;
+  /** Lazy-built RuntimePlannerClient used only by `prepare(...)`. The
+   * routing-layer PlannerClient drops prepare-lifecycle metadata, so
+   * prepare needs the parsed RuntimePlanResponse from `planner/client.ts`. */
+  private _preparePlanner: RuntimePlannerClient | undefined;
 
   /**
    * Create a local-only Octomil client that uses the Python CLI's local runner.
@@ -946,6 +953,62 @@ export class Octomil {
       );
     }
     return this._localAudioTranscriptions;
+  }
+
+  /**
+   * Resolve a planner candidate for `model` and return a structured
+   * description of the on-device artifact that would be prepared.
+   *
+   * The Node SDK does not yet materialize artifacts on its own — the
+   * Python CLI (`octomil prepare`) is the supported way to actually
+   * download today. This method returns the planner's intent so Node
+   * callers can:
+   *
+   *   - decide whether the app routes locally at all (`outcome.preparePolicy`)
+   *   - shell out to `octomil prepare <model>` from a host process
+   *   - surface the same actionable errors users see in Python before
+   *     committing to a local route.
+   *
+   * `outcome.prepared` is always `false` today and will flip to `true`
+   * once the Node SDK grows its own durable downloader.
+   *
+   * @example
+   * ```ts
+   * const plan = await client.prepare({ model: "@app/eternum/tts" });
+   * if (plan.preparePolicy === "explicit_only") {
+   *   // run `octomil prepare @app/eternum/tts` from your build step
+   * }
+   * ```
+   */
+  async prepare(options: PrepareOptions): Promise<PrepareOutcome> {
+    if (!this.initialized) {
+      throw new OctomilNotInitializedError();
+    }
+    const plannerClient = this.preparePlannerClient();
+    return prepareForFacade(plannerClient, options);
+  }
+
+  private preparePlannerClient(): RuntimePlannerClient {
+    // The facade's existing routing-layer PlannerClient returns a
+    // PlannerResult shape that drops prepare-lifecycle metadata; build
+    // a RuntimePlannerClient (planner/client.ts) so prepare sees the
+    // full schema with delivery_mode, prepare_required, prepare_policy,
+    // download_urls, etc. Reuse this instance across calls so the
+    // network connection stays warm for repeat prepares.
+    if (!this._preparePlanner) {
+      const baseUrl = this.options.serverUrl ?? "https://api.octomil.com";
+      const apiKey =
+        this.options.publishableKey ??
+        this.options.apiKey ??
+        (this.options.auth?.type === "org_api_key"
+          ? this.options.auth.apiKey
+          : undefined);
+      this._preparePlanner = new RuntimePlannerClient({
+        baseUrl,
+        apiKey,
+      });
+    }
+    return this._preparePlanner;
   }
 
   /**
