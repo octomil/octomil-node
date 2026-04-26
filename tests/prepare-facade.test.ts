@@ -209,6 +209,7 @@ describe("prepareForFacade rejection paths", () => {
     "subdir/../escape",
     "/abs/path",
     "back\\slash",
+    "",
   ])("rejects unsafe required_files path %s", async (badPath) => {
     const plan = planWith([
       localCandidate({ artifact: realArtifact({ required_files: [badPath] }) }),
@@ -316,6 +317,19 @@ describe("canPrepareCandidate", () => {
       canPrepareCandidate({
         ...localCandidate(),
         artifact: realArtifact({ required_files: ["../escape.bin"] }),
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when required_files contains an empty string", () => {
+    // [""] is structurally distinct from []: the empty list represents
+    // the single-file artifact case, while a list with an explicit
+    // empty entry would collapse to dest_dir itself. Python rejects;
+    // Node must too so the cross-SDK contract holds.
+    expect(
+      canPrepareCandidate({
+        ...localCandidate(),
+        artifact: realArtifact({ required_files: [""] }),
       }),
     ).toBe(false);
   });
