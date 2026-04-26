@@ -250,9 +250,23 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
 }
 
 /** Mirror of Python `_validate_relative_path`. Rejects traversal, dot
- * segments, absolute paths, backslashes, NUL bytes. */
+ * segments, absolute paths, backslashes, NUL bytes, and empty strings.
+ *
+ * The empty-string case must be rejected here because callers reach
+ * this function from `validatePreparable` only when
+ * `required_files.length === 1`. A single-element list whose entry is
+ * `""` is *not* the same as an empty list (which represents the
+ * single-file artifact case and is handled before validation). An
+ * explicit `""` segment in the list would make `_resolve_url` produce
+ * `<endpoint>/` and the descriptor's relative path collapse to the
+ * directory itself — Python rejects this and Node must too. */
 function validateRelativePath(relativePath: string): string {
-  if (relativePath === "") return "";
+  if (relativePath === "") {
+    throw new OctomilError(
+      "INVALID_INPUT",
+      "Required file path must not be empty.",
+    );
+  }
   if (relativePath.includes("\u0000")) {
     throw new OctomilError(
       "INVALID_INPUT",
