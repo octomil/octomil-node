@@ -27,15 +27,17 @@ import type {
 import { OctomilError } from "../types.js";
 
 /** Capabilities `prepare()` understands. Mirror of Python
- * `_PREPAREABLE_CAPABILITIES`. */
+ * `_PREPAREABLE_CAPABILITIES`.
+ *
+ * Only `"tts"` is wired today — it is the one capability whose dispatch
+ * path threads the prepared `model_dir` into the backend. Transcription,
+ * embedding, chat, and responses will be added one at a time as their
+ * backends learn to consume the prepared directory; until then,
+ * accepting them here would let the SDK download bytes the next
+ * inference call ignores. Python narrowed to {tts} in #444 for the same
+ * reason; this Set keeps the two SDKs in lock-step. */
 export const PREPAREABLE_CAPABILITIES: ReadonlySet<PlannerCapability> =
-  new Set<PlannerCapability>([
-    "tts",
-    "transcription",
-    "embeddings",
-    "chat",
-    "responses",
-  ]);
+  new Set<PlannerCapability>(["tts"]);
 
 /** Result of a successful `prepare(...)` call.
  *
@@ -81,8 +83,9 @@ export async function prepareForFacade(
   if (!PREPAREABLE_CAPABILITIES.has(capability)) {
     throw new OctomilError(
       "INVALID_INPUT",
-      `client.prepare() got unknown capability ${JSON.stringify(capability)}. ` +
-        `Supported: ${Array.from(PREPAREABLE_CAPABILITIES).sort().join(", ")}.`,
+      `client.prepare() does not yet support capability ${JSON.stringify(capability)}. ` +
+        `Supported today: ${Array.from(PREPAREABLE_CAPABILITIES).sort().join(", ")}. ` +
+        `Other capabilities will be added once their backends thread the prepared model_dir into dispatch.`,
     );
   }
 
@@ -114,18 +117,41 @@ export async function prepareForFacade(
 
   validatePreparable(candidate);
 
-  const artifact = candidate.artifact!;
+  // `validatePreparable` guarantees `artifact` is present when
+  // `prepare_required=true`. For `prepare_required=false`, the engine
+  // manages its own bytes and the planner may legitimately omit the
+  // artifact plan, so we surface a no-files outcome with the candidate's
+  // engine id instead of dereferencing `artifact`.
+  const artifact = candidate.artifact;
+  const prepareRequired = candidate.prepare_required ?? false;
+  if (!prepareRequired && !artifact) {
+    return {
+      artifactId: candidate.engine ?? "",
+      modelId: candidate.engine ?? "",
+      capability,
+      deliveryMode: "sdk_runtime",
+      preparePolicy: candidate.prepare_policy ?? "lazy",
+      prepareRequired: false,
+      downloadUrls: [],
+      requiredFiles: [],
+      digest: null,
+      manifestUri: null,
+      prepared: false,
+    };
+  }
+  // Type-narrowed by the early return above + the validator's guarantee.
+  const safeArtifact: RuntimeArtifactPlan = artifact!;
   return {
-    artifactId: artifact.artifact_id ?? artifact.model_id,
-    modelId: artifact.model_id,
+    artifactId: safeArtifact.artifact_id ?? safeArtifact.model_id,
+    modelId: safeArtifact.model_id,
     capability,
     deliveryMode: "sdk_runtime",
     preparePolicy: candidate.prepare_policy ?? "lazy",
-    prepareRequired: candidate.prepare_required ?? false,
-    downloadUrls: artifact.download_urls ?? [],
-    requiredFiles: artifact.required_files ?? [],
-    digest: artifact.digest ?? null,
-    manifestUri: artifact.manifest_uri ?? null,
+    prepareRequired,
+    downloadUrls: safeArtifact.download_urls ?? [],
+    requiredFiles: safeArtifact.required_files ?? [],
+    digest: safeArtifact.digest ?? null,
+    manifestUri: safeArtifact.manifest_uri ?? null,
     // Node SDK does not download yet — the Python `octomil prepare` CLI
     // is the supported way to materialize the bytes today.
     prepared: false,

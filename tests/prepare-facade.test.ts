@@ -111,6 +111,10 @@ describe("prepareForFacade", () => {
       expect(outcome.capability).toBe(cap);
     }
   });
+
+  it("only TTS is in the supported set today (parity with Python #444)", () => {
+    expect(Array.from(PREPAREABLE_CAPABILITIES)).toEqual(["tts"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -127,6 +131,23 @@ describe("prepareForFacade rejection paths", () => {
       code: "INVALID_INPUT",
     });
   });
+
+  it.each(["transcription", "embeddings", "chat", "responses"] as const)(
+    "rejects unwired capability %s with an actionable INVALID_INPUT message",
+    async (cap) => {
+      const planner = fakePlannerClient(planWith([localCandidate()]));
+      try {
+        await prepareForFacade(planner, { model: "m", capability: cap });
+        throw new Error("expected rejection");
+      } catch (err) {
+        expect(err).toBeInstanceOf(OctomilError);
+        const msg = (err as OctomilError).message;
+        expect((err as OctomilError).code).toBe("INVALID_INPUT");
+        expect(msg).toContain(cap);
+        expect(msg.toLowerCase()).toContain("tts");
+      }
+    },
+  );
 
   it("raises RUNTIME_UNAVAILABLE when the planner returns null", async () => {
     const planner = fakePlannerClient(null);
@@ -219,6 +240,41 @@ describe("prepareForFacade rejection paths", () => {
     const outcome = await prepareForFacade(planner, { model: "m" });
     expect(outcome.prepareRequired).toBe(false);
     expect(outcome.downloadUrls).toEqual([]);
+  });
+
+  it("accepts a prepare_required=false candidate with NO artifact plan", async () => {
+    // Reviewer's reproducer: planner may legitimately omit `artifact` when
+    // the engine manages its own bytes. Earlier code dereferenced
+    // `candidate.artifact!` and crashed; now we surface a no-files outcome.
+    const plan = planWith([
+      localCandidate({
+        prepare_required: false,
+        artifact: undefined,
+        engine: "ollama",
+      }),
+    ]);
+    const planner = fakePlannerClient(plan);
+    const outcome = await prepareForFacade(planner, { model: "m" });
+    expect(outcome.prepareRequired).toBe(false);
+    expect(outcome.downloadUrls).toEqual([]);
+    expect(outcome.requiredFiles).toEqual([]);
+    expect(outcome.digest).toBeNull();
+    expect(outcome.manifestUri).toBeNull();
+  });
+
+  it("accepts a single-file artifact (empty required_files)", async () => {
+    // Reviewer's reproducer: an empty required_files list represents the
+    // single-file artifact case (e.g. one .gguf). prepare must NOT reject
+    // it just because the list happens to be empty.
+    const plan = planWith([
+      localCandidate({
+        artifact: realArtifact({ required_files: [] }),
+      }),
+    ]);
+    const planner = fakePlannerClient(plan);
+    const outcome = await prepareForFacade(planner, { model: "m" });
+    expect(outcome.requiredFiles).toEqual([]);
+    expect(outcome.prepared).toBe(false);
   });
 });
 
