@@ -80,8 +80,22 @@ export interface PrepareOptions {
    * the function preserves its pre-PR-12 contract (planner-introspection
    * only; ``prepared: false``). Pass a fresh
    * :class:`PrepareManager` from ``./prepare-manager.js`` for real
-   * downloads. */
-  materializer?: { prepare: (candidate: RuntimeCandidatePlan) => Promise<MaterializedArtifact> };
+   * downloads.
+   *
+   * The materializer is invoked with ``mode: 'explicit'`` because
+   * ``prepareForFacade`` is the caller-driven path (CLI /
+   * ``client.prepare(...)``) — the equivalent of Python's
+   * ``client.prepare(...)`` calling ``PrepareManager.prepare(
+   * candidate, mode=PrepareMode.EXPLICIT)``. Without this,
+   * artifacts whose ``prepare_policy === "explicit_only"`` would
+   * fail when called through the public facade even though the
+   * facade IS the explicit caller. */
+  materializer?: {
+    prepare: (
+      candidate: RuntimeCandidatePlan,
+      options: { mode: "lazy" | "explicit" },
+    ) => Promise<MaterializedArtifact>;
+  };
 }
 
 /** What a materializer reports back after pulling bytes onto disk.
@@ -175,7 +189,10 @@ export async function prepareForFacade(
   let artifactDir: string | null = null;
   let files: Record<string, string> | null = null;
   if (options.materializer) {
-    const materialized = await options.materializer.prepare(candidate);
+    // ``client.prepare(...)`` is the explicit caller-driven path,
+    // so honor ``prepare_policy === "explicit_only"`` candidates by
+    // passing ``mode: 'explicit'`` to the materializer.
+    const materialized = await options.materializer.prepare(candidate, { mode: "explicit" });
     prepared = true;
     artifactDir = materialized.artifactDir;
     files = materialized.files;

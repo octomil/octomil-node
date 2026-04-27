@@ -430,24 +430,88 @@ export function validateRelativePath(relativePath: string): string {
 }
 
 /**
- * Resolve ``relativePath`` under ``destDir`` and confirm containment.
- * Defends against symlink and ``..`` shenanigans even after the
- * structural validation above.
+ * Resolve ``relativePath`` under ``destDir`` and confirm containment
+ * — including following any pre-existing symlinks anywhere along the
+ * resolved path.
+ *
+ * Reviewer P1: lexical containment alone is insufficient. If
+ * ``destDir`` already contains ``linkdir → /tmp/outside`` (planted by
+ * an earlier extraction, a hostile sibling artifact, or a
+ * misconfigured cache), a member like ``linkdir/escaped.txt`` passes
+ * the lexical check but ``rename`` follows the symlink and writes
+ * outside the artifact directory. Resolve every existing ancestor
+ * via ``fs.realpathSync`` (which follows symlinks) and verify the
+ * resolved candidate is still under the resolved base. Mirrors
+ * Python's ``_safe_join_under``.
  */
 export function safeJoin(destDir: string, relativePath: string): string {
   const safe = validateRelativePath(relativePath);
-  const baseResolved = path.resolve(destDir);
+  const baseResolved = realpathExisting(path.resolve(destDir));
   if (!safe) return baseResolved;
   const candidate = path.resolve(baseResolved, safe);
-  const rel = path.relative(baseResolved, candidate);
+  // Walk each ancestor (deepest first); for any ancestor that
+  // exists, resolve symlinks and re-check containment.
+  const candidateResolved = realpathExisting(candidate);
+  const rel = path.relative(baseResolved, candidateResolved);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new OctomilError(
       "INVALID_INPUT",
       `Required file path resolves outside the artifact directory: ` +
-        `${JSON.stringify(relativePath)} -> ${candidate}`,
+        `${JSON.stringify(relativePath)} -> ${candidateResolved}`,
     );
   }
-  return candidate;
+  // Defense in depth: even if the final candidate doesn't yet
+  // exist, refuse if any ancestor inside ``destDir`` is itself a
+  // symlink (rename would follow it). The string-resolved candidate
+  // path may point inside the base after symlink resolution while
+  // a subsequent fs.rename writes through the link to elsewhere.
+  let cursor = path.dirname(candidate);
+  while (cursor !== baseResolved && cursor !== path.dirname(cursor)) {
+    let stat: fsSync.Stats | undefined;
+    try {
+      stat = fsSync.lstatSync(cursor);
+    } catch {
+      // Doesn't exist yet — nothing to follow.
+      cursor = path.dirname(cursor);
+      continue;
+    }
+    if (stat.isSymbolicLink()) {
+      const target = realpathExisting(cursor);
+      const targetRel = path.relative(baseResolved, target);
+      if (targetRel.startsWith("..") || path.isAbsolute(targetRel)) {
+        throw new OctomilError(
+          "INVALID_INPUT",
+          `Required file path crosses a symlink that escapes the artifact directory: ` +
+            `${JSON.stringify(relativePath)} via ${cursor} -> ${target}`,
+        );
+      }
+    }
+    cursor = path.dirname(cursor);
+  }
+  return candidateResolved;
+}
+
+/** ``fs.realpath`` raises when the target doesn't exist; this
+ * helper resolves whatever portion of the path DOES exist (deepest
+ * existing ancestor) and appends the not-yet-existing tail. Result
+ * is canonicalized through every existing symlink along the way. */
+function realpathExisting(input: string): string {
+  let head = input;
+  let tail: string[] = [];
+  while (true) {
+    try {
+      const real = fsSync.realpathSync(head);
+      return tail.length === 0 ? real : path.join(real, ...tail);
+    } catch {
+      const parent = path.dirname(head);
+      if (parent === head) {
+        // Root reached without resolving — fall back to lexical.
+        return path.resolve(input);
+      }
+      tail.unshift(path.basename(head));
+      head = parent;
+    }
+  }
 }
 
 async function pathExists(p: string): Promise<boolean> {

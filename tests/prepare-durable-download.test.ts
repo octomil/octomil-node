@@ -95,19 +95,35 @@ describe("validateRelativePath", () => {
 });
 
 describe("safeJoin", () => {
-  it("joins under destDir", () => {
-    const dest = path.resolve("/tmp/x");
-    expect(safeJoin(dest, "model.onnx")).toBe(path.join(dest, "model.onnx"));
+  // Use ``tmpDir`` (already realpath-resolved on macOS where ``/tmp``
+  // is a symlink to ``/private/tmp``) so the resolved candidate the
+  // post-PR-symlink-fix returns matches the lexical join exactly.
+  it("joins under destDir", async () => {
+    const dest = await fs.mkdtemp(path.join(os.tmpdir(), "safejoin-"));
+    try {
+      const expected = path.join(await fs.realpath(dest), "model.onnx");
+      expect(safeJoin(dest, "model.onnx")).toBe(expected);
+    } finally {
+      await fs.rm(dest, { recursive: true, force: true });
+    }
   });
 
-  it("returns destDir for empty relative", () => {
-    const dest = path.resolve("/tmp/x");
-    expect(safeJoin(dest, "")).toBe(dest);
+  it("returns destDir for empty relative", async () => {
+    const dest = await fs.mkdtemp(path.join(os.tmpdir(), "safejoin-"));
+    try {
+      expect(safeJoin(dest, "")).toBe(await fs.realpath(dest));
+    } finally {
+      await fs.rm(dest, { recursive: true, force: true });
+    }
   });
 
-  it("rejects traversal that escapes destDir", () => {
-    const dest = path.resolve("/tmp/x");
-    expect(() => safeJoin(dest, "../escape.txt")).toThrow(OctomilError);
+  it("rejects traversal that escapes destDir", async () => {
+    const dest = await fs.mkdtemp(path.join(os.tmpdir(), "safejoin-"));
+    try {
+      expect(() => safeJoin(dest, "../escape.txt")).toThrow(OctomilError);
+    } finally {
+      await fs.rm(dest, { recursive: true, force: true });
+    }
   });
 });
 
