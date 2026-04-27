@@ -44,6 +44,7 @@ import {
 } from "./local-lifecycle.js";
 import { isCloudBlocked, resolvePlannerEnabled } from "./planner-defaults.js";
 import { prepareForFacade } from "./prepare/prepare.js";
+import { PrepareManager } from "./prepare/prepare-manager.js";
 import type { PrepareOptions, PrepareOutcome } from "./prepare/prepare.js";
 import { RuntimePlannerClient } from "./planner/client.js";
 
@@ -985,8 +986,23 @@ export class Octomil {
       throw new OctomilNotInitializedError();
     }
     const plannerClient = this.preparePlannerClient();
-    return prepareForFacade(plannerClient, options);
+    // PR 12: ``client.prepare(...)`` materializes bytes — the public
+    // facade is the explicit caller-driven path. Lazily instantiate a
+    // single ``PrepareManager`` per facade instance so progress
+    // journal + lock dir + the warmup cache stay shared across calls.
+    // Callers can override by passing ``options.materializer``
+    // explicitly (kept for tests / advanced flows).
+    const materializer = options.materializer ?? this.preparePrepareManager();
+    return prepareForFacade(plannerClient, { ...options, materializer });
   }
+
+  private preparePrepareManager(): PrepareManager {
+    if (!this._prepareManager) {
+      this._prepareManager = new PrepareManager();
+    }
+    return this._prepareManager;
+  }
+  private _prepareManager?: PrepareManager;
 
   private preparePlannerClient(): RuntimePlannerClient {
     // The facade's existing routing-layer PlannerClient returns a
