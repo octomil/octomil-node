@@ -58,9 +58,15 @@ export interface PrepareOutcome {
   requiredFiles: string[];
   digest: string | null;
   manifestUri: string | null;
-  /** False until Node grows a durable downloader. Today, callers shell
-   *  out to `octomil prepare` (Python CLI) to actually fetch. */
+  /** True iff a ``materializer`` was provided in :func:`prepareForFacade`
+   * options AND the bytes are now on disk verified. */
   prepared: boolean;
+  /** Set when ``prepared === true``. Absolute on-disk path the
+   * artifact lives under. */
+  artifactDir?: string | null;
+  /** Set when ``prepared === true``. Maps each ``requiredFiles`` entry
+   * to its on-disk path; ``files[""]`` for single-file artifacts. */
+  files?: Record<string, string> | null;
 }
 
 export interface PrepareOptions {
@@ -68,6 +74,22 @@ export interface PrepareOptions {
   capability?: PlannerCapability;
   routingPolicy?: string;
   appSlug?: string;
+  /** When provided, ``prepareForFacade`` runs the planner's candidate
+   * through this materializer and the returned ``PrepareOutcome``
+   * carries ``prepared: true`` plus the on-disk path. When omitted,
+   * the function preserves its pre-PR-12 contract (planner-introspection
+   * only; ``prepared: false``). Pass a fresh
+   * :class:`PrepareManager` from ``./prepare-manager.js`` for real
+   * downloads. */
+  materializer?: { prepare: (candidate: RuntimeCandidatePlan) => Promise<MaterializedArtifact> };
+}
+
+/** What a materializer reports back after pulling bytes onto disk.
+ * Shape-compatible with :class:`NodePrepareOutcome` so the SDK can
+ * cleanly evolve. */
+export interface MaterializedArtifact {
+  artifactDir: string;
+  files: Record<string, string>;
 }
 
 /** Resolve a planner candidate and return a `PrepareOutcome`.
@@ -137,10 +159,27 @@ export async function prepareForFacade(
       digest: null,
       manifestUri: null,
       prepared: false,
+      artifactDir: null,
+      files: null,
     };
   }
   // Type-narrowed by the early return above + the validator's guarantee.
   const safeArtifact: RuntimeArtifactPlan = artifact!;
+  // PR 12: when a materializer is provided, run it now so the
+  // returned outcome carries ``prepared: true`` + the on-disk
+  // ``artifactDir`` / ``files`` paths. ``PrepareManager`` is
+  // fully cache-aware (a re-run with bytes already on disk is a
+  // verify-only fast path), so this is safe to call on every
+  // request the host opts into.
+  let prepared = false;
+  let artifactDir: string | null = null;
+  let files: Record<string, string> | null = null;
+  if (options.materializer) {
+    const materialized = await options.materializer.prepare(candidate);
+    prepared = true;
+    artifactDir = materialized.artifactDir;
+    files = materialized.files;
+  }
   return {
     artifactId: safeArtifact.artifact_id ?? safeArtifact.model_id,
     modelId: safeArtifact.model_id,
@@ -152,9 +191,9 @@ export async function prepareForFacade(
     requiredFiles: safeArtifact.required_files ?? [],
     digest: safeArtifact.digest ?? null,
     manifestUri: safeArtifact.manifest_uri ?? null,
-    // Node SDK does not download yet — the Python `octomil prepare` CLI
-    // is the supported way to materialize the bytes today.
-    prepared: false,
+    prepared,
+    artifactDir,
+    files,
   };
 }
 
