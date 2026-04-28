@@ -112,8 +112,14 @@ describe("prepareForFacade", () => {
     }
   });
 
-  it("only TTS is in the supported set today (parity with Python #444)", () => {
-    expect(Array.from(PREPAREABLE_CAPABILITIES)).toEqual(["tts"]);
+  it("tts and transcription are wired into the prepare lifecycle", () => {
+    // tts and transcription both thread the prepared `model_dir` into
+    // their backend (the local runner reads `warm_model_dir` in the
+    // request body); embedding/chat/responses remain out of the set
+    // until their backends learn to consume the prepared directory.
+    expect(Array.from(PREPAREABLE_CAPABILITIES).sort()).toEqual(
+      ["transcription", "tts"],
+    );
   });
 });
 
@@ -132,7 +138,7 @@ describe("prepareForFacade rejection paths", () => {
     });
   });
 
-  it.each(["transcription", "embeddings", "chat", "responses"] as const)(
+  it.each(["embeddings", "chat", "responses"] as const)(
     "rejects unwired capability %s with an actionable INVALID_INPUT message",
     async (cap) => {
       const planner = fakePlannerClient(planWith([localCandidate()]));

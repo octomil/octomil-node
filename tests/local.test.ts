@@ -351,7 +351,9 @@ describe("Octomil.local()", () => {
       const client = await Octomil.local();
       await client.initialize();
 
-      const result = await client.audioTranscriptions.create({
+      expect(client.audio.transcriptions).toBe(client.audioTranscriptions);
+
+      const result = await client.audio.transcriptions.create({
         audio: new Uint8Array([1, 2, 3, 4]),
         language: "en",
       });
@@ -381,8 +383,8 @@ describe("Octomil.local()", () => {
       const client = Octomil.fromEnv();
       await client.initialize();
 
-      expect(() => client.audioTranscriptions).toThrow(OctomilError);
-      expect(() => client.audioTranscriptions).toThrow(
+      expect(() => client.audio.transcriptions).toThrow(OctomilError);
+      expect(() => client.audio.transcriptions).toThrow(
         "Audio transcriptions via local runner require Octomil.local()",
       );
     });

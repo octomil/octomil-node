@@ -17,6 +17,10 @@ export interface PlanRequest {
   capability: RoutableCapability;
   streaming?: boolean;
   routing_policy?: string;
+  /** Slug or `@app/<slug>` ref for app-scoped resolution. Preserved
+   *  through the planner so `private`/`local_only` apps never collide
+   *  with the public artifact namespace. */
+  app_slug?: string;
   device?: DeviceRuntimeProfile;
 }
 
@@ -75,6 +79,7 @@ export class PlannerClient {
           capability: request.capability,
           streaming: request.streaming ?? false,
           routing_policy: request.routing_policy,
+          app_slug: request.app_slug,
           device,
         }),
       });

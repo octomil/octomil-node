@@ -25,26 +25,35 @@ import type {
   RuntimePlanResponse,
 } from "../planner/types.js";
 import { OctomilError } from "../types.js";
+import type { PrepareManager } from "./prepare-manager.js";
 
 /** Capabilities `prepare()` understands. Mirror of Python
  * `_PREPAREABLE_CAPABILITIES`.
  *
- * Only `"tts"` is wired today — it is the one capability whose dispatch
- * path threads the prepared `model_dir` into the backend. Transcription,
- * embedding, chat, and responses will be added one at a time as their
- * backends learn to consume the prepared directory; until then,
- * accepting them here would let the SDK download bytes the next
- * inference call ignores. Python narrowed to {tts} in #444 for the same
- * reason; this Set keeps the two SDKs in lock-step. */
+ * `tts` and `transcription` are wired today: both dispatch paths
+ * thread the prepared `model_dir` into their backend (the local
+ * runner reads it as `warm_model_dir` in the request body, so the
+ * runner can short-circuit re-loading and pin the prepared bytes
+ * to the inference call). `embedding`, `chat`, and `responses` will
+ * be added one at a time as their backends learn to consume the
+ * prepared directory; accepting them here without that wiring
+ * would let the SDK download bytes the next inference call ignores. */
 export const PREPAREABLE_CAPABILITIES: ReadonlySet<PlannerCapability> =
-  new Set<PlannerCapability>(["tts"]);
+  new Set<PlannerCapability>(["tts", "transcription"]);
 
 /** Result of a successful `prepare(...)` call.
  *
- * `prepared = false` is reserved for the future — once the Node SDK gains
- * its own durable downloader, this flag will flip to true after the bytes
- * land on disk. Today, prepare returns the planner's intent and leaves
- * materialization to the Python CLI. */
+ * `prepared = true` means the bytes are on disk under `modelDir` with
+ * the planner's digest verified end-to-end. `prepared = false` is the
+ * planner-introspection-only path: the candidate validated, but no
+ * PrepareManager was configured so the SDK did not materialize bytes.
+ *
+ * The dispatch layer uses `modelDir` to thread the prepared artifact
+ * into the engine's `model_dir` argument, which is the bridge between
+ * `prepare()` and `audio.speech.create(...)` — the same bridge Python
+ * uses, so apps can preload artifacts in a build step and the runtime
+ * picks them up at first call.
+ */
 export interface PrepareOutcome {
   artifactId: string;
   modelId: string;
@@ -58,16 +67,48 @@ export interface PrepareOutcome {
   requiredFiles: string[];
   digest: string | null;
   manifestUri: string | null;
-  /** False until Node grows a durable downloader. Today, callers shell
-   *  out to `octomil prepare` (Python CLI) to actually fetch. */
+  /** True only when a {@link PrepareManager} downloaded + materialized
+   *  the bytes successfully and the digest was verified. */
   prepared: boolean;
+  /** Runtime layout root (engine `model_dir`). Set when `prepared=true`. */
+  modelDir: string | null;
+  /** Absolute path to the primary file inside `modelDir`. */
+  primaryPath: string | null;
+  /** Whether this prepare hit the durable cache (`true`) or actually
+   *  downloaded fresh bytes (`false`). Mirrors Python's idempotency
+   *  contract — a second prepare is a no-op other than a digest
+   *  re-verification. */
+  cacheHit: boolean;
+  /** Planner-resolved app slug when the input was an `@app/<slug>/...`
+   *  ref or an `app=` was passed; preserved on the outcome so callers
+   *  can confirm the planner kept the app identity end-to-end. */
+  appSlug: string | null;
+  /** Effective routing policy after app/policy resolution. */
+  routingPolicy: string | null;
 }
 
 export interface PrepareOptions {
   model: string;
   capability?: PlannerCapability;
+  /** Routing policy override — `"private"`, `"local_only"`,
+   *  `"local_first"`, `"cloud_first"`, `"cloud_only"`,
+   *  `"performance_first"`. Mirrors Python `client.prepare(..., policy=)`.
+   *  When set, the planner uses this in place of any policy resolved
+   *  from the app row. */
+  policy?: string;
+  /** App slug or `@app/<slug>` reference. Mirrors Python
+   *  `client.prepare(..., app=)`. The planner uses this to resolve the
+   *  app identity even when the model field is a non-app ref. */
+  app?: string;
+  /** @deprecated Use `policy`. Retained for callers built against an
+   *  earlier alpha. */
   routingPolicy?: string;
+  /** @deprecated Use `app`. */
   appSlug?: string;
+  /** Optional pre-built PrepareManager. When omitted, prepare returns
+   *  planner-introspection only (`prepared=false`). When provided, the
+   *  SDK materializes the artifact end-to-end (`prepared=true`). */
+  prepareManager?: PrepareManager | null;
 }
 
 /** Resolve a planner candidate and return a `PrepareOutcome`.
@@ -90,11 +131,13 @@ export async function prepareForFacade(
   }
 
   const device = await collectDeviceRuntimeProfile();
+  const effectivePolicy = options.policy ?? options.routingPolicy;
+  const effectiveAppSlug = appSlugFromOption(options.app) ?? options.appSlug;
   const plan = await plannerClient.fetchPlan({
     model: options.model,
     capability,
-    routing_policy: options.routingPolicy,
-    app_slug: options.appSlug,
+    routing_policy: effectivePolicy,
+    app_slug: effectiveAppSlug,
     device,
   });
   if (!plan) {
@@ -117,6 +160,15 @@ export async function prepareForFacade(
 
   validatePreparable(candidate);
 
+  const planAppSlug =
+    typeof plan.app_resolution?.app_slug === "string"
+      ? plan.app_resolution.app_slug
+      : (options.appSlug ?? null);
+  const planPolicy =
+    typeof plan.app_resolution?.routing_policy === "string"
+      ? plan.app_resolution.routing_policy
+      : (plan.policy ?? options.routingPolicy ?? null);
+
   // `validatePreparable` guarantees `artifact` is present when
   // `prepare_required=true`. For `prepare_required=false`, the engine
   // manages its own bytes and the planner may legitimately omit the
@@ -137,10 +189,26 @@ export async function prepareForFacade(
       digest: null,
       manifestUri: null,
       prepared: false,
+      modelDir: null,
+      primaryPath: null,
+      cacheHit: false,
+      appSlug: planAppSlug,
+      routingPolicy: planPolicy,
     };
   }
   // Type-narrowed by the early return above + the validator's guarantee.
   const safeArtifact: RuntimeArtifactPlan = artifact!;
+  let prepared = false;
+  let modelDir: string | null = null;
+  let primaryPath: string | null = null;
+  let cacheHit = false;
+  if (options.prepareManager) {
+    const result = await options.prepareManager.prepare(candidate);
+    prepared = true;
+    modelDir = result.modelDir;
+    primaryPath = result.primaryPath;
+    cacheHit = result.cacheHit;
+  }
   return {
     artifactId: safeArtifact.artifact_id ?? safeArtifact.model_id,
     modelId: safeArtifact.model_id,
@@ -152,10 +220,31 @@ export async function prepareForFacade(
     requiredFiles: safeArtifact.required_files ?? [],
     digest: safeArtifact.digest ?? null,
     manifestUri: safeArtifact.manifest_uri ?? null,
-    // Node SDK does not download yet — the Python `octomil prepare` CLI
-    // is the supported way to materialize the bytes today.
-    prepared: false,
+    // `prepared` flips to true only when a PrepareManager was passed in
+    // and the artifact materialized end-to-end. The legacy
+    // planner-introspection mode keeps `prepared=false` so existing
+    // callers continue to see the same shape.
+    prepared,
+    modelDir,
+    primaryPath,
+    cacheHit,
+    appSlug: planAppSlug,
+    routingPolicy: planPolicy,
   };
+}
+
+/** Coerce an `app` option (slug or `@app/<slug>` ref) into a bare slug. */
+function appSlugFromOption(app?: string): string | undefined {
+  if (!app) return undefined;
+  const trimmed = app.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("@app/")) {
+    // `@app/<slug>` or `@app/<slug>/<capability>` — return the second
+    // path segment, never anything past the slug.
+    const tail = trimmed.slice("@app/".length).split("/")[0] ?? "";
+    return tail || undefined;
+  }
+  return trimmed;
 }
 
 /** Mirror of Python `_local_sdk_runtime_candidate`. Returns the first

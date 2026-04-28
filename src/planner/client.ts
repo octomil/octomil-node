@@ -283,6 +283,31 @@ export function parsePlanResponse(
     ? data.fallback_candidates
     : [];
 
+  const rawAppResolution = data.app_resolution as
+    | Record<string, unknown>
+    | undefined;
+  const appResolution =
+    rawAppResolution && typeof rawAppResolution === "object"
+      ? {
+          app_id:
+            typeof rawAppResolution.app_id === "string"
+              ? rawAppResolution.app_id
+              : undefined,
+          app_slug:
+            typeof rawAppResolution.app_slug === "string"
+              ? rawAppResolution.app_slug
+              : undefined,
+          selected_model:
+            typeof rawAppResolution.selected_model === "string"
+              ? rawAppResolution.selected_model
+              : undefined,
+          routing_policy:
+            typeof rawAppResolution.routing_policy === "string"
+              ? rawAppResolution.routing_policy
+              : undefined,
+        }
+      : undefined;
+
   return {
     model: String(data.model ?? ""),
     capability: String(data.capability ?? ""),
@@ -306,5 +331,6 @@ export function parsePlanResponse(
         ? data.plan_ttl_seconds
         : 604_800,
     server_generated_at: String(data.server_generated_at ?? ""),
+    app_resolution: appResolution,
   };
 }
