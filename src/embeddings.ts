@@ -108,17 +108,25 @@ export interface EmbeddingRouteInfo {
  * Uses the planner to choose between hosted cloud and an explicitly configured
  * local endpoint. If the planner is unavailable, falls back to the legacy
  * hosted path.
+ *
+ * Accepts `policy` and `app` so the embeddings surface matches
+ * `audio.speech.create` for app/policy parity. The planner uses both
+ * to honor app identity end-to-end so `private`/`local_only` apps
+ * never substitute a public artifact.
  */
 export async function embedWithPlanner(
   config: PlannerEmbeddingConfig,
   modelId: string,
   input: string | string[],
   signal?: AbortSignal,
+  routing?: { policy?: string; app?: string },
 ): Promise<EmbeddingResult & { _routeInfo?: EmbeddingRouteInfo }> {
   const plan = await config.plannerClient.getPlan({
     model: modelId,
     capability: "embeddings",
     streaming: false,
+    routing_policy: routing?.policy,
+    app_slug: appSlugFromOption(routing?.app, modelId),
   });
 
   const router = new RequestRouter({
@@ -150,6 +158,19 @@ export async function embedWithPlanner(
       routeEvent: decision.routeEvent,
     },
   });
+}
+
+/** Extract the bare slug from `app=` or, failing that, an `@app/<slug>`
+ *  ref encoded in `model`. Mirrors the helper on the speech path so
+ *  embeddings and TTS preserve app identity the same way. */
+function appSlugFromOption(app?: string, model?: string): string | undefined {
+  const candidate = app?.trim() || model?.trim();
+  if (!candidate) return undefined;
+  if (candidate.startsWith("@app/")) {
+    const tail = candidate.slice("@app/".length).split("/")[0] ?? "";
+    return tail || undefined;
+  }
+  return app?.trim() || undefined;
 }
 
 async function embedAtEndpoint(

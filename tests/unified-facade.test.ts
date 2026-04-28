@@ -132,6 +132,7 @@ describe("Octomil unified facade", () => {
         "nomic-embed-text-v1.5",
         "hello",
         undefined,
+        { app: undefined, policy: undefined },
       );
     });
 
@@ -158,6 +159,7 @@ describe("Octomil unified facade", () => {
         "nomic-embed-text-v1.5",
         "hello",
         undefined,
+        { app: undefined, policy: undefined },
       );
     });
 
@@ -388,6 +390,7 @@ describe("Octomil unified facade", () => {
         "nomic-embed-text-v1.5",
         "On-device AI inference at scale",
         undefined,
+        { app: undefined, policy: undefined },
       );
     });
 
@@ -416,6 +419,7 @@ describe("Octomil unified facade", () => {
         "nomic-embed-text-v1.5",
         "test input",
         undefined,
+        { app: undefined, policy: undefined },
       );
     });
 
@@ -444,7 +448,41 @@ describe("Octomil unified facade", () => {
         "nomic-embed-text-v1.5",
         ["first document", "second document"],
         undefined,
+        { app: undefined, policy: undefined },
       );
+    });
+  });
+
+  // -- audio namespace -------------------------------------------------------
+
+  describe("audio", () => {
+    it("audio getter throws before initialize", () => {
+      const client = new Octomil({
+        apiKey: "edg_sk_abc",
+        orgId: "org_1",
+      });
+
+      expect(() => client.audio).toThrow(OctomilNotInitializedError);
+    });
+
+    it("exposes speech through the canonical audio namespace", async () => {
+      const client = new Octomil({
+        apiKey: "edg_sk_abc",
+        orgId: "org_1",
+      });
+      await client.initialize();
+
+      expect(client.audio.speech).toBe(client.audioSpeech);
+    });
+
+    it("exposes transcriptions through the canonical audio namespace", async () => {
+      process.env.OCTOMIL_LOCAL_RUNNER_URL = "http://127.0.0.1:5555";
+      process.env.OCTOMIL_LOCAL_RUNNER_TOKEN = "test-tok";
+
+      const client = await Octomil.local();
+      await client.initialize();
+
+      expect(client.audio.transcriptions).toBe(client.audioTranscriptions);
     });
   });
 

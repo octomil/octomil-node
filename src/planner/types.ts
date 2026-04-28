@@ -168,6 +168,16 @@ export interface RuntimeCandidatePlan {
   prepare_policy?: PreparePolicy;
 }
 
+/** Server-resolved app identity. Surfaced on plan responses when the
+ *  planner resolved an `@app/<slug>/<capability>` ref or an `app=` arg
+ *  to a concrete app row. */
+export interface PlannerAppResolution {
+  app_id?: string;
+  app_slug?: string;
+  selected_model?: string;
+  routing_policy?: string;
+}
+
 /** Full plan response from POST /api/v2/runtime/plan. */
 export interface RuntimePlanResponse {
   model: string;
@@ -179,6 +189,11 @@ export interface RuntimePlanResponse {
   public_client_allowed?: boolean;
   plan_ttl_seconds: number;
   server_generated_at: string;
+  /** Server-resolved app identity. Only present when the plan was
+   *  triggered by an `@app/<slug>/...` ref or an `app=` arg; the
+   *  facade preserves this end-to-end so `prepare()` can confirm the
+   *  app identity made it through routing. */
+  app_resolution?: PlannerAppResolution;
 }
 
 // ---------------------------------------------------------------------------
