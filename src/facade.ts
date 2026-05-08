@@ -1009,7 +1009,7 @@ export class Octomil {
       this._plannerClient = null;
     } else {
       // Hosted mode: build a ResponsesClient from the resolved auth credentials.
-      const serverUrl = options.serverUrl ?? "https://api.octomil.com";
+      const serverUrl = resolveHostUrl({ baseUrl: options.serverUrl });
 
       let apiKey: string | undefined;
       if (options.publishableKey) {
@@ -1372,7 +1372,7 @@ export class Octomil {
             "audio.speech requires a server-side apiKey. Publishable keys cannot call hosted speech.",
           );
         }
-        const serverUrl = this.options.serverUrl ?? "https://api.octomil.com";
+        const serverUrl = resolveHostUrl({ baseUrl: this.options.serverUrl });
         this._audioSpeech = this._plannerClient
           ? new RoutedFacadeAudioSpeech(
               serverUrl,
