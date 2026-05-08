@@ -22,6 +22,7 @@ import { embed, embedWithPlanner } from "./embeddings.js";
 import type { EmbeddingResult } from "./embeddings.js";
 import { validatePublishableKey } from "./auth-config.js";
 import { configure } from "./configure.js";
+import { resolveHostUrl } from "./profile.js";
 import type { AuthConfig } from "./types.js";
 import { OctomilError } from "./types.js";
 import type {
@@ -1323,7 +1324,10 @@ export class Octomil {
     // download_urls, etc. Reuse this instance across calls so the
     // network connection stays warm for repeat prepares.
     if (!this._preparePlanner) {
-      const baseUrl = this.options.serverUrl ?? "https://api.octomil.com";
+      // Defer to profile resolver so OCTOMIL_PROFILE=staging picks the
+      // staging endpoint when no explicit serverUrl is set
+      // (codex post-debate B2).
+      const baseUrl = resolveHostUrl({ baseUrl: this.options.serverUrl });
       const apiKey =
         this.options.publishableKey ??
         this.options.apiKey ??

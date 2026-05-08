@@ -261,3 +261,58 @@ describe("cross-profile isolation", () => {
     expect(urls.size).toBe(3);
   });
 });
+
+// Codex post-debate B1: hostile-URL inference safety.
+describe("hostile-URL inference", () => {
+  test("marker in query string does not spoof profile", () => {
+    const res = resolveProfile({
+      env: { OCTOMIL_API_BASE: "https://evil.test/?next=api.staging.octomil.com" },
+    });
+    expect(res.profile).toBe(Profile.Production);
+    expect(res.source).toBe("default");
+  });
+
+  test("marker in path does not spoof profile", () => {
+    const res = resolveProfile({
+      env: { OCTOMIL_API_BASE: "https://evil.test/api.octomil.com/v1" },
+    });
+    expect(res.profile).toBe(Profile.Production);
+  });
+
+  test("marker in userinfo does not spoof profile", () => {
+    const res = resolveProfile({
+      env: { OCTOMIL_API_BASE: "https://api.staging.octomil.com@evil.test/v1" },
+    });
+    // URL parser sees host=evil.test; staging not selected.
+    expect(res.profile).toBe(Profile.Production);
+  });
+
+  test("superdomain does not spoof production", () => {
+    const res = resolveProfile({
+      env: { OCTOMIL_API_BASE: "https://api.octomil.com.evil.test/v1" },
+    });
+    expect(res.profile).toBe(Profile.Production);
+    expect(res.source).toBe("default");
+  });
+
+  test("unparseable URL falls through safely", () => {
+    const res = resolveProfile({
+      env: { OCTOMIL_API_BASE: "not a url" },
+    });
+    expect(res.profile).toBe(Profile.Production);
+  });
+});
+
+// Codex post-debate N1: whitespace fallback.
+describe("whitespace handling", () => {
+  test("whitespace OCTOMIL_API_BASE falls back to OCTOMIL_API_URL", () => {
+    const res = resolveProfile({
+      env: {
+        OCTOMIL_API_BASE: "   ",
+        OCTOMIL_API_URL: "https://api.staging.octomil.com",
+      },
+    });
+    expect(res.profile).toBe(Profile.Staging);
+    expect(res.source).toBe("url_inferred");
+  });
+});

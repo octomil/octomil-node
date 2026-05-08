@@ -109,16 +109,16 @@ const PROFILE_ARTIFACT_BUCKETS: Record<Profile, string> = {
 };
 
 /**
- * Heuristic host substrings used by `resolveProfile` when inferring
- * from an explicit `OCTOMIL_API_BASE`/`_URL`. Order matters — staging
- * is checked before production so the more-specific
- * `api.staging.octomil.com` is matched before `api.octomil.com` would
- * be (substring match would otherwise pick up either).
+ * Exact-host markers used by `resolveProfile` when inferring from an
+ * explicit `OCTOMIL_API_BASE`/`_URL`. Match is against the *parsed
+ * hostname*, never a substring of the raw URL — a hostile URL like
+ * `https://evil.test/?next=api.staging.octomil.com` or
+ * `api.octomil.com.evil.test` MUST NOT spoof a profile.
  */
-const HOST_INFERENCE_MARKERS: ReadonlyArray<[Profile, ReadonlyArray<string>]> = [
-  [Profile.Staging, ["api.staging.octomil.com"]],
-  [Profile.Production, ["api.octomil.com"]],
-  [Profile.Dev, ["localhost", "127.0.0.1", "0.0.0.0"]],
+const HOST_INFERENCE_MARKERS: ReadonlyArray<[Profile, ReadonlySet<string>]> = [
+  [Profile.Staging, new Set(["api.staging.octomil.com"])],
+  [Profile.Production, new Set(["api.octomil.com"])],
+  [Profile.Dev, new Set(["localhost", "127.0.0.1", "0.0.0.0"])],
 ];
 
 export type ProfileSource = "explicit" | "env" | "url_inferred" | "default";
@@ -155,12 +155,16 @@ export function cacheNamespaceFor(profile: Profile): string {
 }
 
 function inferFromUrl(url: string): Profile | null {
-  if (!url) return null;
-  const lowered = url.trim().toLowerCase();
+  if (!url || !url.trim()) return null;
+  let host: string;
+  try {
+    host = new URL(url.trim()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!host) return null;
   for (const [profile, markers] of HOST_INFERENCE_MARKERS) {
-    for (const marker of markers) {
-      if (lowered.includes(marker)) return profile;
-    }
+    if (markers.has(host)) return profile;
   }
   return null;
 }
@@ -200,9 +204,12 @@ export function resolveProfile(
     return { profile: profileFromString(rawEnv), source: "env" };
   }
 
-  // 3. URL inference.
-  const explicitUrl =
-    (env.OCTOMIL_API_BASE ?? "") || (env.OCTOMIL_API_URL ?? "");
+  // 3. URL inference. Trim BEFORE selecting so a whitespace
+  //    OCTOMIL_API_BASE doesn't mask a valid OCTOMIL_API_URL
+  //    (codex post-debate N1).
+  const baseTrimmed = (env.OCTOMIL_API_BASE ?? "").trim();
+  const urlTrimmed = (env.OCTOMIL_API_URL ?? "").trim();
+  const explicitUrl = baseTrimmed || urlTrimmed;
   const inferred = inferFromUrl(explicitUrl);
   if (inferred !== null) {
     return { profile: inferred, source: "url_inferred" };
