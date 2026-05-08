@@ -7,6 +7,7 @@
  */
 
 import { DeviceContext } from "./device-context.js";
+import { resolveHostUrl } from "./profile.js";
 import {
   type SilentAuthConfig,
   validatePublishableKey,
@@ -86,7 +87,7 @@ async function silentRegister(
   const maxDelayMs = 300_000; // 5 minutes
 
   try {
-    const baseUrl = options.baseUrl ?? "https://api.octomil.com";
+    const baseUrl = resolveHostUrl({ baseUrl: options.baseUrl });
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -169,7 +170,7 @@ function startHeartbeat(
     if (!headers) return;
 
     try {
-      const baseUrl = options.baseUrl ?? "https://api.octomil.com";
+      const baseUrl = resolveHostUrl({ baseUrl: options.baseUrl });
       await fetch(`${baseUrl}/api/v1/devices/heartbeat`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },

@@ -8,6 +8,7 @@
 import { performance } from "node:perf_hooks";
 
 import { OctomilError } from "./types.js";
+import { resolveHostUrl } from "./profile.js";
 import type { TelemetryReporter } from "./telemetry.js";
 import type {
   LocalResponsesRuntime,
@@ -257,7 +258,7 @@ export class ResponsesClient {
   lastRouteInfo: ResponseRouteInfo | null = null;
 
   constructor(options: ResponsesClientOptions = {}) {
-    this.serverUrl = (options.serverUrl ?? "https://api.octomil.com").replace(
+    this.serverUrl = resolveHostUrl({ baseUrl: options.serverUrl }).replace(
       /\/+$/,
       "",
     );

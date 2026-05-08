@@ -6,6 +6,7 @@
  */
 
 import { OctomilError } from "./types.js";
+import { resolveHostUrl } from "./profile.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -310,7 +311,7 @@ export class QueryRouter {
     this.models = models;
     this.enableDeterministic = options?.enableDeterministic ?? true;
     this.policyClient = new PolicyClient(
-      options?.apiBase ?? "https://api.octomil.com",
+      resolveHostUrl({ baseUrl: options?.apiBase }),
       options?.apiKey,
     );
     this.tiers = assignTiers(models);

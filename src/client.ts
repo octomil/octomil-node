@@ -8,6 +8,7 @@ import { TelemetryReporter } from "./telemetry.js";
 import { computeFileHash } from "./integrity.js";
 import { IntegrationsClient } from "./integrations.js";
 import { ResponsesClient } from "./responses.js";
+import { resolveHostUrl } from "./profile.js";
 import { ChatClient } from "./chat.js";
 import { CapabilitiesClient } from "./capabilities.js";
 import { ControlClient } from "./control.js";
@@ -33,7 +34,12 @@ import type { AppManifest } from "./manifest/types.js";
 import type { ModelRef } from "./model-ref.js";
 import { DeviceContext } from "./device-context.js";
 
-const DEFAULT_SERVER_URL = "https://api.octomil.com";
+// Computed lazily so OCTOMIL_PROFILE flips the host at construction
+// time. Function form rather than module-eval const so test env
+// changes are picked up.
+function defaultServerUrl(): string {
+  return resolveHostUrl();
+}
 const DEFAULT_CACHE_DIR = join(homedir(), ".octomil", "models");
 
 /** Public telemetry facade exposed via `client.telemetry`. */
@@ -83,7 +89,7 @@ export class OctomilClient {
       this.apiKey = auth.bootstrapToken;
       this.orgId = "";
     }
-    this.serverUrl = auth.serverUrl ?? DEFAULT_SERVER_URL;
+    this.serverUrl = auth.serverUrl ?? defaultServerUrl();
     this.cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
     this.downloader = new ModelDownloader(
       this.serverUrl,
