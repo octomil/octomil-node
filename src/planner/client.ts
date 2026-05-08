@@ -10,6 +10,7 @@
  * This matches the Python SDK's RuntimePlannerClient behaviour.
  */
 
+import { resolveHostUrl } from "../profile.js";
 import type {
   RuntimePlanRequest,
   RuntimePlanResponse,
@@ -23,7 +24,10 @@ import type {
 // Defaults
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BASE_URL = "https://api.octomil.com";
+// DEFAULT_BASE_URL was previously hardcoded; the planner now defers
+// to the SDK profile (OCTOMIL_PROFILE / OCTOMIL_API_BASE) so a
+// single env var flips this and every other SDK component to staging
+// in lockstep. See src/profile.ts for the resolution order.
 const PLAN_PATH = "/api/v2/runtime/plan";
 const BENCHMARK_PATH = "/api/v2/runtime/benchmarks";
 const DEFAULTS_PATH = "/api/v2/runtime/defaults";
@@ -52,7 +56,10 @@ export class RuntimePlannerClient {
   private readonly timeoutMs: number;
 
   constructor(options: RuntimePlannerClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    this.baseUrl = resolveHostUrl({ baseUrl: options.baseUrl }).replace(
+      /\/+$/,
+      "",
+    );
     this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
