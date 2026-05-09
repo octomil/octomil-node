@@ -90,6 +90,48 @@
           ]
         }
       ]
+    },
+    "native_chat_completion": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/chat.completion.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_embeddings_text": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/embeddings.text.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_transcription": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/audio.transcription.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_vad": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/audio.vad.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_speaker_embedding": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/audio.speaker.embedding.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_tts_batch": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/audio.tts.batch.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_tts_stream": {
+      "implemented": false,
+      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "contractYaml": "conformance/audio.tts.stream.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
     }
   },
   "behaviorTests": [
@@ -123,9 +165,13 @@
     "tests/conformance/contract.test.ts",
     "tests/conformance/local-runtime-routing.test.ts",
     "tests/conformance/local-tool-loop.test.ts",
-    "tests/conformance/responses-routing.test.ts"
+    "tests/conformance/responses-routing.test.ts",
+    "tests/conformance/native-capabilities.test.ts",
+    "tests/conformance/native-capability-constants.test.ts"
   ],
   "generatedSources": [
     "src/_generated"
-  ]
+  ],
+  "conformancePin": "v0.1.5-rc1",
+  "conformancePinFile": "CONFORMANCE_PIN"
 }
