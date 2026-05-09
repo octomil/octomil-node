@@ -22,7 +22,7 @@
 import { describe, expect, it } from "vitest";
 import { ErrorCode } from "../../src/_generated/error_code.js";
 import { RuntimeExecutor } from "../../src/_generated/runtime_executor.js";
-import { TELEMETRY_EVENTS } from "../../src/_generated/telemetry_events.js";
+import { SPAN_EVENT_NAMES } from "../../src/_generated/span_event_names.js";
 
 // ── Capability name strings ───────────────────────────────────────────────
 // These must match the `capability:` field in the contracts YAML byte-for-byte.
@@ -123,31 +123,11 @@ describe("RuntimeExecutor enum — SDK executor codes for 7 live capability engi
   });
 
   describe("sherpa-onnx executor (audio.speaker.embedding, audio.tts.batch, audio.tts.stream)", () => {
-    it("sherpa-onnx executor is present OR documented as a Lane D sync gap", () => {
-      // KNOWN DRIFT: octomil-contracts/generated/typescript/runtime_executor.ts has
-      // SherpaOnnx = "sherpa-onnx" (since: "1.15.0") but octomil-node/src/_generated
-      // is behind the contracts source — it's missing SherpaOnnx.
-      //
-      // Fix: python octomil-contracts/scripts/sync_generated.py --sdk node --write
-      //
-      // This test accepts either state and documents the drift explicitly.
+    it("sherpa-onnx executor is present (synced from contracts post-#121)", () => {
+      // DRIFT FIXED: sync_generated.py --sdk node --write added SherpaOnnx = "sherpa-onnx"
+      // to runtime_executor.ts. PR: chore/sync-generated-code-node.
       const executors = Object.values(RuntimeExecutor) as string[];
-      const hasSherpaOnnx = executors.includes("sherpa-onnx");
-
-      if (!hasSherpaOnnx) {
-        // LANE D FINDING: runtime_executor.ts is stale (missing sherpa-onnx).
-        // The three audio capabilities (speaker.embedding, tts.batch, tts.stream)
-        // own sherpa-onnx. Without this enum value, SDK routing for these
-        // capabilities cannot correctly identify the executor.
-        // Escalate to Lane D: run sync_generated.py --sdk node --write.
-        //
-        // Verify the drift is exactly what we expect (14 values, no sherpa-onnx):
-        expect(executors).not.toContain("sherpa-onnx");
-        expect(executors.length).toBeGreaterThanOrEqual(14); // prior to the sherpa-onnx addition
-      } else {
-        // Drift fixed — sherpa-onnx is now present.
-        expect(hasSherpaOnnx).toBe(true);
-      }
+      expect(executors).toContain("sherpa-onnx");
     });
   });
 });
@@ -195,74 +175,40 @@ describe("Error code canonical name conformance", () => {
   });
 });
 
-// ── Telemetry events — inference scope parity ────────────────────────────
-// The 7 live capabilities all emit inference-scoped telemetry.
-// Verify the SDK's TELEMETRY_EVENTS constants match contract event names.
+// ── Span event names — inference scope parity ────────────────────────────
+// telemetry_events.ts (legacy hand-rolled stub) was removed in contract sync post-#121.
+// Canonical span event names are now in span_event_names.ts (generated from contracts).
+// The 7 live capabilities all emit inference-scoped telemetry via these span events.
 
-describe("Telemetry events — inference scope parity", () => {
-  it("inference.started event name is byte-for-byte correct", () => {
-    expect(TELEMETRY_EVENTS.inferenceStarted).toBe("inference.started");
+describe("Span event names — inference scope parity", () => {
+  it("first_token span event name is byte-for-byte correct", () => {
+    expect(SPAN_EVENT_NAMES.firstToken).toBe("first_token");
   });
 
-  it("inference.completed event name is byte-for-byte correct", () => {
-    expect(TELEMETRY_EVENTS.inferenceCompleted).toBe("inference.completed");
+  it("chunk_produced span event name is byte-for-byte correct", () => {
+    expect(SPAN_EVENT_NAMES.chunkProduced).toBe("chunk_produced");
   });
 
-  it("inference.failed event name is byte-for-byte correct", () => {
-    expect(TELEMETRY_EVENTS.inferenceFailed).toBe("inference.failed");
+  it("completed span event name is byte-for-byte correct", () => {
+    expect(SPAN_EVENT_NAMES.completed).toBe("completed");
   });
 
-  it("inference.chunk_produced event name is byte-for-byte correct", () => {
+  it("fallback_triggered span event name is byte-for-byte correct", () => {
     // Used by streaming capabilities (chat.completion / audio.tts.stream)
-    // to report chunk telemetry.
-    expect(TELEMETRY_EVENTS.inferenceChunkProduced).toBe("inference.chunk_produced");
+    // to report fallback telemetry when a route attempt fails.
+    expect(SPAN_EVENT_NAMES.fallbackTriggered).toBe("fallback_triggered");
   });
 });
 
 // ── ModelCapability enum drift detection ─────────────────────────────────
-// DIVERGENCE FOUND: octomil-node/src/_generated/model_capability.ts is
-// missing ModelCapability.Tts = "tts" which exists in:
-//   - octomil-contracts/generated/typescript/model_capability.ts (source of truth)
-//   - octomil-python/octomil/_generated/model_capability.py (Python mirror, synced)
-//
-// This was introduced when contracts added `tts` (since: "1.15.0") but
-// the Node/Browser _generated/ directories were not re-synced via sync_generated.py.
-//
-// Fix: python octomil-contracts/scripts/sync_generated.py --sdk node --write
-//      python octomil-contracts/scripts/sync_generated.py --sdk browser --write
-//
-// The test below documents the current known state and catches future drift.
+// Previously documented drift: octomil-node/src/_generated/model_capability.ts
+// was missing ModelCapability.Tts = "tts". Fixed by sync_generated.py post-#121.
 
-describe("ModelCapability enum drift — Lane D finding", () => {
-  it("KNOWN DRIFT: ModelCapability enum is missing Tts='tts' vs contracts source", async () => {
-    // This test documents the known gap rather than making it pass silently.
-    // The Node _generated/model_capability.ts has 8 values; contracts has 9.
-    // After re-sync this count should be 9.
+describe("ModelCapability enum — drift fixed post-#121", () => {
+  it("ModelCapability.Tts = 'tts' is now present (synced from contracts)", async () => {
     const { ModelCapability } = await import("../../src/_generated/model_capability.js");
     const values = Object.values(ModelCapability) as string[];
-
-    const hasTts = values.includes("tts");
-
-    if (!hasTts) {
-      // LANE D FINDING (filed in PR body):
-      // octomil-contracts/generated/typescript/model_capability.ts has
-      // Tts = "tts" (since: "1.15.0") but octomil-node/src/_generated/model_capability.ts
-      // does not. Same drift in octomil-browser/src/_generated/model_capability.ts.
-      //
-      // Impact: SDK callers cannot route to TTS models via ModelCapability.Tts;
-      // audio.tts.batch and audio.tts.stream capability metadata is incomplete.
-      //
-      // Fix: python octomil-contracts/scripts/sync_generated.py --sdk node --write
-      //      python octomil-contracts/scripts/sync_generated.py --sdk browser --write
-      // Escalate to Lane D / Contracts agent.
-      //
-      // Current state: assert we see exactly 8 values (the 8 that exist).
-      expect(values.length).toBe(8);
-      expect(values).not.toContain("tts");
-    } else {
-      // Drift was fixed — verify the full set is now 9.
-      expect(values).toContain("tts");
-      expect(values.length).toBe(9);
-    }
+    expect(values).toContain("tts");
+    expect(values.length).toBe(9);
   });
 });
