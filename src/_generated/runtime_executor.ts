@@ -15,4 +15,5 @@ export enum RuntimeExecutor {
   SamsungOne = "samsung_one",
   Executorch = "executorch",
   Echo = "echo",
+  SherpaOnnx = "sherpa-onnx",
 }

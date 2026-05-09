@@ -1,0 +1,26 @@
+// Auto-generated from octomil-contracts. Do not edit.
+
+export enum GateCode {
+  ArtifactVerified = "artifact_verified",
+  RuntimeAvailable = "runtime_available",
+  ModelLoads = "model_loads",
+  ContextFits = "context_fits",
+  ModalitySupported = "modality_supported",
+  ToolSupport = "tool_support",
+  MinTokensPerSecond = "min_tokens_per_second",
+  MaxTtftMs = "max_ttft_ms",
+  MaxErrorRate = "max_error_rate",
+  MinFreeMemoryBytes = "min_free_memory_bytes",
+  MinFreeStorageBytes = "min_free_storage_bytes",
+  BenchmarkFresh = "benchmark_fresh",
+  MinBatteryPct = "min_battery_pct",
+  MaxThermalState = "max_thermal_state",
+  RequireCharging = "require_charging",
+  RequireWifi = "require_wifi",
+  SchemaValid = "schema_valid",
+  ToolCallValid = "tool_call_valid",
+  SafetyPassed = "safety_passed",
+  EvaluatorScoreMin = "evaluator_score_min",
+  JsonParseable = "json_parseable",
+  MaxRefusalRate = "max_refusal_rate",
+}

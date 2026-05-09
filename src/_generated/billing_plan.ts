@@ -6,7 +6,7 @@ export enum BillingPlan {
   Enterprise = "enterprise",
 }
 
-export type SupportTier = "community" | "email" | "dedicated";
+export type PlanSupportLevel = "community" | "email" | "dedicated";
 
 export interface PlanLimits {
   maxDevices: number | null;
@@ -46,7 +46,7 @@ export interface PlanConfig {
   limits: PlanLimits;
   features: PlanFeatures;
   pricing: PlanPricing;
-  support: SupportTier;
+  support: PlanSupportLevel;
 }
 
 export const PLAN_CONFIG: Record<BillingPlan, PlanConfig> = {

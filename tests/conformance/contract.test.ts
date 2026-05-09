@@ -7,7 +7,8 @@ import { ModelStatus } from "../../src/_generated/model_status";
 import { DeviceClass } from "../../src/_generated/device_class";
 import { FinishReason } from "../../src/_generated/finish_reason";
 import { CompatibilityLevel } from "../../src/_generated/compatibility_level";
-import { TELEMETRY_EVENTS, EVENT_REQUIRED_ATTRIBUTES } from "../../src/_generated/telemetry_events";
+import { SPAN_EVENT_NAMES } from "../../src/_generated/span_event_names";
+import { EVENT_REQUIRED_ATTRIBUTES } from "../../src/_generated/span_event_attributes";
 import { OTLP_RESOURCE_ATTRIBUTES } from "../../src/_generated/otlp_resource_attributes";
 import {
   ArtifactsClient,
@@ -85,20 +86,20 @@ describe("Contract Conformance", () => {
     });
   });
 
-  describe("Telemetry events", () => {
-    it("has all 6 canonical event names", () => {
-      expect(TELEMETRY_EVENTS.inferenceStarted).toBe("inference.started");
-      expect(TELEMETRY_EVENTS.inferenceCompleted).toBe("inference.completed");
-      expect(TELEMETRY_EVENTS.inferenceFailed).toBe("inference.failed");
-      expect(TELEMETRY_EVENTS.inferenceChunkProduced).toBe("inference.chunk_produced");
-      expect(TELEMETRY_EVENTS.deployStarted).toBe("deploy.started");
-      expect(TELEMETRY_EVENTS.deployCompleted).toBe("deploy.completed");
+  describe("Span event names (replaces legacy TELEMETRY_EVENTS)", () => {
+    // telemetry_events.ts was a hand-rolled stub removed in contract sync post-#121.
+    // Canonical span event names are now in span_event_names.ts (generated from contracts).
+    it("has inference-related span event names", () => {
+      expect(SPAN_EVENT_NAMES.firstToken).toBe("first_token");
+      expect(SPAN_EVENT_NAMES.chunkProduced).toBe("chunk_produced");
+      expect(SPAN_EVENT_NAMES.completed).toBe("completed");
+      expect(SPAN_EVENT_NAMES.fallbackTriggered).toBe("fallback_triggered");
     });
 
-    it("has required attributes for each event", () => {
-      expect(EVENT_REQUIRED_ATTRIBUTES["inference.started"]).toContain("model.id");
-      expect(EVENT_REQUIRED_ATTRIBUTES["inference.completed"]).toContain("inference.duration_ms");
-      expect(EVENT_REQUIRED_ATTRIBUTES["inference.failed"]).toContain("error.type");
+    it("has required attributes for canonical span events", () => {
+      expect(EVENT_REQUIRED_ATTRIBUTES["first_token"]).toContain("octomil.ttft_ms");
+      expect(EVENT_REQUIRED_ATTRIBUTES["chunk_produced"]).toContain("octomil.chunk.index");
+      expect(EVENT_REQUIRED_ATTRIBUTES["completed"]).toContain("octomil.tokens.total");
     });
   });
 

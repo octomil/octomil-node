@@ -393,7 +393,7 @@ export {
   FinishReason,
   CompatibilityLevel,
   OTLP_RESOURCE_ATTRIBUTES,
-  TELEMETRY_EVENTS,
+  SPAN_EVENT_NAMES,
   EVENT_REQUIRED_ATTRIBUTES,
   ArtifactResourceKind as ContractArtifactResourceKind,
   Modality as ContractModality,

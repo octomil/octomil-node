@@ -9,4 +9,5 @@ export enum ModelCapability {
   Classification = "classification",
   Reasoning = "reasoning",
   Vision = "vision",
+  Tts = "tts",
 }
