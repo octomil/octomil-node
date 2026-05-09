@@ -18,29 +18,7 @@ export interface AppResolution {
 }
 
 export interface CandidateGate {
-  code:
-    | "artifact_verified"
-    | "runtime_available"
-    | "model_loads"
-    | "context_fits"
-    | "modality_supported"
-    | "tool_support"
-    | "min_tokens_per_second"
-    | "max_ttft_ms"
-    | "max_error_rate"
-    | "min_free_memory_bytes"
-    | "min_free_storage_bytes"
-    | "benchmark_fresh"
-    | "min_battery_pct"
-    | "max_thermal_state"
-    | "require_charging"
-    | "require_wifi"
-    | "schema_valid"
-    | "tool_call_valid"
-    | "safety_passed"
-    | "evaluator_score_min"
-    | "json_parseable"
-    | "max_refusal_rate";
+  code: "artifact_verified" | "runtime_available" | "model_loads" | "context_fits" | "modality_supported" | "tool_support" | "min_tokens_per_second" | "max_ttft_ms" | "max_error_rate" | "min_free_memory_bytes" | "min_free_storage_bytes" | "benchmark_fresh" | "min_battery_pct" | "max_thermal_state" | "require_charging" | "require_wifi" | "schema_valid" | "tool_call_valid" | "safety_passed" | "evaluator_score_min" | "json_parseable" | "max_refusal_rate";
   required: boolean;
   threshold_number?: number;
   threshold_string?: string;
@@ -81,16 +59,7 @@ export interface RouteAttempt {
   engine?: string | null;
   artifact?: AttemptArtifact | null;
   status: "skipped" | "failed" | "selected";
-  stage:
-    | "policy"
-    | "prepare"
-    | "download"
-    | "verify"
-    | "load"
-    | "benchmark"
-    | "gate"
-    | "inference"
-    | "output_quality";
+  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
   gate_results?: Array<GateResult>;
   reason: Record<string, unknown>;
 }
@@ -135,28 +104,10 @@ export interface RouteEvent {
   final_mode?: "sdk_runtime" | "hosted_gateway" | "external_endpoint" | null;
   engine?: string | null;
   artifact_id?: string | null;
-  cache_status?:
-    | "hit"
-    | "miss"
-    | "downloaded"
-    | "not_applicable"
-    | "unavailable"
-    | null;
+  cache_status?: "hit" | "miss" | "downloaded" | "not_applicable" | "unavailable" | null;
   fallback_used: boolean;
   fallback_trigger_code?: string | null;
-  fallback_trigger_stage?:
-    | "policy"
-    | "prepare"
-    | "download"
-    | "verify"
-    | "load"
-    | "benchmark"
-    | "gate"
-    | "inference"
-    | "output_quality"
-    | "timeout"
-    | "not_applicable"
-    | null;
+  fallback_trigger_stage?: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality" | "timeout" | "not_applicable" | null;
   candidate_attempts: number;
   attempt_details?: Array<RouteEventAttemptDetail>;
   ttft_ms?: number | null;
@@ -171,16 +122,7 @@ export interface RouteEventAttemptDetail {
   mode: "sdk_runtime" | "hosted_gateway" | "external_endpoint";
   engine: string | null;
   status: "skipped" | "failed" | "selected";
-  stage:
-    | "policy"
-    | "prepare"
-    | "download"
-    | "verify"
-    | "load"
-    | "benchmark"
-    | "gate"
-    | "inference"
-    | "output_quality";
+  stage: "policy" | "prepare" | "download" | "verify" | "load" | "benchmark" | "gate" | "inference" | "output_quality";
   gate_summary: Record<string, unknown>;
   reason_code: string;
 }
@@ -295,21 +237,8 @@ export interface RuntimeDefaultsResponse {
 
 export interface RuntimePlanRequest {
   model: string;
-  capability:
-    | "chat"
-    | "responses"
-    | "embeddings"
-    | "transcription"
-    | "audio"
-    | "tts";
-  routing_policy?:
-    | "private"
-    | "local_only"
-    | "local_first"
-    | "cloud_first"
-    | "cloud_only"
-    | "performance_first"
-    | "auto";
+  capability: "chat" | "responses" | "embeddings" | "transcription" | "audio" | "tts";
+  routing_policy?: "private" | "local_only" | "local_first" | "cloud_first" | "cloud_only" | "performance_first" | "auto";
   app_id?: string;
   app_slug?: string;
   org_id?: string;

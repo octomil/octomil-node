@@ -1,0 +1,48 @@
+// Auto-generated from octomil-contracts runtime_metric.json. Do not edit.
+//
+// Closed set of metric names emitted by the native runtime via OCT_EVENT_METRIC.
+
+export const RUNTIME_METRIC_NAMES = {
+  cacheAudioPhonemeHitRate: "cache.audio.phoneme.hit_rate",
+  cacheAudioPhraseHitRate: "cache.audio.phrase.hit_rate",
+  cacheAudioVoiceHitRate: "cache.audio.voice.hit_rate",
+  cacheRouteHitRate: "cache.route.hit_rate",
+  gpuActivePct: "gpu.active_pct",
+  gpuPowerW: "gpu.power_w",
+  kvPrefixBytes: "kv_prefix.bytes",
+  kvPrefixCacheHit: "kv_prefix.cache_hit",
+  kvPrefixCacheHitRate: "kv_prefix.cache_hit_rate",
+  kvPrefixCacheMiss: "kv_prefix.cache_miss",
+  kvPrefixSavedTokens: "kv_prefix.saved_tokens",
+  kvPrefixSavedTokensTotal: "kv_prefix.saved_tokens_total",
+  mimiFramesDroppedTotal: "mimi.frames_dropped_total",
+  mimiFramesEncodedTotal: "mimi.frames_encoded_total",
+  modelEvictCountTotal: "model.evict_count_total",
+  modelLoadMs: "model.load_ms",
+  modelWarmMs: "model.warm_ms",
+  schedulerPreemptCountTotal: "scheduler.preempt_count_total",
+  schedulerQueueDepth: "scheduler.queue_depth",
+  speakerAudioDurationMs: "speaker.audio_duration_ms",
+  speakerInferenceMs: "speaker.inference_ms",
+  speakerSetupMs: "speaker.setup_ms",
+  ttsAudioDurationMs: "tts.audio_duration_ms",
+  ttsChunkCount: "tts.chunk_count",
+  ttsFirstAudioMs: "tts.first_audio_ms",
+  ttsFirstChunkAfterSynthMs: "tts.first_chunk_after_synth_ms",
+  ttsRealTimeFactor: "tts.real_time_factor",
+  ttsSessionOpenMs: "tts.session_open_ms",
+  ttsSynthesizeMs: "tts.synthesize_ms",
+  vadAudioDurationMs: "vad.audio_duration_ms",
+  vadInferenceMs: "vad.inference_ms",
+  vadRealTimeFactor: "vad.real_time_factor",
+  vadSetupMs: "vad.setup_ms",
+  whisperAudioDurationMs: "whisper.audio_duration_ms",
+  whisperDecodeMs: "whisper.decode_ms",
+  whisperDigestAdmissionOk: "whisper.digest_admission_ok",
+  whisperLoadMs: "whisper.load_ms",
+  whisperQueueMs: "whisper.queue_ms",
+  whisperRealTimeFactor: "whisper.real_time_factor",
+  whisperSessionOpenMs: "whisper.session_open_ms",
+} as const;
+
+export const ALL_RUNTIME_METRICS = Object.values(RUNTIME_METRIC_NAMES);

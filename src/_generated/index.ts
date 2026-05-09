@@ -17,7 +17,8 @@ export { ModelStatus } from "./model_status.js";
 export { RuntimeExecutor } from "./runtime_executor.js";
 export { KvCacheStrategy } from "./kv_cache_strategy.js";
 export { OTLP_RESOURCE_ATTRIBUTES } from "./otlp_resource_attributes.js";
+export { SPAN_EVENT_NAMES } from "./span_event_names.js";
 export {
-  TELEMETRY_EVENTS,
+  SPAN_EVENT_ATTRIBUTES,
   EVENT_REQUIRED_ATTRIBUTES,
-} from "./telemetry_events.js";
+} from "./span_event_attributes.js";

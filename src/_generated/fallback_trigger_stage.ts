@@ -9,6 +9,7 @@ export enum FallbackTriggerStage {
   Benchmark = "benchmark",
   Gate = "gate",
   Inference = "inference",
+  OutputQuality = "output_quality",
   Timeout = "timeout",
   NotApplicable = "not_applicable",
 }
