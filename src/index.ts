@@ -170,6 +170,18 @@ export {
   resourcesOfKind,
 } from "./manifest/types.js";
 export { LocalFileModelRuntime } from "./runtime/engines/local-file-runtime.js";
+export {
+  NativeRuntime,
+  NativeRuntimeError,
+  discoverNativeRuntime,
+  readNativeCapabilities,
+  requireNativeCapability,
+} from "./runtime/native/index.js";
+export type {
+  NativeRuntimeCapabilities,
+  NativeRuntimeDiscovery,
+  NativeRuntimeOpenOptions,
+} from "./runtime/native/index.js";
 
 // Audio namespace
 export { OctomilAudio } from "./audio/octomil-audio.js";

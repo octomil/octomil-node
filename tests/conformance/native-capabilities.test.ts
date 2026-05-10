@@ -16,9 +16,10 @@
  * capability; streaming is a property of every chat.completion session.
  *
  * SKIP_WITH_EXPLICIT_REASON policy:
- *   The Node SDK does not currently bind to the native OCT runtime via FFI.
+ *   The Node SDK now binds enough of the native OCT runtime for dynamic
+ *   loading and capability discovery (see native-runtime-bridge.test.ts).
  *   All per-capability lifecycle/event/error tests that require a live native
- *   runtime use skip.withExplicitReason() rather than silently passing or
+ *   session use skip.withExplicitReason() rather than silently passing or
  *   falling back to cloud. This makes the SDK's actual coverage honest.
  *   Reference: octomil-contracts/conformance/CONFORMANCE_VERSION = v0.1.5-rc1
  *
@@ -304,8 +305,9 @@ describe("Native capability conformance — static / structural", () => {
 // ─────────────────────────────────────────────────────────────────────────
 // Section 2: Native runtime lifecycle/event/error tests
 //
-// These tests require a live native OCT runtime via FFI. The Node SDK does
-// not currently expose a native FFI binding. All tests in this section
+// These tests require live native session/model bindings. The Node SDK now
+// exposes the loader + capability discovery bridge, but does not yet expose
+// honest session lifecycle wrappers. All tests in this section
 // use skip.withExplicitReason() to produce honest status rather than fake pass.
 //
 // DO NOT add cloud fallback to make these pass. Cloud inference is a
@@ -314,11 +316,11 @@ describe("Native capability conformance — static / structural", () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 const SKIP_REASON_FFI =
-  "native runtime FFI not yet wired in octomil-node — " +
+  "native runtime session lifecycle not yet wired in octomil-node — " +
   "oct_session_open / oct_session_poll bindings required to exercise lifecycle; " +
-  "see octomil-node TODO: native-ffi-binding";
+  "loader + oct_runtime_capabilities are covered by native-runtime-bridge.test.ts";
 
-describe("Native capability conformance — lifecycle (SKIP: FFI not wired)", () => {
+describe("Native capability conformance — lifecycle (SKIP: session lifecycle not wired)", () => {
   for (const cap of LIVE_CAPABILITIES) {
     describe(`${cap}`, () => {
       it.skip(`lifecycle: runtime_open → model_open/warm → session_open → invoke → session_close → runtime_close`, () => {

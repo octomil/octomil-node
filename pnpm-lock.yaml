@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      koffi:
+        specifier: ^2.16.2
+        version: 2.16.2
       onnxruntime-node:
         specifier: ^1.17.0
         version: 1.24.2
@@ -712,6 +715,9 @@ packages:
 
   json-stringify-safe@5.0.1:
     resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
+
+  koffi@2.16.2:
+    resolution: {integrity: sha512-owU0MRwv6xkrVqCd+33uw6BaYppkTRXbO/rVdJNI2dvZG0gzyRhYwW25eWtc5pauwK8TGh3AbkFONSezdykfSA==}
 
   local-pkg@0.5.1:
     resolution: {integrity: sha512-9rrA30MRRP3gBD3HTGnC6cDFpaE1kVDWxWgqWJUN0RvDNAo+Nz/9GxB+nHOH0ifbVFy0hSA1V6vFDvnx54lTEQ==}
@@ -1533,6 +1539,8 @@ snapshots:
   js-tokens@9.0.1: {}
 
   json-stringify-safe@5.0.1: {}
+
+  koffi@2.16.2: {}
 
   local-pkg@0.5.1:
     dependencies:
