@@ -14,6 +14,7 @@ export enum RuntimeCapability {
   AudioTtsBatch = "audio.tts.batch",
   AudioTtsStream = "audio.tts.stream",
   AudioVad = "audio.vad",
+  CacheIntrospect = "cache.introspect",
   ChatCompletion = "chat.completion",
   ChatStream = "chat.stream",
   EmbeddingsImage = "embeddings.image",
