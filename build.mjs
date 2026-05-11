@@ -12,7 +12,7 @@ await build({
   target: "node18",
   format: "cjs",
   outfile: "dist/cjs/index.cjs",
-  external: ["onnxruntime-node"],
+  external: ["koffi", "onnxruntime-node"],
   sourcemap: true,
 });
 

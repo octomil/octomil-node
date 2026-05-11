@@ -7,6 +7,14 @@
  */
 
 import * as os from "node:os";
+import {
+  discoverNativeRuntime,
+  readNativeCapabilities,
+} from "./runtime/native/index.js";
+import type {
+  NativeRuntimeCapabilities,
+  NativeRuntimeDiscovery,
+} from "./runtime/native/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,6 +23,10 @@ import * as os from "node:os";
 export interface CapabilityProfile {
   deviceClass: "flagship" | "high" | "mid" | "low";
   availableRuntimes: string[];
+  nativeRuntime: NativeRuntimeDiscovery & {
+    runtimeKind: "node-native";
+    capabilities?: NativeRuntimeCapabilities;
+  };
   memoryMb: number;
   storageMb: number;
   platform: string;
@@ -74,14 +86,47 @@ export class CapabilitiesClient {
   current(): CapabilityProfile {
     const totalMb = Math.round(os.totalmem() / (1024 * 1024));
     const freeMb = Math.round(os.freemem() / (1024 * 1024));
+    const nativeRuntime = discoverNodeNativeRuntime();
+    const availableRuntimes = ["onnx"];
+    if (nativeRuntime.available) availableRuntimes.push("octomil-native");
 
     return {
       deviceClass: classifyDeviceClass(totalMb),
-      availableRuntimes: ["onnx"],
+      availableRuntimes,
+      nativeRuntime,
       memoryMb: totalMb,
       storageMb: freeMb, // Approximation — free RAM as proxy
       platform: mapPlatform(os.platform()),
       accelerators: detectAccelerators(),
+    };
+  }
+}
+
+function discoverNodeNativeRuntime(): CapabilityProfile["nativeRuntime"] {
+  const discovery = discoverNativeRuntime();
+  if (!discovery.available) {
+    return {
+      ...discovery,
+      runtimeKind: "node-native",
+    };
+  }
+
+  try {
+    return {
+      ...discovery,
+      runtimeKind: "node-native",
+      capabilities: readNativeCapabilities({
+        libraryPath: discovery.libraryPath,
+      }),
+    };
+  } catch (error) {
+    return {
+      available: false,
+      libraryPath: discovery.libraryPath,
+      abi: discovery.abi,
+      runtimeKind: "node-native",
+      unsupportedCode: "RUNTIME_UNAVAILABLE",
+      unsupportedReason: error instanceof Error ? error.message : String(error),
     };
   }
 }

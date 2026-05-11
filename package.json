@@ -37,6 +37,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "koffi": "^2.16.2",
     "onnxruntime-node": "^1.17.0"
   },
   "devDependencies": {
