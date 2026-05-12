@@ -24,7 +24,7 @@ Node.js SDK for on-device AI: ONNX inference, structured responses API, chat com
 | Tool runner | Implemented — automated multi-turn tool call loop |
 | configure() (silent registration) | Implemented — background registration with backoff |
 
-**Not implemented:** automatic OTA download orchestration for managed models, CLI, MCP server, local benchmarking. The Node SDK cannot run local inference engines (llama.cpp, mlx, etc.) directly. Use the separate Octomil CLI for local execution.
+**Not implemented:** automatic OTA download orchestration for managed models, CLI, MCP server, local benchmarking, and full native per-capability session execution. The Node SDK has a native runtime bridge smoke path for dynamic loading and capability discovery, but complete local llama.cpp/MLX-style execution still belongs to the Octomil CLI or Python SDK for now.
 
 ## Install
 
@@ -301,7 +301,7 @@ const metadata: RouteMetadata = {
 };
 ```
 
-> **Note:** The Node SDK currently supports the planner client for server-assisted planning, but cannot execute local inference engines directly (llama.cpp, mlx, etc.). For local execution, use the Octomil CLI or Python SDK.
+> **Note:** The Node SDK currently supports server-assisted planning plus a native runtime bridge smoke path for dynamic loading and capability discovery. It does not yet provide complete local session execution for every native capability. For full local execution, use the Octomil CLI or Python SDK.
 
 ## AppManifest (Capability-Driven)
 
