@@ -2,10 +2,10 @@
  * Native capability constants conformance — byte-for-byte parity with contracts.
  *
  * Verifies that:
- *   1. The 7 live capability name strings match contracts exactly.
+ *   1. The 12 live/native-conditional capability name strings match contracts exactly.
  *   2. Error codes used by native capabilities are present in ErrorCode.
  *   3. Streaming honesty tokens (delivery_timing values) match contracts.
- *   4. RuntimeExecutor enum includes executor names for the 7 capability engines.
+ *   4. RuntimeExecutor enum includes executor names for the live capability engines.
  *
  * These checks run statically (no FFI required).
  * Reference: octomil-contracts/conformance/CONFORMANCE_VERSION = v0.1.5-rc1
@@ -30,15 +30,20 @@ import { SPAN_EVENT_NAMES } from "../../src/_generated/span_event_names.js";
 describe("Native capability name parity", () => {
   const CONTRACTED_CAPABILITY_NAMES = [
     "chat.completion",
+    "chat.stream",
     "embeddings.text",
     "audio.transcription",
+    "audio.stt.batch",
+    "audio.stt.stream",
     "audio.vad",
     "audio.speaker.embedding",
+    "audio.diarization",
     "audio.tts.batch",
     "audio.tts.stream",
+    "cache.introspect",
   ];
 
-  it("all 7 live capability strings are valid dot-separated identifiers", () => {
+  it("all 12 live/native-conditional capability strings are valid dot-separated identifiers", () => {
     for (const name of CONTRACTED_CAPABILITY_NAMES) {
       expect(name).toMatch(/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/);
     }
@@ -107,7 +112,7 @@ describe("Streaming honesty token parity", () => {
 //     onnxruntime or whisper category; silero is bundled with runtime, not a
 //     separate SDK dispatch target in v0.1.5)
 
-describe("RuntimeExecutor enum — SDK executor codes for 7 live capability engines", () => {
+describe("RuntimeExecutor enum — SDK executor codes for live capability engines", () => {
   it("llamacpp executor present (SDK code for llama_cpp adapter: chat.completion, embeddings.text)", () => {
     expect(Object.values(RuntimeExecutor)).toContain("llamacpp");
   });
@@ -154,11 +159,11 @@ describe("Error code canonical name conformance", () => {
     expect(Object.values(ErrorCode)).toContain("runtime_unavailable");
   });
 
-  it("invalid_input is present (used by all 7 capabilities)", () => {
+  it("invalid_input is present (used by all session live/native-conditional capabilities)", () => {
     expect(Object.values(ErrorCode)).toContain("invalid_input");
   });
 
-  it("inference_failed is present (used by all 7 capabilities)", () => {
+  it("inference_failed is present (used by all session live/native-conditional capabilities)", () => {
     expect(Object.values(ErrorCode)).toContain("inference_failed");
   });
 
@@ -178,7 +183,7 @@ describe("Error code canonical name conformance", () => {
 // ── Span event names — inference scope parity ────────────────────────────
 // telemetry_events.ts (legacy hand-rolled stub) was removed in contract sync post-#121.
 // Canonical span event names are now in span_event_names.ts (generated from contracts).
-// The 7 live capabilities all emit inference-scoped telemetry via these span events.
+// The live capabilities all emit inference-scoped telemetry via these span events.
 
 describe("Span event names — inference scope parity", () => {
   it("first_token span event name is byte-for-byte correct", () => {

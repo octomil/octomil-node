@@ -1,58 +1,90 @@
 /**
  * Native capability conformance tests — Node SDK (Lane A bootstrap).
  *
- * Covers the 7 LIVE native capabilities as of conformance version v0.1.5-rc1:
+ * Covers the 12 live native / live-conditional capabilities:
  *   1. chat.completion
- *   2. embeddings.text
- *   3. audio.transcription
- *   4. audio.vad
- *   5. audio.speaker.embedding
- *   6. audio.tts.batch
- *   7. audio.tts.stream
+ *   2. chat.stream
+ *   3. embeddings.text
+ *   4. audio.transcription
+ *   5. audio.stt.batch
+ *   6. audio.stt.stream
+ *   7. audio.vad
+ *   8. audio.speaker.embedding
+ *   9. audio.diarization
+ *   10. audio.tts.batch
+ *   11. audio.tts.stream
+ *   12. cache.introspect
  *
- * chat.stream is a streaming PROFILE of chat.completion (is_advertised=false
- * in the contracts YAML). It is NOT a separate tested capability here.
- * Per contract: the runtime does NOT advertise the literal "chat.stream"
- * capability; streaming is a property of every chat.completion session.
+ * chat.stream is now an advertised native capability that dispatches through
+ * the same llama.cpp session path as chat.completion.
  *
- * SKIP_WITH_EXPLICIT_REASON policy:
- *   The Node SDK now binds enough of the native OCT runtime for dynamic
- *   loading and capability discovery (see native-runtime-bridge.test.ts).
- *   All per-capability lifecycle/event/error tests that require a live native
- *   session use skip.withExplicitReason() rather than silently passing or
- *   falling back to cloud. This makes the SDK's actual coverage honest.
- *   Reference: octomil-contracts/conformance/CONFORMANCE_VERSION = v0.1.5-rc1
+ * audio.diarization, audio.stt.batch, audio.stt.stream, and cache.introspect are
+ * live-conditional, not reserved. cache.introspect is a runtime/cache ABI
+ * capability, not a session lifecycle capability.
  *
- * DO NOT add cloud fallback to make any of these tests pass. The skip path
- * is the correct, honest signal for capabilities the binding can't yet exercise.
+ * The lifecycle smoke harness runs against a stub native ABI when the real
+ * runtime artifact is absent. It can also exercise OCTOMIL_RUNTIME_DYLIB when
+ * that env var points at a real liboctomil-runtime build.
+ *
+ * DO NOT add cloud fallback to make any of these tests pass. Cloud inference
+ * is a different transport and does not prove native capability conformance.
  */
 
 import { describe, expect, it } from "vitest";
 import { ErrorCode } from "../../src/_generated/error_code.js";
+import { RuntimeCapability } from "../../src/_generated/runtime_capability.js";
+import { NativeRuntime } from "../../src/runtime/native/index.js";
+import { buildNativeRuntimeStub } from "../helpers/native-runtime-stub.js";
 
 // ── Capability identifiers (byte-for-byte from contracts) ──────────────────
 // Source: octomil-contracts/conformance/<capability>.yaml field `capability:`
 const LIVE_CAPABILITIES = [
   "chat.completion",
+  "chat.stream",
   "embeddings.text",
   "audio.transcription",
+  "audio.stt.batch",
+  "audio.stt.stream",
   "audio.vad",
   "audio.speaker.embedding",
+  "audio.diarization",
   "audio.tts.batch",
   "audio.tts.stream",
+  "cache.introspect",
 ] as const;
 
 type LiveCapability = (typeof LIVE_CAPABILITIES)[number];
+const SESSION_CAPABILITIES = LIVE_CAPABILITIES.filter(
+  (cap) => cap !== "cache.introspect",
+) as Exclude<LiveCapability, "cache.introspect">[];
+type SessionCapability = (typeof SESSION_CAPABILITIES)[number];
 
-// chat.stream is a streaming profile of chat.completion (is_advertised=false).
-// It MUST NOT appear in the capability advertisement.
-const NON_ADVERTISED_PROFILES = ["chat.stream"] as const;
+const LIFECYCLE_LIBRARY_PATH =
+  process.env.OCTOMIL_RUNTIME_DYLIB ??
+  buildNativeRuntimeStub({
+    capabilities: [...LIVE_CAPABILITIES],
+    engines: ["llama_cpp", "whisper_cpp", "silero_vad", "sherpa_onnx"],
+    archs: ["darwin-arm64"],
+  });
 
-// ── Error codes used by the 7 live capabilities ────────────────────────────
+const describeLifecycle = LIFECYCLE_LIBRARY_PATH ? describe : describe.skip;
+
+const NON_ADVERTISED_PROFILES = [] as const;
+
+// These are live-conditional, not reserved exclusions.
+const CONDITIONAL_CAPABILITIES = [
+  "audio.diarization",
+  "audio.stt.batch",
+  "audio.stt.stream",
+  "cache.introspect",
+] as const;
+
+// ── Error codes used by the live capabilities ──────────────────────────────
 // Sourced from bounded_error_codes in each capability YAML.
 // These must exist in ErrorCode (byte-for-byte values enforced by contract.test.ts).
-const BOUNDED_ERROR_CODES_BY_CAPABILITY: Record<LiveCapability, string[]> = {
+const BOUNDED_ERROR_CODES_BY_CAPABILITY: Record<SessionCapability, string[]> = {
   "chat.completion": ["invalid_input", "context_too_large", "inference_failed", "cancelled"],
+  "chat.stream": ["invalid_input", "inference_failed", "cancelled", "stream_interrupted"],
   "embeddings.text": ["invalid_input", "context_too_large", "inference_failed", "cancelled"],
   "audio.transcription": [
     "invalid_input",
@@ -61,8 +93,24 @@ const BOUNDED_ERROR_CODES_BY_CAPABILITY: Record<LiveCapability, string[]> = {
     "unsupported_modality",
     "runtime_unavailable",
   ],
+  "audio.stt.batch": [
+    "invalid_input",
+    "inference_failed",
+    "cancelled",
+    "unsupported_modality",
+    "runtime_unavailable",
+  ],
+  "audio.stt.stream": [
+    "invalid_input",
+    "inference_failed",
+    "cancelled",
+    "unsupported_modality",
+    "runtime_unavailable",
+    "stream_interrupted",
+  ],
   "audio.vad": ["invalid_input", "inference_failed", "cancelled", "unsupported_modality"],
   "audio.speaker.embedding": ["invalid_input", "inference_failed", "cancelled", "unsupported_modality"],
+  "audio.diarization": ["invalid_input", "runtime_unavailable", "cancelled", "inference_failed"],
   "audio.tts.batch": ["invalid_input", "runtime_unavailable", "model_not_found", "cancelled", "inference_failed"],
   "audio.tts.stream": [
     "invalid_input",
@@ -76,8 +124,14 @@ const BOUNDED_ERROR_CODES_BY_CAPABILITY: Record<LiveCapability, string[]> = {
 // ── Expected event sequences (from contracts YAMLs) ──────────────────────
 // Each entry encodes the contracted event order and quantifiers.
 // Source: expected_event_sequence in each capability YAML.
-const EXPECTED_EVENT_SEQUENCES: Record<LiveCapability, { event: string; quantifier: string }[]> = {
+const EXPECTED_EVENT_SEQUENCES: Record<SessionCapability, { event: string; quantifier: string }[]> = {
   "chat.completion": [
+    { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_TRANSCRIPT_CHUNK", quantifier: "one_or_more" },
+    { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
+    { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
+  ],
+  "chat.stream": [
     { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
     { event: "OCT_EVENT_TRANSCRIPT_CHUNK", quantifier: "one_or_more" },
     { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
@@ -96,6 +150,20 @@ const EXPECTED_EVENT_SEQUENCES: Record<LiveCapability, { event: string; quantifi
     { event: "OCT_EVENT_TRANSCRIPT_FINAL", quantifier: "exactly_one" },
     { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
   ],
+  "audio.stt.batch": [
+    { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
+    { event: "OCT_EVENT_TRANSCRIPT_SEGMENT", quantifier: "one_or_more" },
+    { event: "OCT_EVENT_TRANSCRIPT_FINAL", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
+  ],
+  "audio.stt.stream": [
+    { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
+    { event: "OCT_EVENT_TRANSCRIPT_SEGMENT", quantifier: "one_or_more" },
+    { event: "OCT_EVENT_TRANSCRIPT_FINAL", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
+  ],
   "audio.vad": [
     { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
     { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
@@ -106,6 +174,12 @@ const EXPECTED_EVENT_SEQUENCES: Record<LiveCapability, { event: string; quantifi
     { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
     { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
     { event: "OCT_EVENT_EMBEDDING_VECTOR", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
+  ],
+  "audio.diarization": [
+    { event: "OCT_EVENT_SESSION_STARTED", quantifier: "exactly_one" },
+    { event: "OCT_EVENT_METRIC", quantifier: "zero_or_more" },
+    { event: "OCT_EVENT_DIARIZATION_SEGMENT", quantifier: "one_or_more" },
     { event: "OCT_EVENT_SESSION_COMPLETED", quantifier: "exactly_one" },
   ],
   "audio.tts.batch": [
@@ -127,10 +201,14 @@ const EXPECTED_EVENT_SEQUENCES: Record<LiveCapability, { event: string; quantifi
 // Source: privacy_constraints.deny_field_substrings in each capability YAML.
 const PRIVACY_DENY_SUBSTRINGS: Record<LiveCapability, string[]> = {
   "chat.completion": ["/Users/", "/private/var/", "/home/"],
+  "chat.stream": ["/Users/", "/private/var/", "/home/"],
   "embeddings.text": ["/Users/", "/private/var/"],
   "audio.transcription": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm", "ggml-tiny.bin"],
+  "audio.stt.batch": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm", "ggml-tiny.bin"],
+  "audio.stt.stream": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm", "ggml-tiny.bin"],
   "audio.vad": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm", "ggml-silero"],
   "audio.speaker.embedding": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm"],
+  "audio.diarization": ["/Users/", "/private/var/", "/home/", ".wav", ".pcm", "pyannote", "speaker"],
   "audio.tts.batch": [
     "audio_bytes",
     "raw_audio",
@@ -150,6 +228,15 @@ const PRIVACY_DENY_SUBSTRINGS: Record<LiveCapability, string[]> = {
     "input_text",
     "prompt_text",
     "voice_metadata",
+  ],
+  "cache.introspect": [
+    "/Users/",
+    "/private/var/",
+    "/home/",
+    "prompt_text",
+    "audio_bytes",
+    "embedding_vector",
+    "cache_key",
   ],
 };
 
@@ -178,7 +265,7 @@ const RUNTIME_SCOPE_EVENTS = new Set([
   "OCT_EVENT_NONE",
 ]);
 
-function allowedEventSet(cap: LiveCapability): Set<string> {
+function allowedEventSet(cap: SessionCapability): Set<string> {
   const capEvents = new Set(EXPECTED_EVENT_SEQUENCES[cap].map((e) => e.event));
   return new Set([...capEvents, ...RUNTIME_SCOPE_EVENTS]);
 }
@@ -189,19 +276,40 @@ function allowedEventSet(cap: LiveCapability): Set<string> {
 
 describe("Native capability conformance — static / structural", () => {
   describe("Live capability set", () => {
-    it("declares exactly the 7 live capabilities (no overclaim)", () => {
-      expect(LIVE_CAPABILITIES).toHaveLength(7);
+    it("declares exactly the 12 live/native-conditional capabilities (no overclaim)", () => {
+      expect(LIVE_CAPABILITIES).toHaveLength(12);
       expect(LIVE_CAPABILITIES).toContain("chat.completion");
+      expect(LIVE_CAPABILITIES).toContain("chat.stream");
       expect(LIVE_CAPABILITIES).toContain("embeddings.text");
       expect(LIVE_CAPABILITIES).toContain("audio.transcription");
+      expect(LIVE_CAPABILITIES).toContain("audio.stt.batch");
+      expect(LIVE_CAPABILITIES).toContain("audio.stt.stream");
       expect(LIVE_CAPABILITIES).toContain("audio.vad");
       expect(LIVE_CAPABILITIES).toContain("audio.speaker.embedding");
+      expect(LIVE_CAPABILITIES).toContain("audio.diarization");
       expect(LIVE_CAPABILITIES).toContain("audio.tts.batch");
       expect(LIVE_CAPABILITIES).toContain("audio.tts.stream");
+      expect(LIVE_CAPABILITIES).toContain("cache.introspect");
     });
 
-    it("does NOT claim audio.diarization (not live)", () => {
-      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).not.toContain("audio.diarization");
+    it("treats audio.diarization as live-conditional, not reserved", () => {
+      expect(CONDITIONAL_CAPABILITIES).toContain("audio.diarization");
+      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("audio.diarization");
+    });
+
+    it("treats audio.stt.batch as a live alias of audio.transcription", () => {
+      expect(CONDITIONAL_CAPABILITIES).toContain("audio.stt.batch");
+      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("audio.stt.batch");
+      expect(SESSION_CAPABILITIES as ReadonlyArray<string>).toContain("audio.stt.batch");
+      expect(CONDITIONAL_CAPABILITIES).toContain("audio.stt.stream");
+      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("audio.stt.stream");
+      expect(SESSION_CAPABILITIES as ReadonlyArray<string>).toContain("audio.stt.stream");
+    });
+
+    it("treats cache.introspect as live runtime/cache ABI, not session lifecycle", () => {
+      expect(CONDITIONAL_CAPABILITIES).toContain("cache.introspect");
+      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("cache.introspect");
+      expect(SESSION_CAPABILITIES as ReadonlyArray<string>).not.toContain("cache.introspect");
     });
 
     it("does NOT claim audio.realtime.session (not live)", () => {
@@ -217,21 +325,16 @@ describe("Native capability conformance — static / structural", () => {
     });
   });
 
-  describe("chat.stream is_advertised=false invariant", () => {
-    it("chat.stream is classified as a non-advertised profile, not a live capability", () => {
-      expect(NON_ADVERTISED_PROFILES).toContain("chat.stream");
-      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).not.toContain("chat.stream");
-    });
-
-    it("chat.stream is treated as a streaming profile of chat.completion", () => {
-      // Contract: streaming_profile_of=chat.completion, is_advertised=false.
-      // Tests exercise chat.completion lifecycle; streaming is a session property.
+  describe("chat.stream advertised native invariant", () => {
+    it("chat.stream is a live advertised capability", () => {
+      expect(NON_ADVERTISED_PROFILES).not.toContain("chat.stream");
+      expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("chat.stream");
       expect(LIVE_CAPABILITIES as ReadonlyArray<string>).toContain("chat.completion");
     });
   });
 
   describe("Bounded error codes — contracts byte-for-byte", () => {
-    for (const cap of LIVE_CAPABILITIES) {
+    for (const cap of SESSION_CAPABILITIES) {
       it(`${cap}: all bounded error codes exist in ErrorCode enum`, () => {
         const allCodes = Object.values(ErrorCode);
         for (const code of BOUNDED_ERROR_CODES_BY_CAPABILITY[cap]) {
@@ -242,7 +345,7 @@ describe("Native capability conformance — static / structural", () => {
   });
 
   describe("Event sequence structure — Invariant 7 closed-set", () => {
-    for (const cap of LIVE_CAPABILITIES) {
+    for (const cap of SESSION_CAPABILITIES) {
       it(`${cap}: event allowed set is non-empty and all names are OCT_EVENT_* strings`, () => {
         const allowed = allowedEventSet(cap);
         expect(allowed.size).toBeGreaterThan(0);
@@ -305,93 +408,152 @@ describe("Native capability conformance — static / structural", () => {
 // ─────────────────────────────────────────────────────────────────────────
 // Section 2: Native runtime lifecycle/event/error tests
 //
-// These tests require live native session/model bindings. The Node SDK now
-// exposes the loader + capability discovery bridge, but does not yet expose
-// honest session lifecycle wrappers. All tests in this section
-// use skip.withExplicitReason() to produce honest status rather than fake pass.
-//
+// These tests run against a stub native ABI when no real runtime artifact is
+// available. If OCTOMIL_RUNTIME_DYLIB is configured, the same smoke harness
+// can exercise that library directly.
 // DO NOT add cloud fallback to make these pass. Cloud inference is a
 // different transport and does not prove native capability conformance.
-// DO NOT modify these tests to pass without FFI — fix the binding instead.
 // ─────────────────────────────────────────────────────────────────────────
 
-const SKIP_REASON_FFI =
-  "native runtime session lifecycle not yet wired in octomil-node — " +
-  "oct_session_open / oct_session_poll bindings required to exercise lifecycle; " +
-  "loader + oct_runtime_capabilities are covered by native-runtime-bridge.test.ts";
+describeLifecycle("Native capability conformance — lifecycle smoke", () => {
+  const SESSION_STARTED = 1;
+  const TRANSCRIPT_CHUNK = 3;
+  const EMBEDDING_VECTOR = 20;
+  const TRANSCRIPT_SEGMENT = 21;
+  const TRANSCRIPT_FINAL = 22;
+  const TTS_AUDIO_CHUNK = 23;
+  const VAD_TRANSITION = 24;
+  const DIARIZATION_SEGMENT = 25;
+  const SESSION_COMPLETED = 8;
 
-describe("Native capability conformance — lifecycle (SKIP: session lifecycle not wired)", () => {
-  for (const cap of LIVE_CAPABILITIES) {
-    describe(`${cap}`, () => {
-      it.skip(`lifecycle: runtime_open → model_open/warm → session_open → invoke → session_close → runtime_close`, () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // When this is implemented:
-        //   1. open native runtime (oct_runtime_open)
-        //   2. probe capabilities: assert "${cap}" is in supported_capabilities
-        //   3. open model (if model_bound=true for this capability)
-        //   4. open session: oct_session_open(capability="${cap}")
-        //   5. send payload: appropriate send_* call per capability
-        //   6. drain poll_event until SESSION_COMPLETED
-        //   7. assert terminal_status ∈ contracted terminal_statuses
-        //   8. close session, model, runtime
-        //
-        // This test MUST NOT fake pass via cloud transport.
-        throw new Error("not implemented — FFI not wired");
-      });
+  function inputForCapability(cap: SessionCapability): {
+    samples?: Float32Array;
+    text?: string;
+  } {
+    if (cap.startsWith("audio.") && !cap.includes("tts")) {
+      return { samples: new Float32Array([0.1, -0.1, 0.2, -0.2]) };
+    }
+    return { text: `hello from ${cap}` };
+  }
 
-      it.skip(`event sequence: contracted OCT_EVENT_* order matches observed events`, () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // When implemented: drain poll_event, collect event types in order,
-        // assert they satisfy the quantifiers in EXPECTED_EVENT_SEQUENCES["${cap}"].
-        // Also assert no out-of-closed-set event appears (Invariant 7).
-        throw new Error("not implemented — FFI not wired");
-      });
+  for (const cap of SESSION_CAPABILITIES) {
+    it(`${cap}: opens, sends, polls, and closes through the native ABI`, () => {
+      const runtime = NativeRuntime.open({ libraryPath: LIFECYCLE_LIBRARY_PATH! });
+      let model: ReturnType<NativeRuntime["openModel"]> | null = null;
+      let session: ReturnType<NativeRuntime["openSession"]> | null = null;
 
-      it.skip(`error mapping: invalid input → expected_sdk_error_code (non-fatal, not retried as fatal)`, () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // Per-capability invalid_inputs from contracts YAML must surface the
-        // corresponding error code. Example for ${cap}:
-        // invalid payload → OCT_STATUS_INVALID_INPUT → sdk_code=invalid_input
-        // Fatal codes (inference_failed, model_not_found) terminate session;
-        // non-fatal codes (cancelled) leave runtime reusable.
-        throw new Error("not implemented — FFI not wired");
-      });
+      try {
+        const caps = runtime.capabilities();
+        expect(caps.supportedCapabilities).toContain(
+          cap as RuntimeCapability,
+        );
+        expect(caps.supportedCapabilities).toContain(RuntimeCapability.ChatStream);
 
-      it.skip(`is_advertised=true: non-advertising runtime MUST reject with UNSUPPORTED + last_error mentions capability`, () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // Invariant 1: if runtime does not advertise "${cap}",
-        // oct_session_open("${cap}") MUST return OCT_STATUS_UNSUPPORTED and
-        // last_error MUST contain the string "${cap}".
-        // This blocks silent UNKNOWN or OK returns on non-advertising runtimes.
-        throw new Error("not implemented — FFI not wired");
-      });
+        model = runtime.openModel({
+          modelUri: `file:///stub/${cap}.gguf`,
+        });
+        model.warm();
 
-      it.skip(`privacy: no deny_field_substrings in metric/log event payloads`, () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // Drain all OCT_EVENT_METRIC events from a completed session.
-        // Assert none of the event field values contain substrings from
-        // PRIVACY_DENY_SUBSTRINGS["${cap}"].
-        // Specifically: no path leakage (/Users/, .wav, .pcm), no prompt/transcript/audio bytes.
-        throw new Error("not implemented — FFI not wired");
-      });
+        session = runtime.openSession({
+          capability: cap,
+          model,
+          modelUri: `file:///stub/${cap}.gguf`,
+        });
+
+        const input = inputForCapability(cap);
+        if (input.samples) {
+          session.sendAudio(input.samples, 16_000, 1);
+        } else if (input.text) {
+          session.sendText(input.text);
+        }
+
+        const observedTypes: number[] = [];
+        let seenCompletion = false;
+        for (let i = 0; i < 8; i += 1) {
+          const event = session.pollEvent(0);
+          observedTypes.push(event.type);
+          if (event.type === SESSION_STARTED) {
+            expect(event.requestId).toBe("");
+          }
+          if ((cap === "chat.completion" || cap === "chat.stream") && event.transcriptChunk) {
+            expect(event.transcriptChunk.text).toBe("hello");
+          }
+          if (cap === "embeddings.text" && event.embeddingVector) {
+            expect(event.embeddingVector.values).toEqual([0.25, 0.75]);
+          }
+          if ((cap === "audio.transcription" || cap === "audio.stt.batch" || cap === "audio.stt.stream") && event.transcriptSegment) {
+            expect(event.transcriptSegment.text).toBe("segment");
+          }
+          if ((cap === "audio.transcription" || cap === "audio.stt.batch" || cap === "audio.stt.stream") && event.transcriptFinal) {
+            expect(event.transcriptFinal.nSegments).toBe(1);
+          }
+          if (cap === "audio.vad" && event.vadTransition) {
+            expect(event.vadTransition.confidence).toBeGreaterThan(0.5);
+          }
+          if (cap === "audio.diarization" && event.diarizationSegment) {
+            expect(event.diarizationSegment.speakerLabel).toBe("SPEAKER_00");
+          }
+          if (cap.includes("tts") && event.ttsAudioChunk) {
+            expect(event.ttsAudioChunk.pcm.length).toBeGreaterThan(0);
+          }
+          if (event.type === SESSION_COMPLETED) {
+            expect(event.sessionCompleted?.terminalStatus).toBe(0);
+            seenCompletion = true;
+            break;
+          }
+        }
+
+        expect(seenCompletion).toBe(true);
+        expect(observedTypes).toContain(SESSION_STARTED);
+        expect(observedTypes).toContain(SESSION_COMPLETED);
+
+        if (cap === "chat.completion" || cap === "chat.stream") {
+          expect(observedTypes).toContain(TRANSCRIPT_CHUNK);
+        }
+        if (cap === "embeddings.text" || cap === "audio.speaker.embedding") {
+          expect(observedTypes).toContain(EMBEDDING_VECTOR);
+        }
+        if (cap === "audio.transcription" || cap === "audio.stt.batch" || cap === "audio.stt.stream") {
+          expect(observedTypes).toContain(TRANSCRIPT_SEGMENT);
+          expect(observedTypes).toContain(TRANSCRIPT_FINAL);
+        }
+        if (cap === "audio.vad") {
+          expect(observedTypes).toContain(VAD_TRANSITION);
+        }
+        if (cap === "audio.diarization") {
+          expect(observedTypes).toContain(DIARIZATION_SEGMENT);
+        }
+        if (cap === "audio.tts.batch" || cap === "audio.tts.stream") {
+          expect(observedTypes).toContain(TTS_AUDIO_CHUNK);
+        }
+      } finally {
+        session?.close();
+        model?.close();
+        runtime.close();
+      }
     });
   }
 
-  // chat.stream is_advertised=false — separate invariant
-  describe("chat.stream (is_advertised=false profile)", () => {
-    it.skip(
-      "runtime MUST NOT advertise literal 'chat.stream' in supported_capabilities — fake-advertise violation",
-      () => {
-        // SKIP_WITH_EXPLICIT_REASON: ${SKIP_REASON_FFI}
-        // Invariant from is_advertised=false YAML (chat.stream.yaml):
-        // oct_runtime_capabilities() MUST NOT include "chat.stream".
-        // oct_session_open("chat.stream") MUST return OCT_STATUS_UNSUPPORTED
-        // with last_error mentioning "chat.stream".
-        // A runtime that silently accepts the literal string is a fake-support
-        // violation and must fail conformance.
-        throw new Error("not implemented — FFI not wired");
-      },
-    );
+  it("advertises chat.stream as a live capability", () => {
+    const runtime = NativeRuntime.open({ libraryPath: LIFECYCLE_LIBRARY_PATH! });
+    try {
+      expect(runtime.capabilities().supportedCapabilities).toContain(
+        RuntimeCapability.ChatStream,
+      );
+      const model = runtime.openModel({ modelUri: "file:///stub/chat-stream.gguf" });
+      try {
+        const session = runtime.openSession({
+          capability: "chat.stream",
+          model,
+          modelUri: "file:///stub/chat-stream.gguf",
+        });
+        session.close();
+      } finally {
+        model.close();
+      }
+    } finally {
+      runtime.close();
+    }
   });
 });
 

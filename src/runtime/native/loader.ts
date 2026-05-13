@@ -7,7 +7,11 @@ import { OctomilError, type OctomilErrorCode } from "../../types.js";
 
 export const ENV_RUNTIME_DYLIB = "OCTOMIL_RUNTIME_DYLIB";
 export const ENV_RUNTIME_CACHE_DIR = "OCTOMIL_RUNTIME_CACHE_DIR";
-export const REQUIRED_ABI = { major: 0, minor: 9, patch: 0 } as const;
+export const REQUIRED_ABI = { major: 0, minor: 10, patch: 0 } as const;
+export const OCT_CACHE_SCOPE_REQUEST: NativeCacheScope = 0;
+export const OCT_CACHE_SCOPE_SESSION: NativeCacheScope = 1;
+export const OCT_CACHE_SCOPE_RUNTIME: NativeCacheScope = 2;
+export const OCT_CACHE_SCOPE_APP: NativeCacheScope = 3;
 
 const RUNTIME_CONFIG_VERSION = 1;
 const CAPABILITIES_VERSION = 1;
@@ -76,6 +80,55 @@ export interface NativeRuntimeOpenOptions {
   libraryPath?: string;
 }
 
+export interface NativeModelOpenOptions {
+  modelUri: string;
+  artifactDigest?: string;
+  engineHint?: string;
+  policyPreset?: string;
+  acceleratorPref?: number;
+  ramBudgetBytes?: number;
+}
+
+export interface NativeSessionOpenOptions {
+  capability: RuntimeCapability | string;
+  model?: NativeModel | null;
+  modelUri?: string;
+  locality?: string;
+  policyPreset?: string;
+  speakerId?: string;
+  sampleRateIn?: number;
+  sampleRateOut?: number;
+  priority?: number;
+  requestId?: string;
+  routeId?: string;
+  traceId?: string;
+  kvPrefixKey?: string;
+}
+
+export interface NativeAudioView {
+  samples: Float32Array;
+  nFrames: number;
+  sampleRate: number;
+  channels: number;
+}
+
+export type NativeCacheScope = 0 | 1 | 2 | 3;
+
+export interface NativeCacheEntrySnapshot {
+  capability: string;
+  scope: "request" | "session" | "runtime" | "app";
+  entries: number;
+  bytes: number;
+  hit: number;
+  miss: number;
+}
+
+export interface NativeCacheSnapshot {
+  version: number;
+  isStub: boolean;
+  entries: NativeCacheEntrySnapshot[];
+}
+
 interface NativeRuntimeConfig {
   version: number;
   artifact_root: string | null;
@@ -98,12 +151,158 @@ interface NativeCapabilitiesStruct {
   _reserved0: number;
 }
 
+interface NativeModelConfig {
+  version: number;
+  model_uri: string | null;
+  artifact_digest: string | null;
+  engine_hint: string | null;
+  policy_preset: string | null;
+  accelerator_pref: number;
+  ram_budget_bytes: number;
+  user_data: null;
+}
+
+interface NativeSessionConfig {
+  version: number;
+  model_uri: string | null;
+  capability: string | null;
+  locality: string | null;
+  policy_preset: string | null;
+  speaker_id: string | null;
+  sample_rate_in: number;
+  sample_rate_out: number;
+  priority: number;
+  user_data: null;
+  request_id: string | null;
+  route_id: string | null;
+  trace_id: string | null;
+  kv_prefix_key: string | null;
+  model: unknown;
+}
+
+interface NativeAudioViewStruct {
+  samples: unknown;
+  n_frames: number;
+  sample_rate: number;
+  channels: number;
+  _reserved0: number;
+}
+
+type NativeEventStruct = ReturnType<typeof koffi.struct>;
+
+interface NativeEventEnvelope {
+  requestId: string;
+  routeId: string;
+  traceId: string;
+  engineVersion: string;
+  adapterVersion: string;
+  accelerator: string;
+  artifactDigest: string;
+  cacheWasHit: boolean;
+}
+
+export interface NativeTranscriptChunkEvent {
+  text: string;
+}
+
+export interface NativeEmbeddingVectorEvent {
+  values: number[];
+  nDim: number;
+  nInputTokens: number;
+  index: number;
+  poolingType: number;
+  isNormalized: boolean;
+}
+
+export interface NativeAudioChunkEvent {
+  pcm: Uint8Array;
+  sampleRate: number;
+  sampleFormat: number;
+  channels: number;
+  isFinal: boolean;
+}
+
+export interface NativeTranscriptSegmentEvent {
+  text: string;
+  startMs: number;
+  endMs: number;
+  segmentIndex: number;
+  isFinal: boolean;
+}
+
+export interface NativeTranscriptFinalEvent {
+  text: string;
+  nSegments: number;
+  durationMs: number;
+}
+
+export interface NativeVadTransitionEvent {
+  transitionKind: number;
+  timestampMs: number;
+  confidence: number;
+}
+
+export interface NativeDiarizationSegmentEvent {
+  startMs: number;
+  endMs: number;
+  speakerId: number;
+  speakerLabel: string;
+}
+
+export interface NativeTtsAudioChunkEvent {
+  pcm: Uint8Array;
+  sampleRate: number;
+  sampleFormat: number;
+  channels: number;
+  isFinal: boolean;
+}
+
+export interface NativeSessionCompletedEvent {
+  setupMs: number;
+  engineFirstChunkMs: number;
+  e2eFirstChunkMs: number;
+  totalLatencyMs: number;
+  queuedMs: number;
+  observedChunks: number;
+  capabilityVerified: boolean;
+  terminalStatus: number;
+}
+
+export interface NativeErrorEvent {
+  code: string;
+  message: string;
+  errorCode: number;
+}
+
+export interface NativeEvent extends NativeEventEnvelope {
+  type: number;
+  version: number;
+  monotonicNs: bigint;
+  userData: unknown;
+  transcriptChunk?: NativeTranscriptChunkEvent;
+  embeddingVector?: NativeEmbeddingVectorEvent;
+  audioChunk?: NativeAudioChunkEvent;
+  transcriptSegment?: NativeTranscriptSegmentEvent;
+  transcriptFinal?: NativeTranscriptFinalEvent;
+  vadTransition?: NativeVadTransitionEvent;
+  diarizationSegment?: NativeDiarizationSegmentEvent;
+  ttsAudioChunk?: NativeTtsAudioChunkEvent;
+  sessionCompleted?: NativeSessionCompletedEvent;
+  error?: NativeErrorEvent;
+}
+
 interface NativeBindings {
   libraryPath: string;
   lib: IKoffiLib;
   runtimeConfigType: ReturnType<typeof koffi.struct>;
   capabilitiesType: ReturnType<typeof koffi.struct>;
+  modelConfigType: ReturnType<typeof koffi.struct>;
+  sessionConfigType: ReturnType<typeof koffi.struct>;
+  audioViewType: ReturnType<typeof koffi.struct>;
+  eventType: ReturnType<typeof koffi.struct>;
   runtimePtrType: ReturnType<typeof koffi.pointer>;
+  modelPtrType: ReturnType<typeof koffi.pointer>;
+  sessionPtrType: ReturnType<typeof koffi.pointer>;
   octRuntimeOpen: (config: NativeRuntimeConfig, out: [unknown]) => number;
   octRuntimeClose: (runtime: unknown) => void;
   octRuntimeCapabilities: (
@@ -111,11 +310,53 @@ interface NativeBindings {
     out: NativeCapabilitiesStruct,
   ) => number;
   octRuntimeCapabilitiesFree: (caps: NativeCapabilitiesStruct) => void;
+  octRuntimeCacheClearAll: (runtime: unknown) => number;
+  octRuntimeCacheClearCapability: (
+    runtime: unknown,
+    capability: string | null,
+  ) => number;
+  octRuntimeCacheClearScope: (
+    runtime: unknown,
+    scope: number,
+  ) => number;
+  octRuntimeCacheIntrospect: (
+    runtime: unknown,
+    buffer: Buffer,
+    buflen: number,
+  ) => number;
+  octModelOpen: (
+    runtime: unknown,
+    config: NativeModelConfig,
+    out: [unknown],
+  ) => number;
+  octModelWarm: (model: unknown) => number;
+  octModelClose: (model: unknown) => number;
+  octSessionOpen: (
+    runtime: unknown,
+    config: NativeSessionConfig,
+    out: [unknown],
+  ) => number;
+  octSessionSendAudio: (
+    session: unknown,
+    audio: NativeAudioViewStruct,
+  ) => number;
+  octSessionSendText: (session: unknown, utf8: string | null) => number;
+  octSessionPollEvent: (
+    session: unknown,
+    out: NativeEventStruct,
+    timeoutMs: number,
+  ) => number;
+  octSessionCancel: (session: unknown) => number;
+  octSessionClose: (session: unknown) => void;
   octRuntimeAbiVersionMajor: () => number;
   octRuntimeAbiVersionMinor: () => number;
   octRuntimeAbiVersionPatch: () => number;
   octRuntimeConfigSize: () => number;
   octCapabilitiesSize: () => number;
+  octModelConfigSize: () => number;
+  octSessionConfigSize: () => number;
+  octAudioViewSize: () => number;
+  octEventSize: () => number;
   octRuntimeLastError: (
     runtime: unknown,
     buffer: Buffer,
@@ -280,7 +521,12 @@ function createBindings(libraryPath: string): NativeBindings {
   }
 
   const runtimeType = koffi.opaque();
+  const sessionType = koffi.opaque();
+  const modelType = koffi.opaque();
   const runtimePtrType = koffi.pointer(runtimeType);
+  const sessionPtrType = koffi.pointer(sessionType);
+  const modelPtrType = koffi.pointer(modelType);
+
   const runtimeConfigType = koffi.struct({
     version: "uint32_t",
     artifact_root: "str",
@@ -301,6 +547,235 @@ function createBindings(libraryPath: string): NativeBindings {
     has_metal: "uint8_t",
     _reserved0: "uint8_t",
   });
+  const modelConfigType = koffi.struct({
+    version: "uint32_t",
+    model_uri: "str",
+    artifact_digest: "str",
+    engine_hint: "str",
+    policy_preset: "str",
+    accelerator_pref: "uint32_t",
+    ram_budget_bytes: "uint64_t",
+    user_data: "void *",
+  });
+  const sessionConfigType = koffi.struct({
+    version: "uint32_t",
+    model_uri: "str",
+    capability: "str",
+    locality: "str",
+    policy_preset: "str",
+    speaker_id: "str",
+    sample_rate_in: "uint32_t",
+    sample_rate_out: "uint32_t",
+    priority: "uint32_t",
+    user_data: "void *",
+    request_id: "str",
+    route_id: "str",
+    trace_id: "str",
+    kv_prefix_key: "str",
+    model: modelPtrType,
+  });
+  const audioViewType = koffi.struct({
+    samples: "float *",
+    n_frames: "uint32_t",
+    sample_rate: "uint32_t",
+    channels: "uint16_t",
+    _reserved0: "uint16_t",
+  });
+
+  const audioChunkType = koffi.struct({
+    pcm: "uint8_t *",
+    n_bytes: "uint32_t",
+    sample_rate: "uint32_t",
+    sample_format: "uint32_t",
+    channels: "uint16_t",
+    is_final: "uint8_t",
+    _reserved0: "uint8_t",
+  });
+  const transcriptChunkType = koffi.struct({
+    utf8: "str",
+    n_bytes: "uint32_t",
+  });
+  const errorType = koffi.struct({
+    code: "str",
+    message: "str",
+    error_code: "uint32_t",
+    _reserved0: "uint32_t",
+  });
+  const sessionStartedType = koffi.struct({
+    engine: "str",
+    model_digest: "str",
+    locality: "str",
+    streaming_mode: "str",
+    runtime_build_tag: "str",
+  });
+  const sessionCompletedType = koffi.struct({
+    setup_ms: "float",
+    engine_first_chunk_ms: "float",
+    e2e_first_chunk_ms: "float",
+    total_latency_ms: "float",
+    queued_ms: "float",
+    observed_chunks: "uint32_t",
+    capability_verified: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+    terminal_status: "uint32_t",
+  });
+  const inputDroppedType = koffi.struct({
+    n_frames_dropped: "uint32_t",
+    sample_rate: "uint32_t",
+    channels: "uint16_t",
+    _reserved0: "uint16_t",
+    reason: "str",
+    dropped_at_ns: "uint64_t",
+  });
+  const modelLoadedType = koffi.struct({
+    engine: "str",
+    model_id: "str",
+    artifact_digest: "str",
+    load_ms: "uint64_t",
+    warm_ms: "uint64_t",
+    policy_preset: "str",
+    config_user_data: "void *",
+    source: "str",
+  });
+  const modelEvictedType = koffi.struct({
+    engine: "str",
+    model_id: "str",
+    artifact_digest: "str",
+    freed_bytes: "uint64_t",
+    reason: "str",
+    config_user_data: "void *",
+  });
+  const cacheType = koffi.struct({
+    layer: "str",
+    saved_tokens: "uint32_t",
+    _reserved0: "uint32_t",
+  });
+  const queuedType = koffi.struct({
+    queue_position: "uint32_t",
+    queue_depth: "uint32_t",
+  });
+  const preemptedType = koffi.struct({
+    preempted_by_priority: "uint32_t",
+    _reserved0: "uint32_t",
+    reason: "str",
+  });
+  const memoryPressureType = koffi.struct({
+    ram_available_bytes: "uint64_t",
+    severity: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+    _reserved2: "uint32_t",
+  });
+  const thermalStateType = koffi.struct({
+    state: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+    _reserved2: "uint32_t",
+  });
+  const watchdogTimeoutType = koffi.struct({
+    timeout_ms: "uint32_t",
+    _reserved0: "uint32_t",
+    phase: "str",
+  });
+  const metricType = koffi.struct({
+    name: "str",
+    value: "double",
+  });
+  const embeddingVectorType = koffi.struct({
+    values: "float *",
+    n_dim: "uint32_t",
+    n_input_tokens: "uint32_t",
+    index: "uint32_t",
+    pooling_type: "uint32_t",
+    is_normalized: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+  });
+  const vadTransitionType = koffi.struct({
+    transition_kind: "uint32_t",
+    timestamp_ms: "uint32_t",
+    confidence: "float",
+    _reserved0: "uint32_t",
+  });
+  const transcriptSegmentType = koffi.struct({
+    utf8: "str",
+    n_bytes: "uint32_t",
+    start_ms: "uint32_t",
+    end_ms: "uint32_t",
+    segment_index: "uint32_t",
+    is_final: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+  });
+  const transcriptFinalType = koffi.struct({
+    utf8: "str",
+    n_bytes: "uint32_t",
+    n_segments: "uint32_t",
+    duration_ms: "uint32_t",
+    _reserved0: "uint32_t",
+    _reserved1: "uint32_t",
+  });
+  const diarizationSegmentType = koffi.struct({
+    start_ms: "uint32_t",
+    end_ms: "uint32_t",
+    speaker_id: "uint16_t",
+    _reserved0: "uint16_t",
+    _reserved1: "uint32_t",
+    speaker_label: "str",
+  });
+  const ttsAudioChunkType = koffi.struct({
+    pcm: "uint8_t *",
+    n_bytes: "uint32_t",
+    sample_rate: "uint32_t",
+    sample_format: "uint32_t",
+    channels: "uint16_t",
+    is_final: "uint8_t",
+    _reserved0: "uint8_t",
+  });
+
+  const eventDataType = koffi.union({
+    audio_chunk: audioChunkType,
+    transcript_chunk: transcriptChunkType,
+    error: errorType,
+    session_started: sessionStartedType,
+    session_completed: sessionCompletedType,
+    input_dropped: inputDroppedType,
+    model_loaded: modelLoadedType,
+    model_evicted: modelEvictedType,
+    cache: cacheType,
+    queued: queuedType,
+    preempted: preemptedType,
+    memory_pressure: memoryPressureType,
+    thermal_state: thermalStateType,
+    watchdog_timeout: watchdogTimeoutType,
+    metric: metricType,
+    embedding_vector: embeddingVectorType,
+    vad_transition: vadTransitionType,
+    transcript_segment: transcriptSegmentType,
+    transcript_final: transcriptFinalType,
+    diarization_segment: diarizationSegmentType,
+    tts_audio_chunk: ttsAudioChunkType,
+  });
+  const eventType = koffi.struct({
+    version: "uint32_t",
+    size: "size_t",
+    type: "uint32_t",
+    monotonic_ns: "uint64_t",
+    user_data: "void *",
+    data: eventDataType,
+    request_id: "str",
+    route_id: "str",
+    trace_id: "str",
+    engine_version: "str",
+    adapter_version: "str",
+    accelerator: "str",
+    artifact_digest: "str",
+    cache_was_hit: "uint8_t",
+    _reserved0: "uint8_t",
+    _reserved1: "uint16_t",
+    _reserved2: "uint32_t",
+  });
 
   try {
     const bindings: NativeBindings = {
@@ -308,7 +783,13 @@ function createBindings(libraryPath: string): NativeBindings {
       lib,
       runtimeConfigType,
       capabilitiesType,
+      modelConfigType,
+      sessionConfigType,
+      audioViewType,
+      eventType,
       runtimePtrType,
+      modelPtrType,
+      sessionPtrType,
       octRuntimeOpen: lib.func("oct_runtime_open", "uint32_t", [
         koffi.pointer(runtimeConfigType),
         koffi.out(koffi.pointer(runtimePtrType)),
@@ -325,6 +806,61 @@ function createBindings(libraryPath: string): NativeBindings {
         "void",
         [koffi.inout(koffi.pointer(capabilitiesType))],
       ) as NativeBindings["octRuntimeCapabilitiesFree"],
+      octRuntimeCacheClearAll: lib.func(
+        "oct_runtime_cache_clear_all",
+        "uint32_t",
+        [runtimePtrType],
+      ) as NativeBindings["octRuntimeCacheClearAll"],
+      octRuntimeCacheClearCapability: lib.func(
+        "oct_runtime_cache_clear_capability",
+        "uint32_t",
+        [runtimePtrType, "str"],
+      ) as NativeBindings["octRuntimeCacheClearCapability"],
+      octRuntimeCacheClearScope: lib.func(
+        "oct_runtime_cache_clear_scope",
+        "uint32_t",
+        [runtimePtrType, "uint32_t"],
+      ) as NativeBindings["octRuntimeCacheClearScope"],
+      octRuntimeCacheIntrospect: lib.func(
+        "oct_runtime_cache_introspect",
+        "uint32_t",
+        [runtimePtrType, "char *", "size_t"],
+      ) as NativeBindings["octRuntimeCacheIntrospect"],
+      octModelOpen: lib.func("oct_model_open", "uint32_t", [
+        runtimePtrType,
+        koffi.pointer(modelConfigType),
+        koffi.out(koffi.pointer(modelPtrType)),
+      ]) as NativeBindings["octModelOpen"],
+      octModelWarm: lib.func("oct_model_warm", "uint32_t", [
+        modelPtrType,
+      ]) as NativeBindings["octModelWarm"],
+      octModelClose: lib.func("oct_model_close", "uint32_t", [
+        modelPtrType,
+      ]) as NativeBindings["octModelClose"],
+      octSessionOpen: lib.func("oct_session_open", "uint32_t", [
+        runtimePtrType,
+        koffi.pointer(sessionConfigType),
+        koffi.out(koffi.pointer(sessionPtrType)),
+      ]) as NativeBindings["octSessionOpen"],
+      octSessionSendAudio: lib.func("oct_session_send_audio", "uint32_t", [
+        sessionPtrType,
+        koffi.pointer(audioViewType),
+      ]) as NativeBindings["octSessionSendAudio"],
+      octSessionSendText: lib.func("oct_session_send_text", "uint32_t", [
+        sessionPtrType,
+        "str",
+      ]) as NativeBindings["octSessionSendText"],
+      octSessionPollEvent: lib.func("oct_session_poll_event", "uint32_t", [
+        sessionPtrType,
+        koffi.inout(koffi.pointer(eventType)),
+        "uint32_t",
+      ]) as NativeBindings["octSessionPollEvent"],
+      octSessionCancel: lib.func("oct_session_cancel", "uint32_t", [
+        sessionPtrType,
+      ]) as NativeBindings["octSessionCancel"],
+      octSessionClose: lib.func("oct_session_close", "void", [
+        sessionPtrType,
+      ]) as NativeBindings["octSessionClose"],
       octRuntimeAbiVersionMajor: lib.func(
         "oct_runtime_abi_version_major",
         "uint32_t",
@@ -350,6 +886,26 @@ function createBindings(libraryPath: string): NativeBindings {
         "size_t",
         [],
       ) as NativeBindings["octCapabilitiesSize"],
+      octModelConfigSize: lib.func(
+        "oct_model_config_size",
+        "size_t",
+        [],
+      ) as NativeBindings["octModelConfigSize"],
+      octSessionConfigSize: lib.func(
+        "oct_session_config_size",
+        "size_t",
+        [],
+      ) as NativeBindings["octSessionConfigSize"],
+      octAudioViewSize: lib.func(
+        "oct_audio_view_size",
+        "size_t",
+        [],
+      ) as NativeBindings["octAudioViewSize"],
+      octEventSize: lib.func(
+        "oct_event_size",
+        "size_t",
+        [],
+      ) as NativeBindings["octEventSize"],
       octRuntimeLastError: lib.func("oct_runtime_last_error", "int", [
         runtimePtrType,
         "char *",
@@ -391,6 +947,10 @@ function validateBindings(bindings: NativeBindings): void {
 
   const runtimeConfigSize = Number(bindings.octRuntimeConfigSize());
   const capabilitiesSize = Number(bindings.octCapabilitiesSize());
+  const modelConfigSize = Number(bindings.octModelConfigSize());
+  const sessionConfigSize = Number(bindings.octSessionConfigSize());
+  const audioViewSize = Number(bindings.octAudioViewSize());
+  const eventSize = Number(bindings.octEventSize());
   if (runtimeConfigSize !== koffi.sizeof(bindings.runtimeConfigType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
@@ -403,6 +963,34 @@ function validateBindings(bindings: NativeBindings): void {
       OCT_STATUS_VERSION_MISMATCH,
       "RUNTIME_UNAVAILABLE",
       `oct_capabilities_t size mismatch: binding=${koffi.sizeof(bindings.capabilitiesType)} runtime=${capabilitiesSize}`,
+    );
+  }
+  if (modelConfigSize !== koffi.sizeof(bindings.modelConfigType)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_VERSION_MISMATCH,
+      "RUNTIME_UNAVAILABLE",
+      `oct_model_config_t size mismatch: binding=${koffi.sizeof(bindings.modelConfigType)} runtime=${modelConfigSize}`,
+    );
+  }
+  if (sessionConfigSize !== koffi.sizeof(bindings.sessionConfigType)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_VERSION_MISMATCH,
+      "RUNTIME_UNAVAILABLE",
+      `oct_session_config_t size mismatch: binding=${koffi.sizeof(bindings.sessionConfigType)} runtime=${sessionConfigSize}`,
+    );
+  }
+  if (audioViewSize !== koffi.sizeof(bindings.audioViewType)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_VERSION_MISMATCH,
+      "RUNTIME_UNAVAILABLE",
+      `oct_audio_view_t size mismatch: binding=${koffi.sizeof(bindings.audioViewType)} runtime=${audioViewSize}`,
+    );
+  }
+  if (eventSize !== koffi.sizeof(bindings.eventType)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_VERSION_MISMATCH,
+      "RUNTIME_UNAVAILABLE",
+      `oct_event_t size mismatch: binding=${koffi.sizeof(bindings.eventType)} runtime=${eventSize}`,
     );
   }
 }
@@ -430,6 +1018,297 @@ function readRuntimeError(bindings: NativeBindings, runtime: unknown): string {
   const buffer = Buffer.alloc(4096);
   const n = bindings.octRuntimeLastError(runtime, buffer, buffer.length);
   return n > 0 ? decodeErrorBuffer(buffer) : "";
+}
+
+function normalizeCacheScope(scope: NativeCacheScope): NativeCacheEntrySnapshot["scope"] {
+  switch (scope) {
+    case 0:
+      return "request";
+    case 1:
+      return "session";
+    case 2:
+      return "runtime";
+    case 3:
+      return "app";
+    default:
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        `cache scope ${scope} is not a valid OCT_CACHE_SCOPE_* constant`,
+      );
+  }
+}
+
+function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawJson) as Record<string, unknown>;
+  } catch (cause) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_INTERNAL,
+      "RUNTIME_UNAVAILABLE",
+      "cache introspect JSON payload is invalid",
+      "",
+      cause,
+    );
+  }
+  if (!("version" in parsed) || !("is_stub" in parsed) || !("entries" in parsed)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_INTERNAL,
+      "RUNTIME_UNAVAILABLE",
+      "cache introspect JSON is missing required bounded fields",
+    );
+  }
+  if (!Array.isArray(parsed.entries)) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_INTERNAL,
+      "RUNTIME_UNAVAILABLE",
+      "cache introspect JSON 'entries' must be an array",
+    );
+  }
+  const version = Number(parsed.version);
+  const isStub = Boolean(parsed.is_stub);
+  const rawEntries = parsed.entries as unknown[];
+
+  if (!Number.isFinite(version) || version < 0) {
+    throw new NativeRuntimeError(
+      OCT_STATUS_INTERNAL,
+      "RUNTIME_UNAVAILABLE",
+      "cache introspect JSON has invalid version",
+    );
+  }
+
+  const entries = rawEntries.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        `cache introspect entry ${index} is not an object`,
+      );
+    }
+    const obj = entry as Record<string, unknown>;
+    const capability = String(obj.capability ?? "");
+    const scope = String(obj.scope ?? "");
+    const entriesCount = Number(obj.entries ?? NaN);
+    const bytes = Number(obj.bytes ?? NaN);
+    const hit = Number(obj.hit ?? NaN);
+    const miss = Number(obj.miss ?? NaN);
+    if (!capability || !scope) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        `cache introspect entry ${index} is missing bounded fields`,
+      );
+    }
+    if (!Number.isFinite(entriesCount) || !Number.isFinite(bytes) || !Number.isFinite(hit) || !Number.isFinite(miss)) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        `cache introspect entry ${index} has non-numeric counters`,
+      );
+    }
+    if (entriesCount < 0 || bytes < 0 || hit < 0 || miss < 0) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        `cache introspect entry ${index} has negative counters`,
+      );
+    }
+    if (!["request", "session", "runtime", "app"].includes(scope)) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        `cache introspect entry ${index} has invalid scope ${scope}`,
+      );
+    }
+    return {
+      capability,
+      scope: scope as NativeCacheEntrySnapshot["scope"],
+      entries: entriesCount,
+      bytes,
+      hit,
+      miss,
+    };
+  });
+
+  return {
+    version,
+    isStub,
+    entries,
+  };
+}
+
+function decodeCStringValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  try {
+    const decoded = koffi.decode(value, "const char *") as string | null;
+    return decoded ?? "";
+  } catch {
+    return String(value);
+  }
+}
+
+function decodeBytesValue(value: unknown, length: number): Uint8Array {
+  if (value == null || length <= 0) return new Uint8Array();
+  try {
+    return new Uint8Array(koffi.view(value, length));
+  } catch {
+    return new Uint8Array();
+  }
+}
+
+function decodeFloatArrayValue(value: unknown, length: number): number[] {
+  if (Array.isArray(value)) return value.slice(0, length).map((entry) => Number(entry));
+  if (value == null || length <= 0) return [];
+  try {
+    const viewed = koffi.view(value, length * 4);
+    return Array.from(new Float32Array(viewed));
+  } catch {
+    try {
+      const floats = koffi.decode(value, "float", length) as number[];
+      return Array.isArray(floats) ? floats : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+function parseNativeEvent(rawEvent: Record<string, unknown>): NativeEvent {
+  const data = (rawEvent.data as Record<string, unknown> | undefined) ?? {};
+  const event: NativeEvent = {
+    type: Number(rawEvent.type ?? 0),
+    version: Number(rawEvent.version ?? 0),
+    monotonicNs: BigInt(
+      (rawEvent.monotonic_ns as bigint | number | string | undefined) ?? 0,
+    ),
+    userData: rawEvent.user_data,
+    requestId: decodeCStringValue(rawEvent.request_id),
+    routeId: decodeCStringValue(rawEvent.route_id),
+    traceId: decodeCStringValue(rawEvent.trace_id),
+    engineVersion: decodeCStringValue(rawEvent.engine_version),
+    adapterVersion: decodeCStringValue(rawEvent.adapter_version),
+    accelerator: decodeCStringValue(rawEvent.accelerator),
+    artifactDigest: decodeCStringValue(rawEvent.artifact_digest),
+    cacheWasHit: Boolean(rawEvent.cache_was_hit),
+  };
+
+  switch (event.type) {
+    case 3: {
+      const chunk = data.transcript_chunk as Record<string, unknown> | undefined;
+      event.transcriptChunk = {
+        text: decodeCStringValue(chunk?.utf8),
+      };
+      break;
+    }
+    case 7: {
+      const err = data.error as Record<string, unknown> | undefined;
+      event.error = {
+        code: decodeCStringValue(err?.code),
+        message: decodeCStringValue(err?.message),
+        errorCode: Number(err?.error_code ?? 0),
+      };
+      break;
+    }
+    case 8: {
+      const completed = data.session_completed as Record<string, unknown> | undefined;
+      event.sessionCompleted = {
+        setupMs: Number(completed?.setup_ms ?? 0),
+        engineFirstChunkMs: Number(completed?.engine_first_chunk_ms ?? 0),
+        e2eFirstChunkMs: Number(completed?.e2e_first_chunk_ms ?? 0),
+        totalLatencyMs: Number(completed?.total_latency_ms ?? 0),
+        queuedMs: Number(completed?.queued_ms ?? 0),
+        observedChunks: Number(completed?.observed_chunks ?? 0),
+        capabilityVerified: Boolean(completed?.capability_verified),
+        terminalStatus: Number(completed?.terminal_status ?? 0),
+      };
+      break;
+    }
+    case 20: {
+      const embedding = data.embedding_vector as
+        | Record<string, unknown>
+        | undefined;
+      const nDim = Number(embedding?.n_dim ?? 0);
+      event.embeddingVector = {
+        values: decodeFloatArrayValue(embedding?.values, nDim),
+        nDim,
+        nInputTokens: Number(embedding?.n_input_tokens ?? 0),
+        index: Number(embedding?.index ?? 0),
+        poolingType: Number(embedding?.pooling_type ?? 0),
+        isNormalized: Boolean(embedding?.is_normalized),
+      };
+      break;
+    }
+    case 21: {
+      const segment = data.transcript_segment as Record<string, unknown> | undefined;
+      event.transcriptSegment = {
+        text: decodeCStringValue(segment?.utf8),
+        startMs: Number(segment?.start_ms ?? 0),
+        endMs: Number(segment?.end_ms ?? 0),
+        segmentIndex: Number(segment?.segment_index ?? 0),
+        isFinal: Boolean(segment?.is_final),
+      };
+      break;
+    }
+    case 22: {
+      const final = data.transcript_final as Record<string, unknown> | undefined;
+      event.transcriptFinal = {
+        text: decodeCStringValue(final?.utf8),
+        nSegments: Number(final?.n_segments ?? 0),
+        durationMs: Number(final?.duration_ms ?? 0),
+      };
+      break;
+    }
+    case 23: {
+      const tts = data.tts_audio_chunk as Record<string, unknown> | undefined;
+      const nBytes = Number(tts?.n_bytes ?? 0);
+      event.ttsAudioChunk = {
+        pcm: decodeBytesValue(tts?.pcm, nBytes),
+        sampleRate: Number(tts?.sample_rate ?? 0),
+        sampleFormat: Number(tts?.sample_format ?? 0),
+        channels: Number(tts?.channels ?? 0),
+        isFinal: Boolean(tts?.is_final),
+      };
+      break;
+    }
+    case 24: {
+      const vad = data.vad_transition as Record<string, unknown> | undefined;
+      event.vadTransition = {
+        transitionKind: Number(vad?.transition_kind ?? 0),
+        timestampMs: Number(vad?.timestamp_ms ?? 0),
+        confidence: Number(vad?.confidence ?? 0),
+      };
+      break;
+    }
+    case 25: {
+      const diar = data.diarization_segment as
+        | Record<string, unknown>
+        | undefined;
+      event.diarizationSegment = {
+        startMs: Number(diar?.start_ms ?? 0),
+        endMs: Number(diar?.end_ms ?? 0),
+        speakerId: Number(diar?.speaker_id ?? 0),
+        speakerLabel: decodeCStringValue(diar?.speaker_label),
+      };
+      break;
+    }
+    case 2: {
+      const audio = data.audio_chunk as Record<string, unknown> | undefined;
+      const nBytes = Number(audio?.n_bytes ?? 0);
+      event.audioChunk = {
+        pcm: decodeBytesValue(audio?.pcm, nBytes),
+        sampleRate: Number(audio?.sample_rate ?? 0),
+        sampleFormat: Number(audio?.sample_format ?? 0),
+        channels: Number(audio?.channels ?? 0),
+        isFinal: Boolean(audio?.is_final),
+      };
+      break;
+    }
+    default:
+      break;
+  }
+
+  return event;
 }
 
 function throwStatus(
@@ -529,6 +1408,8 @@ export function discoverNativeRuntime(
 
 export class NativeRuntime {
   private closed = false;
+  private readonly sessions = new Set<NativeSession>();
+  private readonly models = new Set<NativeModel>();
 
   private constructor(
     private readonly bindings: NativeBindings,
@@ -585,6 +1466,11 @@ export class NativeRuntime {
     return readAbi(this.bindings);
   }
 
+  lastError(): string {
+    this.assertOpen();
+    return readRuntimeError(this.bindings, this.runtime);
+  }
+
   capabilities(): NativeRuntimeCapabilities {
     this.assertOpen();
     const caps: NativeCapabilitiesStruct = {
@@ -623,6 +1509,69 @@ export class NativeRuntime {
     );
   }
 
+  cacheClearAll(): void {
+    this.assertOpen();
+    const status = this.bindings.octRuntimeCacheClearAll(this.runtime);
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_runtime_cache_clear_all", this.runtime);
+    }
+  }
+
+  cacheClearCapability(capability: RuntimeCapability | string): void {
+    this.assertOpen();
+    const status = this.bindings.octRuntimeCacheClearCapability(
+      this.runtime,
+      capability,
+    );
+    if (status === OCT_STATUS_NOT_FOUND) return;
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_runtime_cache_clear_capability",
+        this.runtime,
+      );
+    }
+  }
+
+  cacheClearScope(scope: NativeCacheScope): void {
+    this.assertOpen();
+    normalizeCacheScope(scope);
+    const status = this.bindings.octRuntimeCacheClearScope(this.runtime, scope);
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_runtime_cache_clear_scope", this.runtime);
+    }
+  }
+
+  cacheIntrospect(): NativeCacheSnapshot {
+    this.assertOpen();
+    const buffer = Buffer.alloc(65536);
+    const status = this.bindings.octRuntimeCacheIntrospect(
+      this.runtime,
+      buffer,
+      buffer.length,
+    );
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_runtime_cache_introspect",
+        this.runtime,
+      );
+    }
+    const end = buffer.indexOf(0);
+    const rawJson = buffer.toString("utf8", 0, end >= 0 ? end : buffer.length);
+    if (!rawJson) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        "oct_runtime_cache_introspect returned an empty payload",
+      );
+    }
+    const snapshot = parseNativeCacheSnapshot(rawJson);
+    return snapshot;
+  }
+
   requireCapability(capability: RuntimeCapability | string): void {
     if (this.supports(capability)) return;
     throw new NativeRuntimeError(
@@ -632,12 +1581,122 @@ export class NativeRuntime {
     );
   }
 
+  openModel(options: NativeModelOpenOptions): NativeModel {
+    this.assertOpen();
+    const out: [unknown] = [null];
+    const status = this.bindings.octModelOpen(
+      this.runtime,
+      {
+        version: 1,
+        model_uri: options.modelUri,
+        artifact_digest: options.artifactDigest ?? null,
+        engine_hint: options.engineHint ?? null,
+        policy_preset: options.policyPreset ?? null,
+        accelerator_pref: options.acceleratorPref ?? 0,
+        ram_budget_bytes: options.ramBudgetBytes ?? 0,
+        user_data: null,
+      },
+      out,
+    );
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_model_open", this.runtime);
+    }
+    if (out[0] == null) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        "oct_model_open returned OK with a NULL model handle",
+      );
+    }
+    const model = new NativeModel(this, out[0]);
+    this.models.add(model);
+    return model;
+  }
+
+  openSession(options: NativeSessionOpenOptions): NativeSession {
+    this.assertOpen();
+    const borrowedModel = options.model ?? null;
+    if (borrowedModel && borrowedModel._owner !== this) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "openSession: model was opened on a different NativeRuntime",
+      );
+    }
+    if (borrowedModel && borrowedModel._isClosedOrInvalid()) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "openSession: model handle is closed or invalidated",
+      );
+    }
+    const out: [unknown] = [null];
+    const status = this.bindings.octSessionOpen(
+      this.runtime,
+      {
+        version: 3,
+        model_uri: options.modelUri ?? null,
+        capability: options.capability,
+        locality: options.locality ?? "local",
+        policy_preset: options.policyPreset ?? null,
+        speaker_id: options.speakerId ?? null,
+        sample_rate_in: options.sampleRateIn ?? 16000,
+        sample_rate_out: options.sampleRateOut ?? 16000,
+        priority: options.priority ?? 0,
+        user_data: null,
+        request_id: options.requestId ?? null,
+        route_id: options.routeId ?? null,
+        trace_id: options.traceId ?? null,
+        kv_prefix_key: options.kvPrefixKey ?? null,
+        model: borrowedModel ? borrowedModel._handle : null,
+      },
+      out,
+    );
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_session_open", this.runtime);
+    }
+    if (out[0] == null) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INTERNAL,
+        "RUNTIME_UNAVAILABLE",
+        "oct_session_open returned OK with a NULL session handle",
+      );
+    }
+    const session = new NativeSession(this, out[0], options.capability, borrowedModel);
+    this.sessions.add(session);
+    return session;
+  }
+
   close(): void {
     if (this.closed) return;
+    for (const session of [...this.sessions]) {
+      try {
+        session.close();
+      } catch {
+        session._invalidateAfterRuntimeClose();
+      }
+    }
+    for (const model of [...this.models]) {
+      try {
+        model.close();
+      } catch {
+        model._invalidateAfterRuntimeClose();
+      }
+    }
+    this.sessions.clear();
+    this.models.clear();
     this.bindings.octRuntimeClose(this.runtime);
     this.runtime = null;
     this.closed = true;
     this.bindings.lib.unload();
+  }
+
+  _detachSession(session: NativeSession): void {
+    this.sessions.delete(session);
+  }
+
+  _detachModel(model: NativeModel): void {
+    this.models.delete(model);
   }
 
   private assertOpen(): void {
@@ -648,6 +1707,218 @@ export class NativeRuntime {
         "Native runtime handle is closed",
       );
     }
+  }
+}
+
+export class NativeSession {
+  private closed = false;
+  private handleInvalid = false;
+  private readonly eventBuffer: any;
+
+  constructor(
+    public readonly _owner: NativeRuntime,
+    public readonly _handle: unknown,
+    public readonly capability: RuntimeCapability | string,
+    private readonly borrowedModel: NativeModel | null = null,
+  ) {
+    this.eventBuffer = koffi.alloc(this.bindings.eventType, 1);
+    this.borrowedModel?._addBorrower(this);
+  }
+
+  private get bindings(): NativeBindings {
+    return (this._owner as unknown as { bindings: NativeBindings }).bindings;
+  }
+
+  _isClosedOrInvalid(): boolean {
+    return this.closed || this.handleInvalid;
+  }
+
+  sendAudio(
+    samples: Float32Array | number[],
+    sampleRate = 16000,
+    channels = 1,
+  ): void {
+    this.assertOpen();
+    const pcm = samples instanceof Float32Array ? samples : new Float32Array(samples);
+    if (channels <= 0) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "INVALID_INPUT",
+        "sendAudio: channels must be greater than zero",
+      );
+    }
+    if (pcm.length % channels !== 0) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "INVALID_INPUT",
+        `sendAudio: sample count ${pcm.length} is not divisible by channels ${channels}`,
+      );
+    }
+    const status = this.bindings.octSessionSendAudio(this._handle, {
+      samples: koffi.as(pcm, "float *"),
+      n_frames: pcm.length / channels,
+      sample_rate: sampleRate,
+      channels,
+      _reserved0: 0,
+    });
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_session_send_audio", this._handle);
+    }
+  }
+
+  sendText(utf8: string): void {
+    this.assertOpen();
+    const status = this.bindings.octSessionSendText(this._handle, utf8);
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_session_send_text", this._handle);
+    }
+  }
+
+  pollEvent(timeoutMs = 0): NativeEvent {
+    this.assertOpen();
+    koffi.encode(this.eventBuffer, this.bindings.eventType, {
+      version: 2,
+      size: koffi.sizeof(this.bindings.eventType),
+    });
+    const status = this.bindings.octSessionPollEvent(
+      this._handle,
+      this.eventBuffer as NativeEventStruct,
+      timeoutMs,
+    );
+    if (status !== OCT_STATUS_OK && status !== OCT_STATUS_TIMEOUT) {
+      throwStatus(this.bindings, status, "oct_session_poll_event", this._handle);
+    }
+    const raw = koffi.decode(
+      this.eventBuffer,
+      this.bindings.eventType,
+    ) as Record<string, unknown>;
+    return parseNativeEvent(raw);
+  }
+
+  cancel(): number {
+    if (this._isClosedOrInvalid()) return OCT_STATUS_CANCELLED;
+    const status = this.bindings.octSessionCancel(this._handle);
+    if (
+      status !== OCT_STATUS_OK &&
+      status !== OCT_STATUS_CANCELLED &&
+      status !== OCT_STATUS_UNSUPPORTED
+    ) {
+      throwStatus(this.bindings, status, "oct_session_cancel", this._handle);
+    }
+    return status;
+  }
+
+  close(): void {
+    if (this.closed) return;
+    if (!this.handleInvalid) {
+      this.bindings.octSessionClose(this._handle);
+    }
+    this.closed = true;
+    this.borrowedModel?._releaseBorrower(this);
+    this._owner._detachSession(this);
+  }
+
+  _invalidateAfterRuntimeClose(): void {
+    this.handleInvalid = true;
+    this.closed = true;
+    this.borrowedModel?._releaseBorrower(this);
+  }
+
+  private assertOpen(): void {
+    if (this.handleInvalid) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "session handle invalidated by parent NativeRuntime.close()",
+      );
+    }
+    if (this.closed) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "session handle is closed",
+      );
+    }
+  }
+}
+
+export class NativeModel {
+  private closed = false;
+  private handleInvalid = false;
+  private borrowers = new Set<NativeSession>();
+
+  constructor(
+    public readonly _owner: NativeRuntime,
+    public readonly _handle: unknown,
+  ) {}
+
+  _addBorrower(session: NativeSession): void {
+    this.borrowers.add(session);
+  }
+
+  _isClosedOrInvalid(): boolean {
+    return this.closed || this.handleInvalid;
+  }
+
+  _releaseBorrower(session: NativeSession): void {
+    this.borrowers.delete(session);
+  }
+
+  warm(): void {
+    this.assertOpen();
+    const status = this.bindings.octModelWarm(this._handle);
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_model_warm", this._handle);
+    }
+  }
+
+  close(): number {
+    if (this.closed) return OCT_STATUS_OK;
+    if (this.handleInvalid) {
+      this.closed = true;
+      this._owner._detachModel(this);
+      return OCT_STATUS_OK;
+    }
+    if (this.borrowers.size > 0) {
+      return OCT_STATUS_BUSY;
+    }
+    const status = this.bindings.octModelClose(this._handle);
+    if (status === OCT_STATUS_OK) {
+      this.closed = true;
+      this._owner._detachModel(this);
+      return status;
+    }
+    if (status === OCT_STATUS_BUSY) {
+      return status;
+    }
+    throwStatus(this.bindings, status, "oct_model_close", this._handle);
+  }
+
+  _invalidateAfterRuntimeClose(): void {
+    this.handleInvalid = true;
+    this.closed = true;
+    this.borrowers.clear();
+  }
+
+  private assertOpen(): void {
+    if (this.handleInvalid) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "model handle invalidated by parent NativeRuntime.close()",
+      );
+    }
+    if (this.closed) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "RUNTIME_UNAVAILABLE",
+        "model handle is closed",
+      );
+    }
+  }
+
+  private get bindings(): NativeBindings {
+    return (this._owner as unknown as { bindings: NativeBindings }).bindings;
   }
 }
 

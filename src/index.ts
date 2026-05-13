@@ -173,11 +173,18 @@ export { LocalFileModelRuntime } from "./runtime/engines/local-file-runtime.js";
 export {
   NativeRuntime,
   NativeRuntimeError,
+  OCT_CACHE_SCOPE_APP,
+  OCT_CACHE_SCOPE_REQUEST,
+  OCT_CACHE_SCOPE_RUNTIME,
+  OCT_CACHE_SCOPE_SESSION,
   discoverNativeRuntime,
   readNativeCapabilities,
   requireNativeCapability,
 } from "./runtime/native/index.js";
 export type {
+  NativeCacheEntrySnapshot,
+  NativeCacheScope,
+  NativeCacheSnapshot,
   NativeRuntimeCapabilities,
   NativeRuntimeDiscovery,
   NativeRuntimeOpenOptions,

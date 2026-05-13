@@ -93,44 +93,62 @@
     },
     "native_chat_completion": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/chat.completion.yaml",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_embeddings_text": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/embeddings.text.yaml",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_transcription": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/audio.transcription.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_stt_batch": {
+      "implemented": false,
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated. This capability is a session-capable alias of audio.transcription.",
+      "contractYaml": "schemas/core/runtime_capability.json",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_vad": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/audio.vad.yaml",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_speaker_embedding": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/audio.speaker.embedding.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_audio_diarization": {
+      "implemented": false,
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
+      "contractYaml": "conformance/audio.diarization.yaml",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_tts_batch": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/audio.tts.batch.yaml",
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_tts_stream": {
       "implemented": false,
-      "skipReason": "native runtime FFI not yet wired in octomil-node \u2014 see TODO: native-ffi-binding",
+      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
       "contractYaml": "conformance/audio.tts.stream.yaml",
+      "conformanceVersion": "v0.1.5-rc1"
+    },
+    "native_cache_introspect": {
+      "implemented": false,
+      "skipReason": "native runtime cache ABI is structurally wired; live data requires compiled native cache providers.",
+      "contractYaml": "schemas/core/runtime_capability.json",
       "conformanceVersion": "v0.1.5-rc1"
     }
   },
