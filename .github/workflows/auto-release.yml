@@ -1,0 +1,149 @@
+name: Auto Release
+
+on:
+  workflow_run:
+    workflows: ["Contract Conformance"]
+    branches: [main]
+    types: [completed]
+
+concurrency:
+  group: auto-release-main
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  bump-and-release:
+    name: Dispatch next release
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Wait for all check runs at triggering SHA, gate on green
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          MAX_WAIT_SECONDS: '1800'
+          POLL_INTERVAL: '30'
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + MAX_WAIT_SECONDS ))
+          # Poll until every check run at the triggering SHA has settled, or
+          # main advances past it, or we hit the timeout. Excludes our own
+          # auto-release job to avoid self-deadlock.
+          while :; do
+            git fetch origin main --quiet
+            ACTUAL=$(git rev-parse origin/main)
+            if [ "$ACTUAL" != "$SHA" ]; then
+              echo "::notice::main has advanced (${ACTUAL}) past triggering SHA (${SHA}); abandoning. Next push will retry."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            runs=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs" --jq '.check_runs[]' | jq -s '.')
+            filtered=$(echo "$runs" | jq '[.[] | select(.name != "Dispatch next release")]')
+            pending=$(echo "$filtered" | jq -r '.[] | select(.status != "completed") | .name')
+            if [ -z "$pending" ]; then
+              break
+            fi
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then
+              echo "::warning::checks still pending after ${MAX_WAIT_SECONDS}s; abandoning. Next push will retry."
+              printf 'still pending:\n%s\n' "$pending"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Waiting on:"
+            echo "$pending"
+            sleep "${POLL_INTERVAL}"
+          done
+          failed=$(echo "$filtered" | jq -r '.[] | select(.status == "completed") | select(.conclusion | IN("success","neutral","skipped") | not) | .name')
+          if [ -n "$failed" ]; then
+            echo "::warning::checks failed at ${SHA}; skipping release."
+            printf 'failed:\n%s\n' "$failed"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          total=$(echo "$filtered" | jq 'length')
+          echo "All ${total} required checks green at ${SHA}."
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next release version
+        id: version
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          node - <<'JS' >> "$GITHUB_OUTPUT"
+          const { execSync } = require('node:child_process');
+          const fs = require('node:fs');
+
+          const stableTag = /^v\d+\.\d+\.\d+$/;
+          const tagsAtHead = execSync('git tag --points-at HEAD --list v*', { encoding: 'utf8' })
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => stableTag.test(s));
+          if (tagsAtHead.length > 0) {
+            const tag = tagsAtHead.sort().at(-1);
+            console.log('already_released=true');
+            console.log(`tag=${tag}`);
+            console.log(`version=${tag.replace(/^v/, '')}`);
+            process.exit(0);
+          }
+
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version || '');
+          if (!m) {
+            console.error(`auto-release only supports stable SemVer; got '${pkg.version}'`);
+            process.exit(1);
+          }
+          let [_, major, minor, patch] = m;
+          major = +major; minor = +minor; patch = +patch;
+
+          const existing = new Set(
+            execSync('git tag --list v*', { encoding: 'utf8' })
+              .split('\n')
+              .map(s => s.trim())
+              .filter(Boolean)
+          );
+
+          let version, tag;
+          for (;;) {
+            patch += 1;
+            version = `${major}.${minor}.${patch}`;
+            tag = `v${version}`;
+            if (!existing.has(tag)) break;
+          }
+
+          console.log('already_released=false');
+          console.log(`version=${version}`);
+          console.log(`tag=${tag}`);
+          JS
+
+      - name: Dispatch release workflow
+        if: >
+          steps.gate.outputs.skip != 'true' &&
+          steps.version.outputs.already_released != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; nothing to dispatch."
+            exit 0
+          fi
+
+          gh workflow run release.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main \
+            -f version="${VERSION}"
