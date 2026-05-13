@@ -28,6 +28,12 @@ import type {
   LocalRunnerEndpoint,
   LocalRunnerDiscoveryOptions,
 } from "./local.js";
+import { FacadeVad } from "./audio/vad.js";
+import { FacadeSpeakerEmbedding } from "./audio/speaker_embedding.js";
+import { FacadeDiarization } from "./audio/diarization.js";
+import { NativeTtsStream } from "./audio/audio-speech.js";
+import type { NativeCacheSnapshot } from "./runtime/native/loader.js";
+import { NativeRuntime } from "./runtime/native/loader.js";
 import {
   discoverLocalRunner,
   discoverFromEnv,
@@ -891,8 +897,19 @@ class LocalFacadeAudioTranscriptions {
  * `Octomil`, but route new code through `client.audio.speech` and
  * `client.audio.transcriptions` so Node matches the Python/iOS/Android facade
  * shape.
+ *
+ * New in this release (Node/Python parity):
+ *   client.audio.vad              — FacadeVad (audio.vad)
+ *   client.audio.speakerEmbedding — FacadeSpeakerEmbedding (audio.speaker.embedding)
+ *   client.audio.diarization      — FacadeDiarization (audio.diarization)
+ *   client.audio.speech.stream()  — NativeTtsStream (audio.tts.stream)
  */
 class FacadeAudio {
+  private _vad: FacadeVad | undefined;
+  private _speakerEmbedding: FacadeSpeakerEmbedding | undefined;
+  private _diarization: FacadeDiarization | undefined;
+  private _ttsStream: NativeTtsStream | undefined;
+
   constructor(
     private readonly speechGetter: () =>
       | LocalFacadeAudioSpeech
@@ -910,6 +927,98 @@ class FacadeAudio {
 
   get transcriptions(): LocalFacadeAudioTranscriptions {
     return this.transcriptionsGetter();
+  }
+
+  /**
+   * Voice Activity Detection — audio.vad.
+   * Fail-closed: throws RUNTIME_UNAVAILABLE if native runtime unavailable.
+   */
+  get vad(): FacadeVad {
+    if (!this._vad) {
+      this._vad = new FacadeVad();
+    }
+    return this._vad;
+  }
+
+  /**
+   * Speaker embedding — audio.speaker.embedding.
+   * Fail-closed: throws RUNTIME_UNAVAILABLE if native runtime unavailable.
+   */
+  get speakerEmbedding(): FacadeSpeakerEmbedding {
+    if (!this._speakerEmbedding) {
+      this._speakerEmbedding = new FacadeSpeakerEmbedding();
+    }
+    return this._speakerEmbedding;
+  }
+
+  /**
+   * Speaker diarization — audio.diarization.
+   * Fail-closed: throws RUNTIME_UNAVAILABLE if native runtime unavailable.
+   */
+  get diarization(): FacadeDiarization {
+    if (!this._diarization) {
+      this._diarization = new FacadeDiarization();
+    }
+    return this._diarization;
+  }
+
+  /**
+   * Native streaming TTS — audio.tts.stream.
+   * Fail-closed: throws RUNTIME_UNAVAILABLE if native runtime unavailable.
+   * Use stream() to get an iterator of PCM chunks progressively during synthesis.
+   */
+  get ttsStream(): NativeTtsStream {
+    if (!this._ttsStream) {
+      this._ttsStream = new NativeTtsStream();
+    }
+    return this._ttsStream;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FacadeCache
+// ---------------------------------------------------------------------------
+
+/**
+ * Cache namespace on the Octomil facade — exposes cache.introspect.
+ *
+ * Mirrors Python's octomil.runtime.native.cache module, surfacing a single
+ * introspect() method per the privacy contract (bounded numeric fields only).
+ *
+ * Fail-closed: throws RUNTIME_UNAVAILABLE when the native runtime is absent
+ * or doesn't support the cache ABI.
+ */
+export class FacadeCache {
+  /**
+   * Return a privacy-safe snapshot of native runtime cache state.
+   *
+   * Opens a transient NativeRuntime handle, calls cacheIntrospect(), closes.
+   * Returns NativeCacheSnapshot with bounded fields only: capability, scope,
+   * entries, bytes, hit, miss.
+   *
+   * Mirrors Python: octomil.runtime.native.cache.introspect(runtime_handle).
+   *
+   * @throws OctomilError(RUNTIME_UNAVAILABLE) when the runtime is absent,
+   *   its ABI version is incompatible, or the cache API returns UNSUPPORTED.
+   */
+  introspect(): NativeCacheSnapshot {
+    let runtime: NativeRuntime | null = null;
+    try {
+      runtime = NativeRuntime.open();
+      return runtime.cacheIntrospect();
+    } catch (err) {
+      if (err instanceof OctomilError) throw err;
+      throw new OctomilError(
+        "RUNTIME_UNAVAILABLE",
+        `cache.introspect: native runtime unavailable (${(err as Error).message ?? err})`,
+      );
+    } finally {
+      try {
+        runtime?.close();
+      } catch {
+        /* best-effort */
+      }
+    }
   }
 }
 
@@ -1201,6 +1310,22 @@ export class Octomil {
       );
     }
     return this._audio;
+  }
+
+  /**
+   * Cache namespace — provides cache.introspect.
+   *
+   * client.cache.introspect() returns a privacy-safe snapshot of native
+   * runtime cache state. Fails closed with RUNTIME_UNAVAILABLE when the
+   * native runtime is absent or doesn't support the cache ABI.
+   *
+   * Mirrors Python's octomil.runtime.native.cache.introspect().
+   */
+  get cache(): FacadeCache {
+    if (!this.initialized) {
+      throw new OctomilNotInitializedError();
+    }
+    return new FacadeCache();
   }
 
   /**

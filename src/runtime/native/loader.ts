@@ -13,6 +13,33 @@ export const OCT_CACHE_SCOPE_SESSION: NativeCacheScope = 1;
 export const OCT_CACHE_SCOPE_RUNTIME: NativeCacheScope = 2;
 export const OCT_CACHE_SCOPE_APP: NativeCacheScope = 3;
 
+// ── Event type constants (mirrors octomil-runtime ABI + Python loader.py) ──
+export const OCT_EVENT_NONE = 0;
+export const OCT_EVENT_SESSION_STARTED = 1;
+export const OCT_EVENT_AUDIO_CHUNK = 2;
+export const OCT_EVENT_TRANSCRIPT_CHUNK = 3;
+export const OCT_EVENT_ERROR = 7;
+export const OCT_EVENT_SESSION_COMPLETED = 8;
+export const OCT_EVENT_METRIC = 19;
+export const OCT_EVENT_EMBEDDING_VECTOR = 20;
+export const OCT_EVENT_TRANSCRIPT_SEGMENT = 21;
+export const OCT_EVENT_TRANSCRIPT_FINAL = 22;
+export const OCT_EVENT_TTS_AUDIO_CHUNK = 23;
+export const OCT_EVENT_VAD_TRANSITION = 24;
+export const OCT_EVENT_DIARIZATION_SEGMENT = 25;
+
+// ── VAD transition kind constants ─────────────────────────────────────────
+export const OCT_VAD_TRANSITION_UNKNOWN = 0;
+export const OCT_VAD_TRANSITION_SPEECH_START = 1;
+export const OCT_VAD_TRANSITION_SPEECH_END = 2;
+
+// ── Sample format constants ────────────────────────────────────────────────
+export const OCT_SAMPLE_FORMAT_PCM_S16LE = 1;
+export const OCT_SAMPLE_FORMAT_PCM_F32LE = 2;
+
+// ── Diarization speaker sentinel ──────────────────────────────────────────
+export const OCT_DIARIZATION_SPEAKER_UNKNOWN = 65535;
+
 const RUNTIME_CONFIG_VERSION = 1;
 const CAPABILITIES_VERSION = 1;
 const CACHE_SENTINEL = ".extracted-ok";
