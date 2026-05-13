@@ -291,6 +291,7 @@ describe("NativeTtsStreamBackend — lifecycle with stub runtime", () => {
     innerBackend._runtime = mockRuntime;
     innerBackend._model = mockModel;
     (nativeTts as unknown as Record<string, unknown>)._loaded = true;
+    (nativeTts as unknown as Record<string, unknown>)._currentModel = "sherpa-vits-base";
 
     const chunks = Array.from(
       nativeTts.stream({ model: "sherpa-vits-base", input: "Hello" }),
@@ -299,5 +300,146 @@ describe("NativeTtsStreamBackend — lifecycle with stub runtime", () => {
     expect(chunks).toHaveLength(1);
     expect(chunks[0].isFinal).toBe(true);
     expect(chunks[0].sampleRateHz).toBe(24000);
+  });
+
+  // ── Regression: opts.speed must flow through synthesizeStream() ──────────
+  // Prior to fix: synthesizeStream() dropped opts.speed when calling
+  // synthesizeWithChunks, so speed was silently ignored. The fix: pass
+  // speed through. We verify by spying on synthesizeWithChunks.
+
+  it("synthesizeStream() forwards speed to synthesizeWithChunks (regression)", async () => {
+    const pcm = makePcmBuffer(8);
+    const mockSession = {
+      sendText: vi.fn(),
+      pollEvent: vi.fn()
+        .mockReturnValueOnce({ type: 1 })
+        .mockReturnValueOnce({
+          type: 23,
+          ttsAudioChunk: { pcm, sampleRate: 22050, sampleFormat: 2, channels: 1, isFinal: true },
+        })
+        .mockReturnValueOnce({ type: 8, sessionCompleted: { terminalStatus: 0 } }),
+      close: vi.fn(),
+    };
+    const mockRuntime = {
+      capabilities: vi.fn().mockReturnValue({ supportedCapabilities: ["audio.tts.stream"] }),
+      openSession: vi.fn().mockReturnValue(mockSession),
+      lastError: vi.fn().mockReturnValue(""),
+      close: vi.fn(),
+    };
+    const mockModel = { warm: vi.fn(), close: vi.fn() };
+
+    const backend = new NativeTtsStreamBackend();
+    (backend as unknown as Record<string, unknown>)._runtime = mockRuntime;
+    (backend as unknown as Record<string, unknown>)._model = mockModel;
+
+    const synthesizeSpy = vi.spyOn(backend, "synthesizeWithChunks");
+
+    // Collect async iterator
+    const chunks: unknown[] = [];
+    for await (const chunk of backend.synthesizeStream("Hello world", { voice: "0", speed: 1.5 })) {
+      chunks.push(chunk);
+    }
+
+    // synthesizeWithChunks must have been called with speed forwarded.
+    expect(synthesizeSpy).toHaveBeenCalledOnce();
+    const callArgs = synthesizeSpy.mock.calls[0];
+    expect(callArgs[1]).toMatchObject({ speed: 1.5 });
+
+    synthesizeSpy.mockRestore();
+  });
+
+  it("NativeTtsStream.stream() forwards opts.speed to synthesizeWithChunks", () => {
+    const pcm = makePcmBuffer(8);
+    const mockSession = {
+      sendText: vi.fn(),
+      pollEvent: vi.fn()
+        .mockReturnValueOnce({ type: 1 })
+        .mockReturnValueOnce({
+          type: 23,
+          ttsAudioChunk: { pcm, sampleRate: 22050, sampleFormat: 2, channels: 1, isFinal: true },
+        })
+        .mockReturnValueOnce({ type: 8, sessionCompleted: { terminalStatus: 0 } }),
+      close: vi.fn(),
+    };
+    const mockRuntime = {
+      capabilities: vi.fn().mockReturnValue({ supportedCapabilities: ["audio.tts.stream"] }),
+      openSession: vi.fn().mockReturnValue(mockSession),
+      lastError: vi.fn().mockReturnValue(""),
+      close: vi.fn(),
+    };
+    const mockModel = { warm: vi.fn(), close: vi.fn() };
+
+    const nativeTts = new NativeTtsStream();
+    const innerBackend = (nativeTts as unknown as Record<string, unknown>)._backend as NativeTtsStreamBackend;
+    innerBackend._runtime = mockRuntime as unknown as typeof innerBackend._runtime;
+    (innerBackend as unknown as Record<string, unknown>)._model = mockModel;
+    (nativeTts as unknown as Record<string, unknown>)._loaded = true;
+    (nativeTts as unknown as Record<string, unknown>)._currentModel = "sherpa-vits-base";
+
+    const synthesizeSpy = vi.spyOn(innerBackend, "synthesizeWithChunks");
+
+    Array.from(nativeTts.stream({ model: "sherpa-vits-base", input: "Hello", speed: 0.75 }));
+
+    expect(synthesizeSpy).toHaveBeenCalledOnce();
+    const callArgs = synthesizeSpy.mock.calls[0];
+    // opts.speed must be forwarded, not dropped.
+    expect(callArgs[1]).toMatchObject({ speed: 0.75 });
+
+    synthesizeSpy.mockRestore();
+  });
+
+  // ── Regression: NativeTtsStream reloads model when model name changes ────
+
+  it("NativeTtsStream.stream() reloads model when request.model changes", () => {
+    const pcm = makePcmBuffer(8);
+    const makeSession = () => ({
+      sendText: vi.fn(),
+      pollEvent: vi.fn()
+        .mockReturnValueOnce({ type: 1 })
+        .mockReturnValueOnce({
+          type: 23,
+          ttsAudioChunk: { pcm, sampleRate: 22050, sampleFormat: 2, channels: 1, isFinal: true },
+        })
+        .mockReturnValueOnce({ type: 8, sessionCompleted: { terminalStatus: 0 } }),
+      close: vi.fn(),
+    });
+
+    const mockRuntime = {
+      capabilities: vi.fn().mockReturnValue({
+        supportedCapabilities: ["audio.tts.stream"],
+      }),
+      openSession: vi.fn().mockReturnValue(makeSession()),
+      lastError: vi.fn().mockReturnValue(""),
+      close: vi.fn(),
+    };
+    const mockModel = { warm: vi.fn(), close: vi.fn() };
+
+    const nativeTts = new NativeTtsStream();
+    const innerBackend = (nativeTts as unknown as Record<string, unknown>)._backend as NativeTtsStreamBackend;
+    const loadModelSpy = vi.spyOn(innerBackend, "loadModel").mockImplementation(() => {
+      // inject state so synthesizeWithChunks works
+      (innerBackend as unknown as Record<string, unknown>)._runtime = mockRuntime;
+      (innerBackend as unknown as Record<string, unknown>)._model = mockModel;
+      (innerBackend as unknown as Record<string, unknown>)._modelName = "new-model";
+    });
+
+    // Simulate: was loaded with "sherpa-vits-base"
+    (nativeTts as unknown as Record<string, unknown>)._loaded = true;
+    (nativeTts as unknown as Record<string, unknown>)._currentModel = "sherpa-vits-base";
+    (innerBackend as unknown as Record<string, unknown>)._runtime = mockRuntime;
+    (innerBackend as unknown as Record<string, unknown>)._model = mockModel;
+    // Reset mock session for second call
+    mockRuntime.openSession.mockReturnValue(makeSession());
+
+    // First call: same model → no reload
+    Array.from(nativeTts.stream({ model: "sherpa-vits-base", input: "Hello" }));
+    expect(loadModelSpy).not.toHaveBeenCalled();
+
+    // Second call: different model → reload
+    mockRuntime.openSession.mockReturnValue(makeSession());
+    Array.from(nativeTts.stream({ model: "sherpa-vits-large", input: "World" }));
+    expect(loadModelSpy).toHaveBeenCalledWith("sherpa-vits-large");
+
+    loadModelSpy.mockRestore();
   });
 });

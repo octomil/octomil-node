@@ -354,7 +354,7 @@ export class NativeSpeakerEmbeddingBackend {
         }
       }
 
-      if (Date.now() >= deadline && !sawEmbedding) {
+      if (Date.now() >= deadline) {
         throw new OctomilError(
           "REQUEST_TIMEOUT",
           `native speaker.embedding backend timed out waiting for SESSION_COMPLETED (${resolvedDeadlineMs}ms)`,

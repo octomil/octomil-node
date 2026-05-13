@@ -334,7 +334,7 @@ export class NativeTtsStreamBackend {
     opts: { voice?: string | null; speed?: number } = {},
   ): AsyncIterableIterator<{ pcmF32: Float32Array; sampleRate: number }> {
     // Run the synchronous generator in the current tick; yield async.
-    for (const chunk of this.synthesizeWithChunks(text, { voiceId: opts.voice })) {
+    for (const chunk of this.synthesizeWithChunks(text, { voiceId: opts.voice, speed: opts.speed })) {
       yield { pcmF32: chunk.pcmF32, sampleRate: chunk.sampleRateHz };
     }
   }

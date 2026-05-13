@@ -68,6 +68,7 @@ export interface SpeechStreamRequest {
 export class NativeTtsStream {
   private readonly _backend: NativeTtsStreamBackend;
   private _loaded = false;
+  private _currentModel = "";
 
   constructor(opts: { defaultDeadlineMs?: number } = {}) {
     this._backend = new NativeTtsStreamBackend({
@@ -87,9 +88,10 @@ export class NativeTtsStream {
    * @throws OctomilError(INVALID_INPUT) for empty text or invalid voice id.
    */
   *stream(request: SpeechStreamRequest): IterableIterator<TtsAudioChunk> {
-    if (!this._loaded) {
+    if (!this._loaded || this._currentModel !== request.model) {
       this._backend.loadModel(request.model);
       this._loaded = true;
+      this._currentModel = request.model;
     }
     yield* this._backend.synthesizeWithChunks(request.input, {
       voiceId: request.voice,
@@ -110,6 +112,7 @@ export class NativeTtsStream {
   close(): void {
     this._backend.close();
     this._loaded = false;
+    this._currentModel = "";
   }
 }
 
