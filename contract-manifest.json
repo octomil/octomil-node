@@ -116,22 +116,31 @@
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_vad": {
-      "implemented": false,
-      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
+      "implemented": true,
+      "skipReason": "real artifact-backed execution is env-gated (OCTOMIL_SILERO_VAD_MODEL); SDK fail-closes with RUNTIME_UNAVAILABLE when absent.",
       "contractYaml": "conformance/audio.vad.yaml",
-      "conformanceVersion": "v0.1.5-rc1"
+      "conformanceVersion": "v0.1.5-rc1",
+      "backendFile": "src/runtime/native/vad_backend.ts",
+      "facadeFile": "src/audio/vad.ts",
+      "pythonReference": "octomil-python/octomil/runtime/native/vad_backend.py"
     },
     "native_audio_speaker_embedding": {
-      "implemented": false,
-      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
+      "implemented": true,
+      "skipReason": "real artifact-backed execution is env-gated (OCTOMIL_SHERPA_SPEAKER_MODEL); SDK fail-closes with RUNTIME_UNAVAILABLE when absent.",
       "contractYaml": "conformance/audio.speaker.embedding.yaml",
-      "conformanceVersion": "v0.1.5-rc1"
+      "conformanceVersion": "v0.1.5-rc1",
+      "backendFile": "src/runtime/native/speaker_backend.ts",
+      "facadeFile": "src/audio/speaker_embedding.ts",
+      "pythonReference": "octomil-python/octomil/runtime/native/speaker_backend.py"
     },
     "native_audio_diarization": {
-      "implemented": false,
-      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
+      "implemented": true,
+      "skipReason": "real artifact-backed execution is env-gated (OCTOMIL_DIARIZATION_SEGMENTATION_MODEL + OCTOMIL_SHERPA_SPEAKER_MODEL); SDK fail-closes with RUNTIME_UNAVAILABLE when absent.",
       "contractYaml": "conformance/audio.diarization.yaml",
-      "conformanceVersion": "v0.1.5-rc1"
+      "conformanceVersion": "v0.1.5-rc1",
+      "backendFile": "src/runtime/native/diarization_backend.ts",
+      "facadeFile": "src/audio/diarization.ts",
+      "pythonReference": "octomil-python/octomil/runtime/native/diarization_backend.py"
     },
     "native_audio_tts_batch": {
       "implemented": false,
@@ -140,16 +149,21 @@
       "conformanceVersion": "v0.1.5-rc1"
     },
     "native_audio_tts_stream": {
-      "implemented": false,
-      "skipReason": "native runtime FFI is structurally wired; real artifact-backed execution is env-gated.",
+      "implemented": true,
+      "skipReason": "real artifact-backed execution is env-gated (OCTOMIL_SHERPA_TTS_MODEL); SDK fail-closes with RUNTIME_UNAVAILABLE when absent.",
       "contractYaml": "conformance/audio.tts.stream.yaml",
-      "conformanceVersion": "v0.1.5-rc1"
+      "conformanceVersion": "v0.1.9",
+      "backendFile": "src/runtime/native/tts_stream_backend.ts",
+      "facadeFile": "src/audio/audio-speech.ts",
+      "pythonReference": "octomil-python/octomil/runtime/native/tts_stream_backend.py"
     },
     "native_cache_introspect": {
-      "implemented": false,
-      "skipReason": "native runtime cache ABI is structurally wired; live data requires compiled native cache providers.",
+      "implemented": true,
+      "skipReason": "live data requires compiled native cache providers; SDK fail-closes with RUNTIME_UNAVAILABLE when absent.",
       "contractYaml": "schemas/core/runtime_capability.json",
-      "conformanceVersion": "v0.1.5-rc1"
+      "conformanceVersion": "v0.1.5-rc1",
+      "facadeFile": "src/facade.ts",
+      "pythonReference": "octomil-python/octomil/runtime/native/cache.py"
     }
   },
   "behaviorTests": [

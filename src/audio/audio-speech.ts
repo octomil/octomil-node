@@ -1,5 +1,5 @@
 /**
- * AudioSpeech — hosted text-to-speech surface.
+ * AudioSpeech — hosted text-to-speech surface + native TTS stream.
  *
  * Mirrors OpenAI's ``client.audio.speech.create(...)`` shape. Posts to
  * the hosted ``{base}/audio/speech`` endpoint where ``{base}`` is the
@@ -7,9 +7,18 @@
  *
  * v0.10.0 hosted API cutover: legacy control-plane bases (``/api/v1``)
  * are rejected at construction time; no silent normalization.
+ *
+ * stream() method added for native audio.tts.stream progressive delivery.
+ * Mirrors Python's NativeTtsStreamBackend.synthesize_with_chunks().
  */
 
 import { OctomilError } from "../types.js";
+import {
+  NativeTtsStreamBackend,
+  type TtsAudioChunk,
+} from "../runtime/native/tts_stream_backend.js";
+
+export type { TtsAudioChunk, TtsStreamingMode } from "../runtime/native/tts_stream_backend.js";
 
 // Path is relative to the hosted /v1 API root.
 const SPEECH_PATH = "/audio/speech";
@@ -35,6 +44,76 @@ export interface SpeechResponse {
   latencyMs?: number;
   billedUnits?: number;
   unitKind?: string;
+}
+
+export interface SpeechStreamRequest {
+  model: string;
+  input: string;
+  voice?: string;
+  speed?: number;
+  /** Per-request deadline in ms. Defaults to 5 minutes. */
+  deadlineMs?: number;
+}
+
+/**
+ * NativeTtsStream — wraps NativeTtsStreamBackend for the hosted AudioSpeech surface.
+ *
+ * This is NOT the hosted path — it invokes the native runtime directly.
+ * Exposed via AudioSpeech.stream() so callers can use the iterator shape
+ * without constructing a backend directly.
+ *
+ * Fail-closed: if the runtime is absent or doesn't advertise audio.tts.stream,
+ * stream() throws OctomilError with RUNTIME_UNAVAILABLE.
+ */
+export class NativeTtsStream {
+  private readonly _backend: NativeTtsStreamBackend;
+  private _loaded = false;
+  private _currentModel = "";
+
+  constructor(opts: { defaultDeadlineMs?: number } = {}) {
+    this._backend = new NativeTtsStreamBackend({
+      defaultDeadlineMs: opts.defaultDeadlineMs,
+    });
+  }
+
+  /**
+   * Yield sentence-bounded PCM chunks progressively during synthesis.
+   *
+   * On first call with a given model, loads + warms the model. Subsequent
+   * calls with the same model reuse the warmed handle.
+   *
+   * Mirrors Python NativeTtsStreamBackend.synthesize_with_chunks().
+   *
+   * @throws OctomilError(RUNTIME_UNAVAILABLE) if native runtime unavailable.
+   * @throws OctomilError(INVALID_INPUT) for empty text or invalid voice id.
+   */
+  *stream(request: SpeechStreamRequest): IterableIterator<TtsAudioChunk> {
+    if (!this._loaded || this._currentModel !== request.model) {
+      this._backend.loadModel(request.model);
+      this._loaded = true;
+      this._currentModel = request.model;
+    }
+    yield* this._backend.synthesizeWithChunks(request.input, {
+      voiceId: request.voice,
+      deadlineMs: request.deadlineMs,
+      speed: request.speed,
+    });
+  }
+
+  /**
+   * Async generator variant. Suitable for SSE / streaming HTTP responses.
+   */
+  async *streamAsync(request: SpeechStreamRequest): AsyncIterableIterator<TtsAudioChunk> {
+    for (const chunk of this.stream(request)) {
+      yield chunk;
+    }
+  }
+
+  close(): void {
+    this._backend.close();
+    this._loaded = false;
+    this._currentModel = "";
+  }
 }
 
 export class AudioSpeech {
