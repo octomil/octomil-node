@@ -1,8 +1,6 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
@@ -39,15 +37,9 @@ jobs:
       - name: Determine version
         id: version
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
-          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            VERSION="${INPUT_VERSION#v}"
-          else
-            VERSION="${REF_NAME#v}"
-          fi
+          VERSION="${INPUT_VERSION#v}"
           if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Expected stable SemVer version, got '$VERSION'"
             exit 1
@@ -65,8 +57,7 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Bump package.json (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Bump package.json
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
@@ -84,8 +75,7 @@ jobs:
             echo "package.json already at ${VERSION}; no commit needed."
           fi
 
-      - name: Create and push tag (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create and push tag
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
