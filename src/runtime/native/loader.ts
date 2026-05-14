@@ -490,11 +490,42 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
       continue;
     }
 
-    const libDir = join(versionPath, "lib");
-    if (!isFile(join(libDir, CACHE_SENTINEL))) continue;
-    for (const name of CACHE_LIB_NAMES) {
-      const candidate = join(libDir, name);
-      if (isFile(candidate)) candidates.push(candidate);
+    // ── Legacy layout: <version>/lib/.extracted-ok ──────────────────────────
+    // Pre-flavor cache written before v0.1.5. Treat as chat-only and include
+    // it so existing caches keep working without a re-fetch.
+    const legacyLibDir = join(versionPath, "lib");
+    if (isFile(join(legacyLibDir, CACHE_SENTINEL))) {
+      for (const name of CACHE_LIB_NAMES) {
+        const candidate = join(legacyLibDir, name);
+        if (isFile(candidate)) candidates.push(candidate);
+      }
+      // Legacy version dir fully consumed — don't also descend into flavors.
+      continue;
+    }
+
+    // ── Flavor-keyed layout: <version>/<flavor>/lib/.extracted-ok ───────────
+    // Sort flavor subdirs lexicographically (chat before stt) for stable
+    // ordering. Within a version, loader returns the last candidate as
+    // "newest"; lexicographic order is arbitrary but deterministic.
+    let flavorDirs: string[];
+    try {
+      flavorDirs = readdirSync(versionPath).sort();
+    } catch {
+      continue;
+    }
+    for (const flavorDir of flavorDirs) {
+      const flavorPath = join(versionPath, flavorDir);
+      try {
+        if (!statSync(flavorPath).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      const libDir = join(flavorPath, "lib");
+      if (!isFile(join(libDir, CACHE_SENTINEL))) continue;
+      for (const name of CACHE_LIB_NAMES) {
+        const candidate = join(libDir, name);
+        if (isFile(candidate)) candidates.push(candidate);
+      }
     }
   }
   return candidates;

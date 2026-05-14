@@ -23,8 +23,11 @@
  *   - Reads GH_TOKEN / GITHUB_TOKEN / OCTOMIL_RUNTIME_TOKEN for
  *     private-repo auth. Falls back to `gh auth token` if available.
  *
- * Extraction target: ~/.cache/octomil-runtime/<version>/{lib,include}
- * Sentinel: <version>/lib/.extracted-ok  (loader.ts:45 CACHE_SENTINEL)
+ * Extraction target: ~/.cache/octomil-runtime/<version>/<flavor>/{lib,include}
+ * Sentinel: <version>/<flavor>/lib/.extracted-ok  (loader.ts:45 CACHE_SENTINEL)
+ *
+ * Legacy layout (pre v0.1.5, no flavor subdir): <version>/{lib,include}
+ * The fetcher never writes legacy layout; loader.ts accepts it as chat-only fallback.
  *
  * CLI:
  *   node scripts/fetch_runtime_dev.mjs [--version vX.Y.Z] [--flavor chat|stt]
@@ -762,7 +765,7 @@ function printHelp() {
     `  4. \`gh auth token\` (via GitHub CLI)\n` +
     `\n` +
     `After extraction the dylib is available at:\n` +
-    `  <cache-root>/<version>/lib/liboctomil-runtime.dylib\n`
+    `  <cache-root>/<version>/<flavor>/lib/liboctomil-runtime.dylib\n`
   );
 }
 
@@ -778,7 +781,9 @@ export async function main(argv = process.argv) {
 
   const { version, flavor, force } = opts;
   const cacheRoot = opts.cacheRoot.replace(/^~(?=\/|$)/, os.homedir());
-  const targetDir = path.join(cacheRoot, version);
+  // Flavor-keyed layout: <cacheRoot>/<version>/<flavor>/{lib,include}
+  // Legacy layout (pre-flavor) was: <cacheRoot>/<version>/{lib,include}
+  const targetDir = path.join(cacheRoot, version, flavor);
   const libDir = path.join(targetDir, "lib");
   const incDir = path.join(targetDir, "include");
   const sentinel = path.join(libDir, CACHE_SENTINEL);

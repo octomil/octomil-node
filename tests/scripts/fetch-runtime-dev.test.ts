@@ -652,6 +652,9 @@ describe("getGhToken", () => {
 describe("main() sentinel behaviour", () => {
   let tmp: string;
   let savedEnv: Record<string, string | undefined>;
+  const dylibName = process.platform === "darwin"
+    ? "liboctomil-runtime.dylib"
+    : "liboctomil-runtime.so";
 
   beforeEach(async () => {
     tmp = await makeTmp();
@@ -674,15 +677,13 @@ describe("main() sentinel behaviour", () => {
     }
   });
 
-  it("exits 0 and prints 'already cached' when sentinel and dylib are present", async () => {
-    const version = "v0.1.4";
-    const libDir = path.join(tmp, version, "lib");
-    mkdirSync(libDir, { recursive: true });
+  // ── flavor-keyed layout (new, v0.1.5+) ─────────────────────────────────
 
-    // Platform-appropriate dylib name.
-    const dylibName = process.platform === "darwin"
-      ? "liboctomil-runtime.dylib"
-      : "liboctomil-runtime.so";
+  it("exits 0 and prints 'already cached' for flavor-keyed chat layout", async () => {
+    const version = "v0.1.5";
+    const flavor = "chat";
+    const libDir = path.join(tmp, version, flavor, "lib");
+    mkdirSync(libDir, { recursive: true });
     writeFileSync(path.join(libDir, dylibName), "fake");
     writeFileSync(path.join(libDir, ".extracted-ok"), version + "\n");
 
@@ -696,6 +697,7 @@ describe("main() sentinel behaviour", () => {
       process.execPath,
       "scripts/fetch_runtime_dev.mjs",
       "--version", version,
+      "--flavor", flavor,
       "--cache-root", tmp,
     ]);
 
@@ -703,18 +705,95 @@ describe("main() sentinel behaviour", () => {
     expect(stdoutLines.some((l) => l.includes("already cached"))).toBe(true);
   });
 
-  it("emits 'looks incomplete' and proceeds past sentinel when dylib exists but sentinel is missing", async () => {
-    const version = "v0.1.4";
-    const libDir = path.join(tmp, version, "lib");
+  it("exits 0 and prints 'already cached' for flavor-keyed stt layout", async () => {
+    const version = "v0.1.5";
+    const flavor = "stt";
+    const libDir = path.join(tmp, version, flavor, "lib");
     mkdirSync(libDir, { recursive: true });
-    const dylibName = process.platform === "darwin"
-      ? "liboctomil-runtime.dylib"
-      : "liboctomil-runtime.so";
+    writeFileSync(path.join(libDir, dylibName), "fake");
+    writeFileSync(path.join(libDir, ".extracted-ok"), version + "\n");
+
+    const stdoutLines: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => {
+      stdoutLines.push(String(chunk));
+      return true;
+    });
+
+    const code = await main([
+      process.execPath,
+      "scripts/fetch_runtime_dev.mjs",
+      "--version", version,
+      "--flavor", flavor,
+      "--cache-root", tmp,
+    ]);
+
+    expect(code).toBe(0);
+    expect(stdoutLines.some((l) => l.includes("already cached"))).toBe(true);
+  });
+
+  it("chat and stt are independent: populating chat cache does not satisfy stt sentinel check", async () => {
+    // Regression: the bug that prompted this fix. Pre-fix, fetching chat would
+    // satisfy the stt sentinel check because both used <version>/lib/ as targetDir.
+    const version = "v0.1.5";
+    const chatLibDir = path.join(tmp, version, "chat", "lib");
+    mkdirSync(chatLibDir, { recursive: true });
+    writeFileSync(path.join(chatLibDir, dylibName), "fake-chat");
+    writeFileSync(path.join(chatLibDir, ".extracted-ok"), version + "\n");
+
+    // Force gh auth token to fail so we don't make real network calls.
+    const origSpawnHook = _testHooks.spawnSync;
+    _testHooks.spawnSync = (_cmd: string, _args: string[], _opts: any) => ({
+      status: 1,
+      stdout: "",
+      stderr: "not logged in",
+      pid: 1,
+      output: [],
+      signal: null,
+    }) as any;
+
+    const stdoutLines: string[] = [];
+    const stderrLines: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => {
+      stdoutLines.push(String(chunk));
+      return true;
+    });
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk: any) => {
+      stderrLines.push(String(chunk));
+      return true;
+    });
+    vi.spyOn(process, "exit").mockImplementation((_code?: any) => {
+      throw new Error(`process.exit(${_code})`);
+    });
+
+    try {
+      // Requesting stt when only chat is cached: must NOT return "already cached".
+      await expect(
+        main([
+          process.execPath,
+          "scripts/fetch_runtime_dev.mjs",
+          "--version", version,
+          "--flavor", "stt",
+          "--cache-root", tmp,
+        ])
+      ).rejects.toThrow(/process\.exit/);
+
+      // Confirmed: chat cache did not satisfy stt sentinel check.
+      expect(stdoutLines.some((l) => l.includes("already cached"))).toBe(false);
+      // Reached token check → confirms it tried to fetch.
+      expect(stderrLines.some((l) => l.includes("no GitHub token"))).toBe(true);
+    } finally {
+      _testHooks.spawnSync = origSpawnHook;
+    }
+  });
+
+  it("emits 'looks incomplete' and proceeds past sentinel when dylib exists but sentinel is missing (flavor-keyed)", async () => {
+    const version = "v0.1.5";
+    const flavor = "chat";
+    const libDir = path.join(tmp, version, flavor, "lib");
+    mkdirSync(libDir, { recursive: true });
     writeFileSync(path.join(libDir, dylibName), "fake");
     // No sentinel — incomplete cache.
 
-    // Force gh auth token to fail so getGhToken() returns null,
-    // ensuring we don't make real network calls.
     const origSpawnHook = _testHooks.spawnSync;
     _testHooks.spawnSync = (_cmd: string, _args: string[], _opts: any) => ({
       status: 1,
@@ -731,7 +810,7 @@ describe("main() sentinel behaviour", () => {
       return true;
     });
 
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation((_code?: any) => {
+    vi.spyOn(process, "exit").mockImplementation((_code?: any) => {
       throw new Error(`process.exit(${_code})`);
     });
 
@@ -741,6 +820,7 @@ describe("main() sentinel behaviour", () => {
           process.execPath,
           "scripts/fetch_runtime_dev.mjs",
           "--version", version,
+          "--flavor", flavor,
           "--cache-root", tmp,
         ])
       ).rejects.toThrow(/process\.exit/);
@@ -754,17 +834,14 @@ describe("main() sentinel behaviour", () => {
     }
   });
 
-  it("bypasses sentinel check and proceeds to fetch when --force is passed", async () => {
-    const version = "v0.1.4";
-    const libDir = path.join(tmp, version, "lib");
+  it("bypasses sentinel check and proceeds to fetch when --force is passed (flavor-keyed)", async () => {
+    const version = "v0.1.5";
+    const flavor = "chat";
+    const libDir = path.join(tmp, version, flavor, "lib");
     mkdirSync(libDir, { recursive: true });
-    const dylibName = process.platform === "darwin"
-      ? "liboctomil-runtime.dylib"
-      : "liboctomil-runtime.so";
     writeFileSync(path.join(libDir, dylibName), "fake");
     writeFileSync(path.join(libDir, ".extracted-ok"), version + "\n");
 
-    // Force gh auth token to fail so getGhToken() returns null.
     const origSpawnHook = _testHooks.spawnSync;
     _testHooks.spawnSync = (_cmd: string, _args: string[], _opts: any) => ({
       status: 1,
@@ -796,6 +873,7 @@ describe("main() sentinel behaviour", () => {
           process.execPath,
           "scripts/fetch_runtime_dev.mjs",
           "--version", version,
+          "--flavor", flavor,
           "--cache-root", tmp,
           "--force",
         ])
