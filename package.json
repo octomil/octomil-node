@@ -34,7 +34,8 @@
     "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run exports:check && pnpm run pack:check",
     "test:watch": "vitest",
     "lint": "eslint src/ tests/",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "fetch:runtime": "node scripts/fetch_runtime_dev.mjs"
   },
   "dependencies": {
     "koffi": "^2.16.2",

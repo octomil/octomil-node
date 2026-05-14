@@ -353,6 +353,65 @@ configure({
 // Heartbeat timer (unref'd so it doesn't block process exit)
 ```
 
+## Native Runtime (dev path)
+
+The Node SDK can load the native `liboctomil-runtime` dylib for local
+inference. A fetch script populates the cache that the SDK loader reads
+automatically.
+
+### Fetch the dylib
+
+```bash
+pnpm fetch:runtime
+# or equivalently:
+node scripts/fetch_runtime_dev.mjs
+```
+
+Options:
+
+```
+--version <tag>      Release tag to fetch (default: v0.1.4)
+--cache-root <path>  Override cache root
+--force              Re-download even if cache is already populated
+```
+
+### Cache layout
+
+```
+~/.cache/octomil-runtime/
+  <version>/
+    lib/
+      liboctomil-runtime.dylib   # loaded by the SDK
+      .extracted-ok              # sentinel — loader requires this to trust the cache
+    include/
+      octomil.h                  # C headers (for native consumers)
+```
+
+### Environment variables
+
+| Variable | Effect |
+|----------|--------|
+| `OCTOMIL_RUNTIME_CACHE_DIR` | Override the cache root (default: `~/.cache/octomil-runtime`) |
+| `OCTOMIL_RUNTIME_DYLIB` | Point directly at a specific dylib; bypasses cache lookup entirely |
+
+### Token resolution
+
+The fetch script needs a GitHub token with read access to the private
+`octomil/octomil-runtime` repo. Resolution order:
+
+1. `$GH_TOKEN`
+2. `$GITHUB_TOKEN`
+3. `$OCTOMIL_RUNTIME_TOKEN`
+4. `gh auth token` (via the GitHub CLI — run `gh auth login` first)
+
+### Why `_dev`?
+
+This script downloads unsigned development binaries from the private
+`octomil/octomil-runtime` GitHub release. It is intended for local
+development and CI only. Production / customer distribution will use
+signed-and-notarized binaries via a separate delivery path; this script
+covers the v0.0.x dev range only.
+
 ## Development
 
 ```bash
