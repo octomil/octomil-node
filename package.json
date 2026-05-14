@@ -1,6 +1,6 @@
 {
   "name": "@octomil/sdk",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "description": "Octomil Node.js SDK for hosted and local AI inference",
   "type": "module",
   "main": "./dist/cjs/index.cjs",
