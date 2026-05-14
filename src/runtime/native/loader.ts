@@ -7,6 +7,16 @@ import { OctomilError, type OctomilErrorCode } from "../../types.js";
 
 export const ENV_RUNTIME_DYLIB = "OCTOMIL_RUNTIME_DYLIB";
 export const ENV_RUNTIME_CACHE_DIR = "OCTOMIL_RUNTIME_CACHE_DIR";
+export const ENV_RUNTIME_FLAVOR = "OCTOMIL_RUNTIME_FLAVOR";
+
+/**
+ * Flavor preference order for default selection.
+ * When multiple flavors are cached for the same version, the first flavor in
+ * this list wins. Chat is first because it covers chat-completion and
+ * embeddings — the common consumer paths. STT is opt-in via
+ * OCTOMIL_RUNTIME_FLAVOR=stt.
+ */
+export const FLAVOR_PREFERENCE: readonly string[] = ["chat", "stt"] as const;
 export const REQUIRED_ABI = { major: 0, minor: 10, patch: 0 } as const;
 export const OCT_CACHE_SCOPE_REQUEST: NativeCacheScope = 0;
 export const OCT_CACHE_SCOPE_SESSION: NativeCacheScope = 1;
@@ -481,8 +491,30 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
   const root = runtimeCacheRoot();
   if (!existsSync(root)) return [];
 
+  // ── Env-var flavor filter ─────────────────────────────────────────────────
+  // OCTOMIL_RUNTIME_FLAVOR={chat,stt}: if set, only candidates from that
+  // flavor subdir are returned. Authoritative — no fallback. Throws on an
+  // unrecognised value so misconfiguration is never silent.
+  const flavorOverride = process.env[ENV_RUNTIME_FLAVOR];
+  if (flavorOverride !== undefined && flavorOverride !== "") {
+    const validFlavors = new Set(FLAVOR_PREFERENCE);
+    if (!validFlavors.has(flavorOverride)) {
+      throw new NativeRuntimeError(
+        null,
+        "RUNTIME_UNAVAILABLE",
+        `${ENV_RUNTIME_FLAVOR} is set to "${flavorOverride}", which is not a recognised flavor. ` +
+          `Valid values: ${[...FLAVOR_PREFERENCE].join(", ")}`,
+      );
+    }
+  }
+
   const candidates: string[] = [];
-  for (const versionDir of readdirSync(root).sort(compareVersionDirs)) {
+
+  // Walk version dirs newest-first so that when we build the list the most
+  // desirable candidate ends up at index 0 after the per-flavor sort below.
+  const versionDirs = readdirSync(root).sort(compareVersionDirs).reverse();
+
+  for (const versionDir of versionDirs) {
     const versionPath = join(root, versionDir);
     try {
       if (!statSync(versionPath).isDirectory()) continue;
@@ -491,28 +523,46 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
     }
 
     // ── Legacy layout: <version>/lib/.extracted-ok ──────────────────────────
-    // Pre-flavor cache written before v0.1.5. Treat as chat-only and include
-    // it so existing caches keep working without a re-fetch.
+    // Pre-flavor cache written before v0.1.5. Treat as chat-compatible and
+    // include it so existing caches keep working without a re-fetch.
+    // If a flavor override is set, legacy entries are treated as "chat"
+    // (no named flavor dir) and are included only when override === "chat".
     const legacyLibDir = join(versionPath, "lib");
     if (isFile(join(legacyLibDir, CACHE_SENTINEL))) {
-      for (const name of CACHE_LIB_NAMES) {
-        const candidate = join(legacyLibDir, name);
-        if (isFile(candidate)) candidates.push(candidate);
+      if (flavorOverride === undefined || flavorOverride === "" || flavorOverride === "chat") {
+        for (const name of CACHE_LIB_NAMES) {
+          const candidate = join(legacyLibDir, name);
+          if (isFile(candidate)) candidates.push(candidate);
+        }
       }
       // Legacy version dir fully consumed — don't also descend into flavors.
       continue;
     }
 
     // ── Flavor-keyed layout: <version>/<flavor>/lib/.extracted-ok ───────────
-    // Sort flavor subdirs lexicographically (chat before stt) for stable
-    // ordering. Within a version, loader returns the last candidate as
-    // "newest"; lexicographic order is arbitrary but deterministic.
+    // Sort flavor subdirs by FLAVOR_PREFERENCE (chat before stt; unknown last)
+    // so that within a version the most-preferred flavor is pushed first and
+    // ends up at a lower index in the overall candidate list.
     let flavorDirs: string[];
     try {
-      flavorDirs = readdirSync(versionPath).sort();
+      flavorDirs = readdirSync(versionPath);
     } catch {
       continue;
     }
+
+    // Apply flavor override filter before sorting.
+    if (flavorOverride !== undefined && flavorOverride !== "") {
+      flavorDirs = flavorDirs.filter((d) => d === flavorOverride);
+    }
+
+    flavorDirs.sort((a, b) => {
+      const ai = FLAVOR_PREFERENCE.indexOf(a);
+      const bi = FLAVOR_PREFERENCE.indexOf(b);
+      const aRank = ai === -1 ? FLAVOR_PREFERENCE.length : ai;
+      const bRank = bi === -1 ? FLAVOR_PREFERENCE.length : bi;
+      return aRank - bRank;
+    });
+
     for (const flavorDir of flavorDirs) {
       const flavorPath = join(versionPath, flavorDir);
       try {
@@ -554,8 +604,10 @@ export function resolveNativeRuntimeLibrary(
   }
 
   const candidates = fetchedRuntimeLibraryCandidates();
-  const newest = candidates[candidates.length - 1];
-  if (newest) return newest;
+  // fetchedRuntimeLibraryCandidates() returns candidates newest-version-first,
+  // chat-before-stt within a version. Index 0 is always the best match.
+  const best = candidates[0];
+  if (best) return best;
 
   throw new NativeRuntimeError(
     null,
