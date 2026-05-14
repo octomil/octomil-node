@@ -10,23 +10,28 @@
  *
  * Mirrors octomil-python/scripts/fetch_runtime_dev.py in Node idioms.
  *
- * Resolution:
+ * Resolution (v0.1.5+ manifest-driven path):
+ *   1. Download MANIFEST.json from the release.
+ *   2. Resolve the asset filename for (arch, flavor) from platforms[arch][flavor].
+ *   3. Download that asset + octomil-runtime-headers-<ver>.tar.gz + SHA256SUMS.
+ *   4. Verify sha256, safe-extract, write sentinel.
+ *
+ * Fallback (v0.1.4 legacy — no MANIFEST.json):
+ *   - Uses the legacy octomil-runtime-<arch>-<ver>.tar.gz shape.
+ *
+ * Auth:
  *   - Reads GH_TOKEN / GITHUB_TOKEN / OCTOMIL_RUNTIME_TOKEN for
  *     private-repo auth. Falls back to `gh auth token` if available.
- *   - Downloads octomil-runtime-darwin-arm64-<version>.tar.gz and
- *     octomil-runtime-headers-<version>.tar.gz plus SHA256SUMS.
- *   - Verifies sha256.
- *   - Extracts to ~/.cache/octomil-runtime/<version>/lib and
- *     ~/.cache/octomil-runtime/<version>/include.
- *   - Writes a .extracted-ok sentinel into lib/ so the loader's
- *     fetchedRuntimeLibraryCandidates() treats the cache as valid.
  *
- * Once extracted, the native loader picks the dylib up automatically via
- * fetchedRuntimeLibraryCandidates(); no env var needed for the default-
- * version case. Operators that want a specific path use OCTOMIL_RUNTIME_DYLIB.
+ * Extraction target: ~/.cache/octomil-runtime/<version>/<flavor>/{lib,include}
+ * Sentinel: <version>/<flavor>/lib/.extracted-ok  (loader.ts:45 CACHE_SENTINEL)
+ *
+ * Legacy layout (pre v0.1.5, no flavor subdir): <version>/{lib,include}
+ * The fetcher never writes legacy layout; loader.ts accepts it as chat-only fallback.
  *
  * CLI:
- *   node scripts/fetch_runtime_dev.mjs [--version vX.Y.Z] [--cache-root <path>] [--force]
+ *   node scripts/fetch_runtime_dev.mjs [--version vX.Y.Z] [--flavor chat|stt]
+ *                                       [--cache-root <path>] [--force]
  *   pnpm fetch:runtime
  *
  * Exit codes: 0 = success, 1 = runtime error, 2 = bad arguments.
@@ -52,6 +57,18 @@ const REPO = "octomil/octomil-runtime";
  * (OCT_EVENT_EMBEDDING_VECTOR + LlamaCppEmbeddingsSession + per-context pooling-type gate)
  */
 const DEFAULT_VERSION = "v0.1.4";
+
+/**
+ * DEFAULT_FLAVOR: flavor to fetch when --flavor is not specified.
+ * "chat" covers the general-purpose inference capability (text generation,
+ * embeddings). "stt" is Whisper-based speech-to-text.
+ */
+const DEFAULT_FLAVOR = "chat";
+
+/**
+ * SUPPORTED_FLAVORS: canonical flavor identifiers shipped in MANIFEST.json.
+ */
+const SUPPORTED_FLAVORS = ["chat", "stt"];
 
 /**
  * CACHE_SENTINEL: filename the loader checks inside <version>/lib/.
@@ -130,12 +147,51 @@ export function getGhToken() {
   return null;
 }
 
-// ── Platform asset name ───────────────────────────────────────────────────────
+// ── Platform key ──────────────────────────────────────────────────────────────
 
 /**
- * Return the tarball basename for the current platform.
+ * Return the { arch, flavor } pair for the current host platform.
+ * "arch" matches the key format used in MANIFEST.json "platforms":
+ *   darwin-arm64, linux-x86_64, android-arm64
+ *
+ * Mirrors fetch_runtime_dev.py:_platform_key().
+ */
+export function platformKey(flavor) {
+  const plat = process.platform;
+  const arch = process.arch;
+
+  let manifestArch;
+  if (plat === "darwin" && arch === "arm64") {
+    manifestArch = "darwin-arm64";
+  } else if (plat === "linux" && arch === "x64") {
+    manifestArch = "linux-x86_64";
+  } else if (plat === "linux" && arch === "arm64") {
+    // android-arm64 is the only arm64-linux target; standard Linux arm64
+    // is not shipped. Treat as unsupported until a linux-arm64 artifact
+    // exists in the manifest.
+    throw new FetchRuntimeError(
+      `error: no dev artifact for linux/arm64 at this release.\n` +
+      `See octomil-runtime release notes for supported platforms.`
+    );
+  } else {
+    throw new FetchRuntimeError(
+      `error: no dev artifact for ${plat}/${arch}.\n` +
+      `Supported platforms: darwin-arm64, linux-x86_64. ` +
+      `See octomil-runtime release notes.`
+    );
+  }
+
+  return { arch: manifestArch, flavor };
+}
+
+// ── Platform asset name (legacy fallback) ─────────────────────────────────────
+
+/**
+ * Return the tarball basename for the current platform using the legacy
+ * v0.1.4 naming shape: octomil-runtime-<arch>-<ver>.tar.gz
+ *
+ * Only invoked when MANIFEST.json is absent from the release.
  * Mirrors fetch_runtime_dev.py:_platform_asset_name().
- * Only darwin/arm64 ships dev artifacts today.
  */
 export function platformAssetName(version) {
   const plat = process.platform;
@@ -181,6 +237,94 @@ export async function releaseAssetsViaApi(version, token) {
     map[a.name] = a;
   }
   return map;
+}
+
+// ── MANIFEST.json ─────────────────────────────────────────────────────────────
+
+/**
+ * Attempt to download and parse MANIFEST.json from the release asset list.
+ * Returns the parsed manifest object, or null if MANIFEST.json is not present
+ * (v0.1.4 and earlier releases that predate the manifest contract).
+ *
+ * MANIFEST.json schema (from release.yml manifest job):
+ * {
+ *   "version": "vX.Y.Z",
+ *   "abi": { "major": N, "minor": N, "patch": N },
+ *   "platforms": {
+ *     "<arch>": { "<flavor>": "<asset-filename.tar.gz>" }
+ *   },
+ *   "headers": "octomil-runtime-headers-<ver>.tar.gz" | null,
+ *   "xcframework": { "chat": "...", "stt": "..." } | null
+ * }
+ *
+ * Mirrors fetch_runtime_dev.py:_load_manifest().
+ *
+ * @param {Record<string, object>} assets - asset map from releaseAssetsViaApi
+ * @param {string} workDir - scratch directory for the download
+ * @param {string} token - GitHub auth token
+ * @returns {Promise<object|null>}
+ */
+export async function loadManifest(assets, workDir, token) {
+  const MANIFEST_NAME = "MANIFEST.json";
+  if (!(MANIFEST_NAME in assets)) {
+    return null;
+  }
+
+  const destPath = path.join(workDir, MANIFEST_NAME);
+  await downloadAsset(assets[MANIFEST_NAME].url, destPath, token);
+
+  let parsed;
+  try {
+    const raw = await fs.readFile(destPath, "utf-8");
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new FetchRuntimeError(
+      `error: failed to parse MANIFEST.json for this release: ${e.message}`
+    );
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new FetchRuntimeError("error: MANIFEST.json is not a JSON object");
+  }
+  if (typeof parsed.platforms !== "object" || parsed.platforms === null) {
+    throw new FetchRuntimeError(
+      "error: MANIFEST.json missing or invalid 'platforms' field"
+    );
+  }
+
+  return parsed;
+}
+
+/**
+ * Resolve the asset filename for (arch, flavor) from a parsed manifest.
+ * Throws FetchRuntimeError with available flavors listed when the requested
+ * flavor is absent for this platform.
+ *
+ * @param {object} manifest - parsed MANIFEST.json
+ * @param {string} arch     - e.g. "darwin-arm64"
+ * @param {string} flavor   - e.g. "chat" | "stt"
+ * @returns {string} asset filename, e.g. "liboctomil-runtime-v0.1.5-chat-darwin-arm64.tar.gz"
+ */
+export function resolveManifestAsset(manifest, arch, flavor) {
+  const platformEntry = manifest.platforms[arch];
+  if (!platformEntry || typeof platformEntry !== "object") {
+    const available = Object.keys(manifest.platforms);
+    throw new FetchRuntimeError(
+      `error: MANIFEST.json has no entry for platform ${JSON.stringify(arch)}.\n` +
+      `Available platforms: ${available.join(", ")}`
+    );
+  }
+
+  const assetName = platformEntry[flavor];
+  if (!assetName) {
+    const available = Object.keys(platformEntry);
+    throw new FetchRuntimeError(
+      `error: MANIFEST.json has no ${JSON.stringify(flavor)} artifact for ${arch}.\n` +
+      `Available flavors for ${arch}: ${available.join(", ")}`
+    );
+  }
+
+  return assetName;
 }
 
 // ── Download ──────────────────────────────────────────────────────────────────
@@ -539,6 +683,7 @@ function parseArgs(argv) {
   const args = argv.slice(2);
   const result = {
     version: DEFAULT_VERSION,
+    flavor: DEFAULT_FLAVOR,
     cacheRoot: DEFAULT_CACHE_ROOT,
     force: false,
     help: false,
@@ -558,6 +703,14 @@ function parseArgs(argv) {
       result.version = args[++i];
     } else if (arg.startsWith("--version=")) {
       result.version = arg.slice("--version=".length);
+    } else if (arg === "--flavor") {
+      if (i + 1 >= args.length) {
+        process.stderr.write("error: --flavor requires an argument\n");
+        process.exit(2);
+      }
+      result.flavor = args[++i];
+    } else if (arg.startsWith("--flavor=")) {
+      result.flavor = arg.slice("--flavor=".length);
     } else if (arg === "--cache-root") {
       if (i + 1 >= args.length) {
         process.stderr.write("error: --cache-root requires an argument\n");
@@ -572,6 +725,15 @@ function parseArgs(argv) {
     }
   }
 
+  // Validate flavor.
+  if (!SUPPORTED_FLAVORS.includes(result.flavor)) {
+    process.stderr.write(
+      `error: unknown flavor ${JSON.stringify(result.flavor)}. ` +
+      `Valid values: ${SUPPORTED_FLAVORS.join(", ")}\n`
+    );
+    process.exit(2);
+  }
+
   return result;
 }
 
@@ -583,11 +745,18 @@ function printHelp() {
     `and unpack it into the local cache for use by the Node SDK loader.\n` +
     `\n` +
     `Options:\n` +
-    `  --version <tag>      Release tag to fetch (default: ${DEFAULT_VERSION})\n` +
-    `  --cache-root <path>  Override cache root (default: ~/.cache/octomil-runtime\n` +
-    `                       or $OCTOMIL_RUNTIME_CACHE_DIR)\n` +
-    `  --force              Re-download even if cache is populated\n` +
-    `  -h, --help           Show this help message\n` +
+    `  --version <tag>        Release tag to fetch (default: ${DEFAULT_VERSION})\n` +
+    `  --flavor {chat,stt}    Runtime flavor to fetch (default: ${DEFAULT_FLAVOR})\n` +
+    `                         chat: general inference + embeddings\n` +
+    `                         stt:  Whisper speech-to-text\n` +
+    `  --cache-root <path>    Override cache root (default: ~/.cache/octomil-runtime\n` +
+    `                         or $OCTOMIL_RUNTIME_CACHE_DIR)\n` +
+    `  --force                Re-download even if cache is populated\n` +
+    `  -h, --help             Show this help message\n` +
+    `\n` +
+    `Resolution order:\n` +
+    `  v0.1.5+ releases ship MANIFEST.json — asset names are resolved from it.\n` +
+    `  v0.1.4 and earlier (no manifest): falls back to legacy asset name shape.\n` +
     `\n` +
     `Token resolution order:\n` +
     `  1. $GH_TOKEN\n` +
@@ -596,7 +765,7 @@ function printHelp() {
     `  4. \`gh auth token\` (via GitHub CLI)\n` +
     `\n` +
     `After extraction the dylib is available at:\n` +
-    `  <cache-root>/<version>/lib/liboctomil-runtime.dylib\n`
+    `  <cache-root>/<version>/<flavor>/lib/liboctomil-runtime.dylib\n`
   );
 }
 
@@ -610,9 +779,11 @@ export async function main(argv = process.argv) {
     return 0;
   }
 
-  const { version, force } = opts;
+  const { version, flavor, force } = opts;
   const cacheRoot = opts.cacheRoot.replace(/^~(?=\/|$)/, os.homedir());
-  const targetDir = path.join(cacheRoot, version);
+  // Flavor-keyed layout: <cacheRoot>/<version>/<flavor>/{lib,include}
+  // Legacy layout (pre-flavor) was: <cacheRoot>/<version>/{lib,include}
+  const targetDir = path.join(cacheRoot, version, flavor);
   const libDir = path.join(targetDir, "lib");
   const incDir = path.join(targetDir, "include");
   const sentinel = path.join(libDir, CACHE_SENTINEL);
@@ -642,7 +813,7 @@ export async function main(argv = process.argv) {
     process.exit(1);
   }
 
-  process.stderr.write(`fetching octomil-runtime ${version} into ${targetDir}\n`);
+  process.stderr.write(`fetching octomil-runtime ${version} (${flavor}) into ${targetDir}\n`);
   await fs.mkdir(targetDir, { recursive: true });
   const work = path.join(targetDir, "_download");
   await fs.mkdir(work, { recursive: true });
@@ -660,7 +831,22 @@ export async function main(argv = process.argv) {
       );
     }
 
-    const binName = platformAssetName(version);
+    // ── manifest-driven lookup (v0.1.5+) or legacy fallback (v0.1.4) ────────
+    let binName;
+
+    const manifest = await loadManifest(assets, work, token);
+    if (manifest !== null) {
+      // Manifest present: resolve asset name from (arch, flavor).
+      const { arch } = platformKey(flavor);
+      binName = resolveManifestAsset(manifest, arch, flavor);
+      process.stderr.write(`  manifest: ${arch}/${flavor} -> ${binName}\n`);
+    } else {
+      // No manifest: v0.1.4 legacy shape. flavor is ignored (only "chat"
+      // existed before multi-flavor support).
+      process.stderr.write(`  no MANIFEST.json found; using legacy asset name shape\n`);
+      binName = platformAssetName(version);
+    }
+
     const headersName = `octomil-runtime-headers-${version}.tar.gz`;
     const sumsName = "SHA256SUMS";
 
