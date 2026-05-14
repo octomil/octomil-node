@@ -65,9 +65,18 @@ const STUB_LIBRARY_PATH = buildNativeRuntimeStub({
 });
 
 // Skip the entire suite when the host has no C compiler (rare edge case).
-const describeWhenStubAvailable = STUB_LIBRARY_PATH
+//
+// Earlier version used `describe.skip.bind(describe, "stub unavailable")`,
+// which is wrong: vitest's signature is `describe(name, factory)`, so the
+// bound string "stub unavailable" is consumed as the suite name and the
+// caller-supplied name is then consumed as the factory. The whole suite
+// collapses into a no-op "stub unavailable" describe block and the nested
+// test bodies are never registered — meaning when the stub IS available the
+// tests run fine, but when it's not the failure mode is silent rather than
+// the intended "skipped suite, real name".
+const describeWhenStubAvailable: typeof describe = STUB_LIBRARY_PATH
   ? describe
-  : describe.skip.bind(describe, "stub unavailable");
+  : describe.skip;
 
 // Dummy model URI for the C stub — oct_model_open accepts any non-empty URI.
 const STUB_MODEL_URI = "file:///stub/model.gguf";
