@@ -53,10 +53,10 @@ const REPO = "octomil/octomil-runtime";
 /**
  * DEFAULT_VERSION: keep in lockstep with
  * octomil-python/scripts/fetch_runtime_dev.py:42
- * v0.1.4: native embeddings.text + chat-template control-token cleanup
- * (OCT_EVENT_EMBEDDING_VECTOR + LlamaCppEmbeddingsSession + per-context pooling-type gate)
+ * v0.1.10: pinned to the latest runtime release (see octomil-runtime release notes).
+ * Manifest-driven asset resolution (MANIFEST.json present since v0.1.5).
  */
-const DEFAULT_VERSION = "v0.1.4";
+const DEFAULT_VERSION = "v0.1.10";
 
 /**
  * DEFAULT_FLAVOR: flavor to fetch when --flavor is not specified.
