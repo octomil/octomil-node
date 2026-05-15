@@ -937,7 +937,21 @@ export async function main(argv = process.argv) {
 
   process.stderr.write(`fetching octomil-runtime ${version} (${flavor}) into ${targetDir}\n`);
   await fs.mkdir(targetDir, { recursive: true });
-  const work = path.join(targetDir, "_download");
+  // Download scratch dir MUST live OUTSIDE targetDir.
+  //
+  // If work lived inside targetDir, a crafted archive could include
+  // `lib/liboctomil-runtime.dylib -> ../_download/<asset>`, pass the
+  // safeExtract symlink-target check (target IS inside targetDir),
+  // and satisfy the post-extract existence probe — then break at load
+  // time once we delete _download. Placing work as a sibling of
+  // targetDir closes the window: any symlink target pointing into
+  // the scratch dir now correctly trips the "would escape" guard.
+  //
+  // Per-flavor suffix lets concurrent fetches of different flavors
+  // share the version dir without colliding on the same scratch dir.
+  // Matches octomil-python's fetch_runtime_dev.py layout.
+  const versionDir = path.dirname(targetDir);
+  const work = path.join(versionDir, `_download-${flavor}`);
   await fs.mkdir(work, { recursive: true });
 
   try {
