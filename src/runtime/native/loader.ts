@@ -407,10 +407,7 @@ interface NativeBindings {
     runtime: unknown,
     capability: string | null,
   ) => number;
-  octRuntimeCacheClearScope: (
-    runtime: unknown,
-    scope: number,
-  ) => number;
+  octRuntimeCacheClearScope: (runtime: unknown, scope: number) => number;
   octRuntimeCacheIntrospect: (
     runtime: unknown,
     buffer: Buffer,
@@ -460,9 +457,7 @@ interface NativeBindings {
   // runtimes leave these as null — they MUST NOT be called without first
   // probing both the ABI minor AND the embeddings.image capability.
   imageViewType: ReturnType<typeof koffi.struct> | null;
-  octImageViewSize:
-    | (() => number | bigint)
-    | null;
+  octImageViewSize: (() => number | bigint) | null;
   octSessionSendImage:
     | ((session: unknown, view: NativeImageViewStruct) => number)
     | null;
@@ -595,7 +590,11 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
     // (no named flavor dir) and are included only when override === "chat".
     const legacyLibDir = join(versionPath, "lib");
     if (isFile(join(legacyLibDir, CACHE_SENTINEL))) {
-      if (flavorOverride === undefined || flavorOverride === "" || flavorOverride === "chat") {
+      if (
+        flavorOverride === undefined ||
+        flavorOverride === "" ||
+        flavorOverride === "chat"
+      ) {
         for (const name of CACHE_LIB_NAMES) {
           const candidate = join(legacyLibDir, name);
           if (isFile(candidate)) candidates.push(candidate);
@@ -1220,11 +1219,10 @@ function attachOptionalImageBindings(
       "size_t",
       [],
     ) as () => number | bigint;
-    const octSessionSendImage = lib.func(
-      "oct_session_send_image",
-      "uint32_t",
-      [bindings.sessionPtrType, koffi.pointer(imageViewType)],
-    ) as (session: unknown, view: NativeImageViewStruct) => number;
+    const octSessionSendImage = lib.func("oct_session_send_image", "uint32_t", [
+      bindings.sessionPtrType,
+      koffi.pointer(imageViewType),
+    ]) as (session: unknown, view: NativeImageViewStruct) => number;
 
     bindings.imageViewType = imageViewType;
     bindings.octImageViewSize = octImageViewSize;
@@ -1256,7 +1254,9 @@ function readRuntimeError(bindings: NativeBindings, runtime: unknown): string {
   return n > 0 ? decodeErrorBuffer(buffer) : "";
 }
 
-function normalizeCacheScope(scope: NativeCacheScope): NativeCacheEntrySnapshot["scope"] {
+function normalizeCacheScope(
+  scope: NativeCacheScope,
+): NativeCacheEntrySnapshot["scope"] {
   switch (scope) {
     case 0:
       return "request";
@@ -1288,7 +1288,11 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
       cause,
     );
   }
-  if (!("version" in parsed) || !("is_stub" in parsed) || !("entries" in parsed)) {
+  if (
+    !("version" in parsed) ||
+    !("is_stub" in parsed) ||
+    !("entries" in parsed)
+  ) {
     throw new NativeRuntimeError(
       OCT_STATUS_INTERNAL,
       "RUNTIME_UNAVAILABLE",
@@ -1336,7 +1340,12 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
         `cache introspect entry ${index} is missing bounded fields`,
       );
     }
-    if (!Number.isFinite(entriesCount) || !Number.isFinite(bytes) || !Number.isFinite(hit) || !Number.isFinite(miss)) {
+    if (
+      !Number.isFinite(entriesCount) ||
+      !Number.isFinite(bytes) ||
+      !Number.isFinite(hit) ||
+      !Number.isFinite(miss)
+    ) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
         "RUNTIME_UNAVAILABLE",
@@ -1395,7 +1404,8 @@ function decodeBytesValue(value: unknown, length: number): Uint8Array {
 }
 
 function decodeFloatArrayValue(value: unknown, length: number): number[] {
-  if (Array.isArray(value)) return value.slice(0, length).map((entry) => Number(entry));
+  if (Array.isArray(value))
+    return value.slice(0, length).map((entry) => Number(entry));
   if (value == null || length <= 0) return [];
   try {
     const viewed = koffi.view(value, length * 4);
@@ -1431,7 +1441,9 @@ function parseNativeEvent(rawEvent: Record<string, unknown>): NativeEvent {
 
   switch (event.type) {
     case 3: {
-      const chunk = data.transcript_chunk as Record<string, unknown> | undefined;
+      const chunk = data.transcript_chunk as
+        | Record<string, unknown>
+        | undefined;
       event.transcriptChunk = {
         text: decodeCStringValue(chunk?.utf8),
       };
@@ -1447,7 +1459,9 @@ function parseNativeEvent(rawEvent: Record<string, unknown>): NativeEvent {
       break;
     }
     case 8: {
-      const completed = data.session_completed as Record<string, unknown> | undefined;
+      const completed = data.session_completed as
+        | Record<string, unknown>
+        | undefined;
       event.sessionCompleted = {
         setupMs: Number(completed?.setup_ms ?? 0),
         engineFirstChunkMs: Number(completed?.engine_first_chunk_ms ?? 0),
@@ -1476,7 +1490,9 @@ function parseNativeEvent(rawEvent: Record<string, unknown>): NativeEvent {
       break;
     }
     case 21: {
-      const segment = data.transcript_segment as Record<string, unknown> | undefined;
+      const segment = data.transcript_segment as
+        | Record<string, unknown>
+        | undefined;
       event.transcriptSegment = {
         text: decodeCStringValue(segment?.utf8),
         startMs: Number(segment?.start_ms ?? 0),
@@ -1487,7 +1503,9 @@ function parseNativeEvent(rawEvent: Record<string, unknown>): NativeEvent {
       break;
     }
     case 22: {
-      const final = data.transcript_final as Record<string, unknown> | undefined;
+      const final = data.transcript_final as
+        | Record<string, unknown>
+        | undefined;
       event.transcriptFinal = {
         text: decodeCStringValue(final?.utf8),
         nSegments: Number(final?.n_segments ?? 0),
@@ -1749,7 +1767,12 @@ export class NativeRuntime {
     this.assertOpen();
     const status = this.bindings.octRuntimeCacheClearAll(this.runtime);
     if (status !== OCT_STATUS_OK) {
-      throwStatus(this.bindings, status, "oct_runtime_cache_clear_all", this.runtime);
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_runtime_cache_clear_all",
+        this.runtime,
+      );
     }
   }
 
@@ -1775,7 +1798,12 @@ export class NativeRuntime {
     normalizeCacheScope(scope);
     const status = this.bindings.octRuntimeCacheClearScope(this.runtime, scope);
     if (status !== OCT_STATUS_OK) {
-      throwStatus(this.bindings, status, "oct_runtime_cache_clear_scope", this.runtime);
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_runtime_cache_clear_scope",
+        this.runtime,
+      );
     }
   }
 
@@ -1898,7 +1926,12 @@ export class NativeRuntime {
         "oct_session_open returned OK with a NULL session handle",
       );
     }
-    const session = new NativeSession(this, out[0], options.capability, borrowedModel);
+    const session = new NativeSession(
+      this,
+      out[0],
+      options.capability,
+      borrowedModel,
+    );
     this.sessions.add(session);
     return session;
   }
@@ -1975,7 +2008,8 @@ export class NativeSession {
     channels = 1,
   ): void {
     this.assertOpen();
-    const pcm = samples instanceof Float32Array ? samples : new Float32Array(samples);
+    const pcm =
+      samples instanceof Float32Array ? samples : new Float32Array(samples);
     if (channels <= 0) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
@@ -1998,7 +2032,12 @@ export class NativeSession {
       _reserved0: 0,
     });
     if (status !== OCT_STATUS_OK) {
-      throwStatus(this.bindings, status, "oct_session_send_audio", this._handle);
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_session_send_audio",
+        this._handle,
+      );
     }
   }
 
@@ -2058,7 +2097,11 @@ export class NativeSession {
       );
     }
 
-    if (!view || !(view.bytes instanceof Uint8Array) || view.bytes.length === 0) {
+    if (
+      !view ||
+      !(view.bytes instanceof Uint8Array) ||
+      view.bytes.length === 0
+    ) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
         "INVALID_INPUT",
@@ -2085,7 +2128,12 @@ export class NativeSession {
       _reserved0: 0,
     });
     if (status !== OCT_STATUS_OK) {
-      throwStatus(this.bindings, status, "oct_session_send_image", this._handle);
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_session_send_image",
+        this._handle,
+      );
     }
   }
 
@@ -2101,7 +2149,12 @@ export class NativeSession {
       timeoutMs,
     );
     if (status !== OCT_STATUS_OK && status !== OCT_STATUS_TIMEOUT) {
-      throwStatus(this.bindings, status, "oct_session_poll_event", this._handle);
+      throwStatus(
+        this.bindings,
+        status,
+        "oct_session_poll_event",
+        this._handle,
+      );
     }
     const raw = koffi.decode(
       this.eventBuffer,
