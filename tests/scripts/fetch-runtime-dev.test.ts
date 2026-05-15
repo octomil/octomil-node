@@ -353,6 +353,41 @@ describe("verifySha256", () => {
 
     await expect(verifySha256(filePath, sumsPath)).resolves.toBeUndefined();
   });
+
+  it("normalizes ./ prefix in SHA256SUMS entries", async () => {
+    // release.yml's publish-release step runs `shasum -a 256 ./*.tar.gz`
+    // which prepends `./` to every filename. The fetcher looks up by bare
+    // basename, so the parser must strip the prefix. This is the exact
+    // shape of the live v0.1.10 release SHA256SUMS — without normalization
+    // every fetch against v0.1.10 fails with `not listed in SHA256SUMS`.
+    const binContent = "liboctomil-runtime binary data";
+    const binPath = path.join(
+      tmp,
+      "liboctomil-runtime-v0.1.10-chat-darwin-arm64.tar.gz"
+    );
+    await fs.writeFile(binPath, binContent, "utf-8");
+    const binHash = sha256Sync(binContent);
+
+    const hdrContent = "headers tarball data";
+    const hdrPath = path.join(
+      tmp,
+      "octomil-runtime-headers-v0.1.10.tar.gz"
+    );
+    await fs.writeFile(hdrPath, hdrContent, "utf-8");
+    const hdrHash = sha256Sync(hdrContent);
+
+    const sumsPath = path.join(tmp, "SHA256SUMS");
+    await fs.writeFile(
+      sumsPath,
+      `${binHash}  ./${path.basename(binPath)}\n` +
+        `${hdrHash}  ./${path.basename(hdrPath)}\n`,
+      "utf-8"
+    );
+
+    // Both must verify cleanly despite the ./ prefix.
+    await expect(verifySha256(binPath, sumsPath)).resolves.toBeUndefined();
+    await expect(verifySha256(hdrPath, sumsPath)).resolves.toBeUndefined();
+  });
 });
 
 // ── isAppleDouble ─────────────────────────────────────────────────────────────
@@ -510,10 +545,10 @@ describe("safeExtract", () => {
     expect((err as FetchRuntimeError).message).toMatch(/absolute-path/);
   });
 
-  it("rejects a tarball with a symlink entry", async () => {
-    const dest = path.join(tmp, "dest-sym");
+  it("rejects a tarball with a symlink to an absolute path", async () => {
+    const dest = path.join(tmp, "dest-sym-abs");
     mkdirSync(dest, { recursive: true });
-    const tarball = path.join(tmp, "sym-dummy.tar.gz");
+    const tarball = path.join(tmp, "sym-abs.tar.gz");
     writeFileSync(tarball, "placeholder");
 
     _testHooks.spawnSync = makeSpawnFake(
@@ -523,23 +558,53 @@ describe("safeExtract", () => {
     let err: unknown;
     try { await safeExtract(tarball, dest); } catch (e) { err = e; }
     expect(err).toBeInstanceOf(FetchRuntimeError);
-    expect((err as FetchRuntimeError).message).toMatch(/symlink/);
+    expect((err as FetchRuntimeError).message).toMatch(/absolute target/);
   });
 
-  it("rejects a tarball with a hardlink entry", async () => {
-    const dest = path.join(tmp, "dest-hard");
+  it("rejects a tarball with a symlink whose target escapes target dir", async () => {
+    const dest = path.join(tmp, "dest-sym-escape");
     mkdirSync(dest, { recursive: true });
-    const tarball = path.join(tmp, "hard-dummy.tar.gz");
+    const tarball = path.join(tmp, "sym-escape.tar.gz");
+    writeFileSync(tarball, "placeholder");
+
+    _testHooks.spawnSync = makeSpawnFake(
+      "lrwxrwxrwx  0 user  group       0 May 13 22:20 lib/escape -> ../../etc/passwd\n"
+    ) as any;
+
+    let err: unknown;
+    try { await safeExtract(tarball, dest); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(FetchRuntimeError);
+    expect((err as FetchRuntimeError).message).toMatch(/would escape/);
+  });
+
+  it("allows intra-archive symlink (macOS dylib chain)", async () => {
+    // liboctomil-runtime.dylib -> liboctomil-runtime.0.dylib -> .0.1.10.dylib
+    // chain is required for darwin consumption. Target resolves inside
+    // the extraction dir, so it must be accepted.
+    const dest = path.join(tmp, "dest-sym-ok");
+    mkdirSync(dest, { recursive: true });
+    const tarball = path.join(tmp, "sym-ok.tar.gz");
+    writeFileSync(tarball, "placeholder");
+
+    _testHooks.spawnSync = makeSpawnFake(
+      "lrwxrwxrwx  0 user  group       0 May 13 22:20 lib/liboctomil-runtime.0.dylib -> liboctomil-runtime.0.1.10.dylib\n"
+    ) as any;
+
+    // Listing pass must not throw. (Extraction pass is also faked.)
+    await expect(safeExtract(tarball, dest)).resolves.toBeUndefined();
+  });
+
+  it("allows intra-archive hardlink", async () => {
+    const dest = path.join(tmp, "dest-hard-ok");
+    mkdirSync(dest, { recursive: true });
+    const tarball = path.join(tmp, "hard-ok.tar.gz");
     writeFileSync(tarball, "placeholder");
 
     _testHooks.spawnSync = makeSpawnFake(
       "hrw-r--r--  0 user  group       0 May 13 22:20 lib/hardlink link to lib/target\n"
     ) as any;
 
-    let err: unknown;
-    try { await safeExtract(tarball, dest); } catch (e) { err = e; }
-    expect(err).toBeInstanceOf(FetchRuntimeError);
-    expect((err as FetchRuntimeError).message).toMatch(/hardlink/);
+    await expect(safeExtract(tarball, dest)).resolves.toBeUndefined();
   });
 
   it("rejects a tarball with a character device entry", async () => {
