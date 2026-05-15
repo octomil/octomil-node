@@ -370,7 +370,7 @@ node scripts/fetch_runtime_dev.mjs
 Options:
 
 ```
---version <tag>      Release tag to fetch (default: v0.1.10)
+--version <tag>      Release tag to fetch (default: v0.1.16)
 --cache-root <path>  Override cache root
 --force              Re-download even if cache is already populated
 ```
