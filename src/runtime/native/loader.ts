@@ -17,7 +17,16 @@ export const ENV_RUNTIME_FLAVOR = "OCTOMIL_RUNTIME_FLAVOR";
  * OCTOMIL_RUNTIME_FLAVOR=stt.
  */
 export const FLAVOR_PREFERENCE: readonly string[] = ["chat", "stt"] as const;
+// IMPORTANT: REQUIRED_ABI.minor stays at 10 even after the ABI-11 image
+// bindings land. The image-input symbols (oct_session_send_image,
+// oct_image_view_size, oct_image_view_t, OCT_IMAGE_MIME_*,
+// OCT_EMBED_POOLING_IMAGE_CLIP) are resolved OPTIONALLY when the loaded
+// runtime advertises minor >= 11. The hard required minor is only flipped
+// to 11 once a public SDK surface actually requires image-send support.
+// Per octomil-runtime #86 (1d92e35) and embeddings-image-abi-scope.md §8.
 export const REQUIRED_ABI = { major: 0, minor: 10, patch: 0 } as const;
+// ABI minor at which the optional image-input bindings appear.
+export const OPTIONAL_ABI_MINOR_IMAGE = 11 as const;
 export const OCT_CACHE_SCOPE_REQUEST: NativeCacheScope = 0;
 export const OCT_CACHE_SCOPE_SESSION: NativeCacheScope = 1;
 export const OCT_CACHE_SCOPE_RUNTIME: NativeCacheScope = 2;
@@ -49,6 +58,23 @@ export const OCT_SAMPLE_FORMAT_PCM_F32LE = 2;
 
 // ── Diarization speaker sentinel ──────────────────────────────────────────
 export const OCT_DIARIZATION_SPEAKER_UNKNOWN = 65535;
+
+// ── v0.1.12 (ABI minor 11) — image input MIME discriminator ───────────────
+// Closed enum with a forward-compat sentinel at 0. Mirrors
+// OCT_VAD_TRANSITION_UNKNOWN / OCT_SAMPLE_FORMAT_UNKNOWN: bindings that see
+// an unknown value MUST treat it as OCT_IMAGE_MIME_UNKNOWN and surface
+// INVALID_INPUT rather than crash.
+export const OCT_IMAGE_MIME_UNKNOWN = 0;
+export const OCT_IMAGE_MIME_PNG = 1;
+export const OCT_IMAGE_MIME_JPEG = 2;
+export const OCT_IMAGE_MIME_WEBP = 3;
+export const OCT_IMAGE_MIME_RGB8 = 4;
+
+// ── v0.1.12 (ABI minor 11) — image embedding pooling discriminator ────────
+// Appended to the embedding pooling-type enum; existing values
+// (OCT_EMBED_POOLING_MEAN=1, _CLS=2, _LAST=3, _RANK=4) are unchanged.
+// Disambiguates image vs text embeddings at the consumer side.
+export const OCT_EMBED_POOLING_IMAGE_CLIP = 5;
 
 const RUNTIME_CONFIG_VERSION = 1;
 const CAPABILITIES_VERSION = 1;
@@ -149,6 +175,26 @@ export interface NativeAudioView {
   channels: number;
 }
 
+/**
+ * Caller-owned view over an encoded (PNG/JPEG/WEBP) or raw (RGB8) image.
+ *
+ * Borrowed for the duration of the oct_session_send_image call; the runtime
+ * copies internally if it needs to retain. Mirrors oct_image_view_t from
+ * octomil-runtime ABI minor 11 (header runtime.h, PR #86 / 1d92e35).
+ *
+ * - bytes:   encoded image bytes (PNG/JPEG/WEBP) or raw RGB8 pixel buffer.
+ * - mime:    OCT_IMAGE_MIME_* closed enum. UNKNOWN/unrecognized values
+ *            reject with INVALID_INPUT.
+ *
+ * NOTE: this view is the public type; the corresponding native struct is
+ * registered lazily by createBindings() only when the loaded runtime
+ * advertises ABI minor >= OPTIONAL_ABI_MINOR_IMAGE.
+ */
+export interface NativeImageView {
+  bytes: Uint8Array;
+  mime: number;
+}
+
 export type NativeCacheScope = 0 | 1 | 2 | 3;
 
 export interface NativeCacheEntrySnapshot {
@@ -222,6 +268,15 @@ interface NativeAudioViewStruct {
   n_frames: number;
   sample_rate: number;
   channels: number;
+  _reserved0: number;
+}
+
+// v0.1.12 (ABI minor 11) — mirrors oct_image_view_t in runtime.h.
+// {const uint8_t* bytes; size_t n_bytes; uint32_t mime; uint32_t _reserved0;}
+interface NativeImageViewStruct {
+  bytes: unknown;
+  n_bytes: number | bigint;
+  mime: number;
   _reserved0: number;
 }
 
@@ -400,6 +455,17 @@ interface NativeBindings {
     buflen: number,
   ) => number;
   octLastThreadError: (buffer: Buffer, buflen: number) => number;
+  // ── Optional ABI-11 image bindings ───────────────────────────────────────
+  // Resolved only when the loaded runtime advertises minor >= 11. Older
+  // runtimes leave these as null — they MUST NOT be called without first
+  // probing both the ABI minor AND the embeddings.image capability.
+  imageViewType: ReturnType<typeof koffi.struct> | null;
+  octImageViewSize:
+    | (() => number | bigint)
+    | null;
+  octSessionSendImage:
+    | ((session: unknown, view: NativeImageViewStruct) => number)
+    | null;
 }
 
 export class NativeRuntimeError extends OctomilError {
@@ -1025,8 +1091,13 @@ function createBindings(libraryPath: string): NativeBindings {
         "char *",
         "size_t",
       ]) as NativeBindings["octLastThreadError"],
+      // Optional ABI-11 image bindings — populated below after ABI probe.
+      imageViewType: null,
+      octImageViewSize: null,
+      octSessionSendImage: null,
     };
     validateBindings(bindings);
+    attachOptionalImageBindings(bindings, lib);
     return bindings;
   } catch (error) {
     try {
@@ -1111,6 +1182,61 @@ function readAbi(bindings: NativeBindings): NativeRuntimeAbiVersion {
     minor: Number(bindings.octRuntimeAbiVersionMinor()),
     patch: Number(bindings.octRuntimeAbiVersionPatch()),
   };
+}
+
+/**
+ * Lazy-resolves the optional ABI-11 image-input symbols if (and only if) the
+ * loaded runtime advertises minor >= OPTIONAL_ABI_MINOR_IMAGE.
+ *
+ * Hard contract:
+ *   - REQUIRED_ABI.minor stays at 10. This function MUST NEVER throw on a
+ *     minor-10 runtime; older runtimes leave the image fields as null.
+ *   - When minor >= 11 but the symbol lookup unexpectedly fails (e.g. the
+ *     dylib was built without the export despite reporting the version),
+ *     the failure is swallowed and the fields stay null. Capability gating
+ *     will still surface a clean unsupported error on the public surface.
+ *   - The koffi struct is registered alongside the function bindings so its
+ *     layout matches the runtime's oct_image_view_t. We do NOT size-check
+ *     against oct_image_view_size here because the symbol is optional and
+ *     size-mismatch on an optional binding should not fail the whole load.
+ */
+function attachOptionalImageBindings(
+  bindings: NativeBindings,
+  lib: IKoffiLib,
+): void {
+  const abi = readAbi(bindings);
+  if (abi.major !== REQUIRED_ABI.major) return;
+  if (abi.minor < OPTIONAL_ABI_MINOR_IMAGE) return;
+
+  try {
+    const imageViewType = koffi.struct({
+      bytes: "uint8_t *",
+      n_bytes: "size_t",
+      mime: "uint32_t",
+      _reserved0: "uint32_t",
+    });
+    const octImageViewSize = lib.func(
+      "oct_image_view_size",
+      "size_t",
+      [],
+    ) as () => number | bigint;
+    const octSessionSendImage = lib.func(
+      "oct_session_send_image",
+      "uint32_t",
+      [bindings.sessionPtrType, koffi.pointer(imageViewType)],
+    ) as (session: unknown, view: NativeImageViewStruct) => number;
+
+    bindings.imageViewType = imageViewType;
+    bindings.octImageViewSize = octImageViewSize;
+    bindings.octSessionSendImage = octSessionSendImage;
+  } catch {
+    // Symbol missing despite the runtime advertising minor >= 11. Leave the
+    // optional fields null; capability gating on the public surface throws
+    // a bounded RUNTIME_UNAVAILABLE/UNSUPPORTED. Never abort the load.
+    bindings.imageViewType = null;
+    bindings.octImageViewSize = null;
+    bindings.octSessionSendImage = null;
+  }
 }
 
 function decodeErrorBuffer(buffer: Buffer): string {
@@ -1881,6 +2007,85 @@ export class NativeSession {
     const status = this.bindings.octSessionSendText(this._handle, utf8);
     if (status !== OCT_STATUS_OK) {
       throwStatus(this.bindings, status, "oct_session_send_text", this._handle);
+    }
+  }
+
+  /**
+   * Send an image to the session. v0.1.12 (ABI minor 11) — STUB SURFACE.
+   *
+   * BLOCKED_WITH_PROOF: this method is wired against the optional
+   * oct_session_send_image FFI binding, but the embeddings.image capability
+   * is NOT advertised by any released runtime — it stays in
+   * kBlockedCapabilities until the image-embeddings adapter (SigLIP-base
+   * int8 over sherpa-onnx-vendored onnxruntime) lands. Calling this method
+   * always throws.
+   *
+   * Gating order (matches the Python loader's probe-session pattern):
+   *   1. Runtime must advertise embeddings.image capability.
+   *   2. Symbol must be resolved (non-null) — implies ABI minor >= 11.
+   *
+   * Both checks fail today by design. The method exists so SDK consumers
+   * and reviewers can see the wired surface and watch the failure mode
+   * flip from RUNTIME_UNAVAILABLE -> functional once the adapter PR lands.
+   *
+   * TODO(reviewer): remove this guard once
+   *   - octomil-runtime advertises "embeddings.image" in oct_runtime_capabilities
+   *   - REQUIRED_ABI.minor is bumped to 11 (separate decision)
+   *   - a public Octomil.embeddings.image() facade exposes this method
+   */
+  sendImage(view: NativeImageView): void {
+    this.assertOpen();
+
+    // Capability gate — embeddings.image must be advertised.
+    if (!this._owner.supports(RuntimeCapability.EmbeddingsImage)) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_UNSUPPORTED,
+        "RUNTIME_UNAVAILABLE",
+        `Native runtime does not advertise required capability ${RuntimeCapability.EmbeddingsImage}; ` +
+          `embeddings.image is BLOCKED_WITH_PROOF until the SigLIP adapter PR removes it from kBlockedCapabilities`,
+      );
+    }
+
+    // Symbol gate — older runtimes (minor 10) won't have the binding.
+    const sendImage = this.bindings.octSessionSendImage;
+    const imageViewType = this.bindings.imageViewType;
+    if (sendImage == null || imageViewType == null) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_UNSUPPORTED,
+        "RUNTIME_UNAVAILABLE",
+        `Native runtime did not expose oct_session_send_image; ABI minor < ${OPTIONAL_ABI_MINOR_IMAGE} ` +
+          `(capability ${RuntimeCapability.EmbeddingsImage})`,
+      );
+    }
+
+    if (!view || !(view.bytes instanceof Uint8Array) || view.bytes.length === 0) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "INVALID_INPUT",
+        "sendImage: view.bytes must be a non-empty Uint8Array",
+      );
+    }
+    if (
+      view.mime !== OCT_IMAGE_MIME_PNG &&
+      view.mime !== OCT_IMAGE_MIME_JPEG &&
+      view.mime !== OCT_IMAGE_MIME_WEBP &&
+      view.mime !== OCT_IMAGE_MIME_RGB8
+    ) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_INVALID_INPUT,
+        "INVALID_INPUT",
+        `sendImage: view.mime ${view.mime} is not a recognised OCT_IMAGE_MIME_* value`,
+      );
+    }
+
+    const status = sendImage(this._handle, {
+      bytes: koffi.as(view.bytes, "uint8_t *"),
+      n_bytes: view.bytes.length,
+      mime: view.mime,
+      _reserved0: 0,
+    });
+    if (status !== OCT_STATUS_OK) {
+      throwStatus(this.bindings, status, "oct_session_send_image", this._handle);
     }
   }
 
