@@ -358,6 +358,81 @@ export async function sha256File(filePath) {
 }
 
 /**
+ * Move the contents of the bin tarball's top-level directory up one
+ * level into ``targetDir``. Mirrors octomil-python (#597) fix.
+ *
+ * release.yml's Stage archive step wraps each platform tarball in a
+ * top-level directory matching the archive basename
+ * (``liboctomil-runtime-<ver>-<flavor>-<arch>/lib/...``). The loader
+ * expects ``<target>/lib/...``, so flatten one level after extraction.
+ * No-op when the wrapper dir is absent (legacy v0.1.4 tarballs).
+ */
+export async function flattenArchiveTopDir(targetDir, binName) {
+  const archiveBasename = binName.endsWith(".tar.gz")
+    ? binName.slice(0, -".tar.gz".length)
+    : binName;
+  const top = path.join(targetDir, archiveBasename);
+  let stat;
+  try {
+    stat = await fs.stat(top);
+  } catch {
+    return;
+  }
+  if (!stat.isDirectory()) return;
+
+  const entries = await fs.readdir(top);
+  for (const name of entries) {
+    const src = path.join(top, name);
+    const dst = path.join(targetDir, name);
+    let dstExists = false;
+    try {
+      await fs.access(dst);
+      dstExists = true;
+    } catch {
+      // dst does not exist; safe to rename outright
+    }
+    if (dstExists) {
+      const dstStat = await fs.stat(dst);
+      const srcStat = await fs.stat(src);
+      if (dstStat.isDirectory() && srcStat.isDirectory()) {
+        // Merge dirs (headers tarball may have populated include/ already).
+        await mergeDirRecursive(src, dst);
+        await fs.rm(src, { recursive: true, force: true });
+      } else {
+        throw new FetchRuntimeError(
+          `error: flattening ${archiveBasename}/ would overwrite existing ${dst}`
+        );
+      }
+    } else {
+      await fs.rename(src, dst);
+    }
+  }
+  await fs.rmdir(top);
+}
+
+async function mergeDirRecursive(srcDir, dstDir) {
+  const entries = await fs.readdir(srcDir, { withFileTypes: true });
+  for (const ent of entries) {
+    const src = path.join(srcDir, ent.name);
+    const dst = path.join(dstDir, ent.name);
+    if (ent.isDirectory()) {
+      await fs.mkdir(dst, { recursive: true });
+      await mergeDirRecursive(src, dst);
+    } else if (ent.isSymbolicLink()) {
+      const target = await fs.readlink(src);
+      try {
+        await fs.unlink(dst);
+      } catch {
+        // ignore
+      }
+      await fs.symlink(target, dst);
+    } else {
+      await fs.copyFile(src, dst);
+    }
+  }
+}
+
+/**
  * Parse SHA256SUMS and verify a single file.
  * Format: one `<hex>  <name>` per line.
  * Mirrors fetch_runtime_dev.py:_verify_sha256().
@@ -372,7 +447,15 @@ export async function verifySha256(filePath, sumsPath) {
     // We split on the first whitespace run to be permissive.
     const match = line.match(/^([0-9a-fA-F]{64})\s+(.+)$/);
     if (match) {
-      expected[match[2].trim()] = match[1].toLowerCase();
+      // `shasum -a 256 ./*.tar.gz` (used by release.yml's publish-release
+      // aggregation) writes each line as `<hash>  ./<name>`. We look up
+      // entries by bare basename, so strip the leading `./` here.
+      // Matches the octomil-python (#596) and octomil-android (#262) fix.
+      let filename = match[2].trim();
+      if (filename.startsWith("./")) {
+        filename = filename.slice(2);
+      }
+      expected[filename] = match[1].toLowerCase();
     }
   }
   const basename = path.basename(filePath);
@@ -471,20 +554,41 @@ export async function safeExtract(tarballPath, targetDir) {
     // Filter AppleDouble entries silently.
     if (isAppleDouble(entryName)) continue;
 
-    // Reject symlinks.
-    if (firstChar === "l" || firstChar === "L") {
-      throw new FetchRuntimeError(
-        `error: refusing to extract symlink entry ${JSON.stringify(entryName)} ` +
-        `(symlinks not allowed in dev artifacts).`
-      );
-    }
-
-    // Reject hardlinks.
-    if (firstChar === "h") {
-      throw new FetchRuntimeError(
-        `error: refusing to extract hardlink entry ${JSON.stringify(entryName)} ` +
-        `(hardlinks not allowed in dev artifacts).`
-      );
+    // Symlinks/hardlinks: allowed if the resolved link target stays
+    // inside targetDir. macOS dylib chains (liboctomil-runtime.dylib ->
+    // .0.dylib -> .0.1.10.dylib) and Linux SONAME chains rely on
+    // intra-archive symlinks — refusing them blocks v0.1.10 darwin
+    // consumption entirely. Absolute targets and escaping targets
+    // remain refused. Matches the octomil-python (#597) fix.
+    if (firstChar === "l" || firstChar === "L" || firstChar === "h") {
+      const linkTarget = parseTarLinkTarget(rawLine);
+      if (linkTarget === null) {
+        throw new FetchRuntimeError(
+          `error: link entry ${JSON.stringify(entryName)} has no parseable target in tar -tvf output`
+        );
+      }
+      if (linkTarget.startsWith("/")) {
+        throw new FetchRuntimeError(
+          `error: refusing to extract link entry ${JSON.stringify(entryName)} ` +
+          `with absolute target ${JSON.stringify(linkTarget)}`
+        );
+      }
+      // Resolve relative to the symlink's own directory for symlinks;
+      // relative to archive root for hardlinks.
+      const linkOrigin =
+        firstChar === "h"
+          ? realTarget
+          : path.resolve(realTarget, path.dirname(entryName));
+      const linkResolved = path.resolve(linkOrigin, linkTarget);
+      const linkInside =
+        linkResolved === realTarget ||
+        linkResolved.startsWith(realTarget + path.sep);
+      if (!linkInside) {
+        throw new FetchRuntimeError(
+          `error: link entry ${JSON.stringify(entryName)} target ` +
+          `${JSON.stringify(linkTarget)} would escape ${targetDir} on resolution`
+        );
+      }
     }
 
     // Reject device entries.
@@ -611,6 +715,24 @@ function stripLinkSuffix(name) {
   const linkIdx = name.indexOf(" link to ");
   if (linkIdx !== -1) return name.slice(0, linkIdx);
   return name;
+}
+
+/**
+ * Extract the link target from a `tar -tvf` verbose line. Returns the
+ * raw target path (still relative or absolute as written in the
+ * archive), or null when no link suffix is present.
+ *
+ * Examples:
+ *   "lrwxr-xr-x ... lib/liboctomil-runtime.0.dylib -> liboctomil-runtime.0.1.10.dylib"
+ *     → "liboctomil-runtime.0.1.10.dylib"
+ *   "hrwxr-xr-x ... lib/foo link to lib/bar" → "lib/bar"
+ */
+export function parseTarLinkTarget(line) {
+  const arrowIdx = line.indexOf(" -> ");
+  if (arrowIdx !== -1) return line.slice(arrowIdx + 4).trim() || null;
+  const linkIdx = line.indexOf(" link to ");
+  if (linkIdx !== -1) return line.slice(linkIdx + 9).trim() || null;
+  return null;
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -869,6 +991,12 @@ export async function main(argv = process.argv) {
     for (const tarball of [path.join(work, binName), path.join(work, headersName)]) {
       await safeExtract(tarball, targetDir);
     }
+
+    // release.yml's Stage archive wraps each platform tarball in a
+    // top-level <archive-basename>/ directory. Flatten one level so
+    // <target>/lib/... lands at the canonical path the loader expects.
+    // Headers tarball has no wrapper. Matches octomil-python (#597) fix.
+    await flattenArchiveTopDir(targetDir, binName);
 
     if (!existsSync(dylib)) {
       throw new FetchRuntimeError(
