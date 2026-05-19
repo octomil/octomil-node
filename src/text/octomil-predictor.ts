@@ -6,7 +6,7 @@
  */
 
 import type { ModelRuntime } from "../runtime/core/model-runtime.js";
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 
 export class OctomilPredictor {
   private readonly runtime: ModelRuntime;
@@ -23,7 +23,7 @@ export class OctomilPredictor {
    */
   async predict(prefix: string, maxSuggestions = 3): Promise<string[]> {
     if (this.closed) {
-      throw new OctomilError("CANCELLED", "Predictor has been closed");
+      throw new OctomilError(ErrorCode.Cancelled, "Predictor has been closed");
     }
 
     const result = await this.runtime.run({

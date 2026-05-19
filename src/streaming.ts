@@ -1,4 +1,4 @@
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import type { TelemetryReporter } from "./telemetry.js";
 
 // ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ export async function* streamInference(
     });
   } catch (err) {
     throw new OctomilError(
-      "NETWORK_UNAVAILABLE",
+      ErrorCode.NetworkUnavailable,
       `Cloud streaming request failed: ${String(err)}`,
       err,
     );
@@ -125,14 +125,14 @@ export async function* streamInference(
 
   if (!response.ok) {
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       `Cloud streaming inference failed: HTTP ${response.status}`,
     );
   }
 
   if (!response.body) {
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       "Cloud streaming inference returned empty body",
     );
   }

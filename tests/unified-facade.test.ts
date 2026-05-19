@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ErrorCode } from "../src/_generated/error_code.js";
 import { Octomil, OctomilNotInitializedError } from "../src/facade.js";
 import type { ResponseObj } from "../src/responses.js";
 import type { EmbeddingResult } from "../src/embeddings.js";
@@ -542,7 +543,7 @@ describe("Octomil unified facade", () => {
           model: "@app/tts-tester/tts",
           input: "hello",
         }),
-      ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+      ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
 
       expect(fetchMock).toHaveBeenCalledOnce();
     });

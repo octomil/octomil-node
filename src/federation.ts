@@ -1,4 +1,4 @@
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import {
   ServerApiClient,
   type ServerClientOptions,
@@ -94,7 +94,7 @@ export class FederationClient extends ServerApiClient {
     const deviceId = this.getDeviceId();
     if (!deviceId) {
       throw new OctomilError(
-        "DEVICE_NOT_REGISTERED",
+        ErrorCode.DeviceNotRegistered,
         "This operation requires a registered device ID.",
       );
     }

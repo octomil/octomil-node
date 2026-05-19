@@ -124,176 +124,191 @@ export interface CacheInfo {
   sizeBytes: number;
 }
 
+// ---------------------------------------------------------------------------
+// Back-compat: OctomilErrorCode is kept as a type alias for ErrorCode so
+// existing code that imported `OctomilErrorCode` continues to compile.
+// Callers should migrate to `ErrorCode` directly.
+// @deprecated Use ErrorCode from "./_generated/error_code.js" instead.
+// ---------------------------------------------------------------------------
+/** @deprecated Use {@link ErrorCode} instead. */
+export type OctomilErrorCode = ErrorCode;
+
+// ---------------------------------------------------------------------------
+// Reverse-lookup table: old SCREAMING_SNAKE_CASE strings → ErrorCode
+// Used by the back-compat constructor shim only.
+// ---------------------------------------------------------------------------
+const SCREAMING_TO_ENUM: Readonly<Record<string, ErrorCode>> = {
+  INVALID_API_KEY: ErrorCode.InvalidApiKey,
+  AUTHENTICATION_FAILED: ErrorCode.AuthenticationFailed,
+  FORBIDDEN: ErrorCode.Forbidden,
+  INSUFFICIENT_SCOPE: ErrorCode.InsufficientScope,
+  MISSING_ORG_CONTEXT: ErrorCode.MissingOrgContext,
+  DEVICE_NOT_REGISTERED: ErrorCode.DeviceNotRegistered,
+  TOKEN_EXPIRED: ErrorCode.TokenExpired,
+  DEVICE_REVOKED: ErrorCode.DeviceRevoked,
+  NETWORK_UNAVAILABLE: ErrorCode.NetworkUnavailable,
+  REQUEST_TIMEOUT: ErrorCode.RequestTimeout,
+  SERVER_ERROR: ErrorCode.ServerError,
+  RATE_LIMITED: ErrorCode.RateLimited,
+  INVALID_INPUT: ErrorCode.InvalidInput,
+  UNSUPPORTED_MODALITY: ErrorCode.UnsupportedModality,
+  CONTEXT_TOO_LARGE: ErrorCode.ContextTooLarge,
+  MODEL_NOT_FOUND: ErrorCode.ModelNotFound,
+  NO_DEFAULT_MODEL: ErrorCode.NoDefaultModel,
+  CAPABILITY_NOT_SUPPORTED: ErrorCode.CapabilityNotSupported,
+  PREVIOUS_RESPONSE_NOT_FOUND: ErrorCode.PreviousResponseNotFound,
+  APP_NOT_FOUND: ErrorCode.AppNotFound,
+  CAPABILITY_NOT_CONFIGURED: ErrorCode.CapabilityNotConfigured,
+  APP_CONTEXT_CONFLICT: ErrorCode.AppContextConflict,
+  INVALID_MODEL_REF: ErrorCode.InvalidModelRef,
+  MODEL_DISABLED: ErrorCode.ModelDisabled,
+  VERSION_NOT_FOUND: ErrorCode.VersionNotFound,
+  DOWNLOAD_FAILED: ErrorCode.DownloadFailed,
+  CHECKSUM_MISMATCH: ErrorCode.ChecksumMismatch,
+  INSUFFICIENT_STORAGE: ErrorCode.InsufficientStorage,
+  INSUFFICIENT_MEMORY: ErrorCode.InsufficientMemory,
+  RUNTIME_UNAVAILABLE: ErrorCode.RuntimeUnavailable,
+  ACCELERATOR_UNAVAILABLE: ErrorCode.AcceleratorUnavailable,
+  MODEL_LOAD_FAILED: ErrorCode.ModelLoadFailed,
+  INFERENCE_FAILED: ErrorCode.InferenceFailed,
+  PROVIDER_ERROR: ErrorCode.ProviderError,
+  UPSTREAM_PROVIDER_ERROR: ErrorCode.UpstreamProviderError,
+  TOO_MANY_TOOLS: ErrorCode.TooManyTools,
+  UNSUPPORTED_TOOL_CALLING: ErrorCode.UnsupportedToolCalling,
+  STREAM_INTERRUPTED: ErrorCode.StreamInterrupted,
+  POLICY_DENIED: ErrorCode.PolicyDenied,
+  CLOUD_FALLBACK_DISALLOWED: ErrorCode.CloudFallbackDisallowed,
+  CLOUD_INFERENCE_NOT_ALLOWED: ErrorCode.CloudInferenceNotAllowed,
+  HOSTED_TTS_DISABLED: ErrorCode.HostedTtsDisabled,
+  PLAN_LIMIT_EXCEEDED: ErrorCode.PlanLimitExceeded,
+  CLOUD_CREDENTIALS_MISSING: ErrorCode.CloudCredentialsMissing,
+  CLOUD_CREDENTIALS_REVOKED: ErrorCode.CloudCredentialsRevoked,
+  CLOUD_PROVIDER_AUTH_FAILED: ErrorCode.CloudProviderAuthFailed,
+  MAX_TOOL_ROUNDS_EXCEEDED: ErrorCode.MaxToolRoundsExceeded,
+  TRAINING_FAILED: ErrorCode.TrainingFailed,
+  TRAINING_NOT_SUPPORTED: ErrorCode.TrainingNotSupported,
+  WEIGHT_UPLOAD_FAILED: ErrorCode.WeightUploadFailed,
+  CONTROL_SYNC_FAILED: ErrorCode.ControlSyncFailed,
+  ASSIGNMENT_NOT_FOUND: ErrorCode.AssignmentNotFound,
+  INCIDENT_NOT_FOUND: ErrorCode.IncidentNotFound,
+  DEPLOYMENT_NOT_FOUND: ErrorCode.DeploymentNotFound,
+  EXPERIMENT_NOT_FOUND: ErrorCode.ExperimentNotFound,
+  EXPERIMENT_STATE_INVALID: ErrorCode.ExperimentStateInvalid,
+  CANCELLED: ErrorCode.Cancelled,
+  APP_BACKGROUNDED: ErrorCode.AppBackgrounded,
+  UNKNOWN: ErrorCode.Unknown,
+};
+
+/** Set of all valid ErrorCode enum values for fast membership testing. */
+const VALID_ERROR_CODE_VALUES = new Set<string>(Object.values(ErrorCode));
+
 /**
- * Canonical error codes — 36 codes from octomil-contracts.
+ * Normalize a string or ErrorCode to a canonical ErrorCode enum value.
+ *
+ * Accepts:
+ *   - An ErrorCode enum value (snake_case string like "inference_failed") — returned as-is.
+ *   - A legacy SCREAMING_SNAKE_CASE string like "INFERENCE_FAILED" — mapped via lookup table.
+ *   - Unknown strings — warns and falls back to ErrorCode.Unknown.
  */
-export type OctomilErrorCode =
-  // --- Auth / Access ---
-  | "INVALID_API_KEY"
-  | "AUTHENTICATION_FAILED"
-  | "FORBIDDEN"
-  | "DEVICE_NOT_REGISTERED"
-  | "TOKEN_EXPIRED"
-  | "DEVICE_REVOKED"
-  // --- Network / Transport ---
-  | "NETWORK_UNAVAILABLE"
-  | "REQUEST_TIMEOUT"
-  | "SERVER_ERROR"
-  | "RATE_LIMITED"
-  // --- Input / Validation ---
-  | "INVALID_INPUT"
-  | "UNSUPPORTED_MODALITY"
-  | "CONTEXT_TOO_LARGE"
-  // --- Catalog / Model Resolution ---
-  | "MODEL_NOT_FOUND"
-  | "MODEL_LOAD_FAILED"
-  | "MODEL_DISABLED"
-  | "VERSION_NOT_FOUND"
-  // --- Download / Artifact Integrity ---
-  | "DOWNLOAD_FAILED"
-  | "CHECKSUM_MISMATCH"
-  // --- Device / Environment ---
-  | "INSUFFICIENT_STORAGE"
-  | "INSUFFICIENT_MEMORY"
-  | "RUNTIME_UNAVAILABLE"
-  | "ACCELERATOR_UNAVAILABLE"
-  // --- Runtime / Inference ---
-  | "INFERENCE_FAILED"
-  | "STREAM_INTERRUPTED"
-  // --- Policy / Routing ---
-  | "POLICY_DENIED"
-  | "CLOUD_FALLBACK_DISALLOWED"
-  | "MAX_TOOL_ROUNDS_EXCEEDED"
-  // --- Training ---
-  | "TRAINING_FAILED"
-  | "TRAINING_NOT_SUPPORTED"
- | "WEIGHT_UPLOAD_FAILED"
-  | "CLOUD_CREDENTIALS_MISSING"
-  | "CLOUD_CREDENTIALS_REVOKED"
-  | "CLOUD_PROVIDER_AUTH_FAILED"
-  // --- Control Plane / Rollout ---
-  | "CONTROL_SYNC_FAILED"
-  | "ASSIGNMENT_NOT_FOUND"
-  // --- Cancellation / Lifecycle ---
-  | "CANCELLED"
-  | "APP_BACKGROUNDED"
-  // --- Unknown ---
-  | "UNKNOWN";
-
-/** Map from contract ErrorCode to SDK OctomilErrorCode. */
-export const ERROR_CODE_MAP: Readonly<Record<ErrorCode, OctomilErrorCode>> = {
-  [ErrorCode.NetworkUnavailable]: "NETWORK_UNAVAILABLE",
-  [ErrorCode.RequestTimeout]: "REQUEST_TIMEOUT",
-  [ErrorCode.ServerError]: "SERVER_ERROR",
-  [ErrorCode.InvalidApiKey]: "INVALID_API_KEY",
-  [ErrorCode.AuthenticationFailed]: "AUTHENTICATION_FAILED",
-  [ErrorCode.Forbidden]: "FORBIDDEN",
-  [ErrorCode.ModelNotFound]: "MODEL_NOT_FOUND",
-  [ErrorCode.ModelDisabled]: "MODEL_DISABLED",
-  [ErrorCode.DownloadFailed]: "DOWNLOAD_FAILED",
-  [ErrorCode.ChecksumMismatch]: "CHECKSUM_MISMATCH",
-  [ErrorCode.InsufficientStorage]: "INSUFFICIENT_STORAGE",
-  [ErrorCode.RuntimeUnavailable]: "RUNTIME_UNAVAILABLE",
-  [ErrorCode.ModelLoadFailed]: "MODEL_LOAD_FAILED",
-  [ErrorCode.InferenceFailed]: "INFERENCE_FAILED",
-  [ErrorCode.InsufficientMemory]: "INSUFFICIENT_MEMORY",
-  [ErrorCode.RateLimited]: "RATE_LIMITED",
-  [ErrorCode.InvalidInput]: "INVALID_INPUT",
-  [ErrorCode.Cancelled]: "CANCELLED",
-  [ErrorCode.Unknown]: "UNKNOWN",
-  [ErrorCode.DeviceNotRegistered]: "DEVICE_NOT_REGISTERED",
-  [ErrorCode.UnsupportedModality]: "UNSUPPORTED_MODALITY",
-  [ErrorCode.ContextTooLarge]: "CONTEXT_TOO_LARGE",
-  [ErrorCode.VersionNotFound]: "VERSION_NOT_FOUND",
-  [ErrorCode.AcceleratorUnavailable]: "ACCELERATOR_UNAVAILABLE",
-  [ErrorCode.StreamInterrupted]: "STREAM_INTERRUPTED",
-  [ErrorCode.PolicyDenied]: "POLICY_DENIED",
-  [ErrorCode.CloudFallbackDisallowed]: "CLOUD_FALLBACK_DISALLOWED",
-  [ErrorCode.MaxToolRoundsExceeded]: "MAX_TOOL_ROUNDS_EXCEEDED",
-  [ErrorCode.ControlSyncFailed]: "CONTROL_SYNC_FAILED",
-  [ErrorCode.AssignmentNotFound]: "ASSIGNMENT_NOT_FOUND",
-  [ErrorCode.AppBackgrounded]: "APP_BACKGROUNDED",
-  [ErrorCode.TrainingFailed]: "TRAINING_FAILED",
-  [ErrorCode.TrainingNotSupported]: "TRAINING_NOT_SUPPORTED",
-  [ErrorCode.WeightUploadFailed]: "WEIGHT_UPLOAD_FAILED",
-  [ErrorCode.CloudCredentialsMissing]: "CLOUD_CREDENTIALS_MISSING",
-  [ErrorCode.CloudCredentialsRevoked]: "CLOUD_CREDENTIALS_REVOKED",
-  [ErrorCode.CloudProviderAuthFailed]: "CLOUD_PROVIDER_AUTH_FAILED",
-  [ErrorCode.TokenExpired]: "TOKEN_EXPIRED",
-  [ErrorCode.DeviceRevoked]: "DEVICE_REVOKED",
-} as const;
-
-/** Reverse map: SDK error code -> contract ErrorCode. */
-const SDK_TO_CONTRACT: Readonly<Partial<Record<OctomilErrorCode, ErrorCode>>> = Object.fromEntries(
-  Object.entries(ERROR_CODE_MAP).map(([k, v]) => [v, k as unknown as ErrorCode]),
-) as Partial<Record<OctomilErrorCode, ErrorCode>>;
+function normalizeCode(code: ErrorCode | string): ErrorCode {
+  // Already a valid enum value (snake_case)
+  if (VALID_ERROR_CODE_VALUES.has(code)) {
+    return code as ErrorCode;
+  }
+  // Legacy SCREAMING_SNAKE_CASE
+  const mapped = SCREAMING_TO_ENUM[code];
+  if (mapped !== undefined) {
+    return mapped;
+  }
+  // Unknown string — warn and fall back
+  console.warn(
+    `[OctomilError] Unrecognized error code "${code}"; falling back to ErrorCode.Unknown. ` +
+    `Pass an ErrorCode enum value instead of a raw string.`,
+  );
+  return ErrorCode.Unknown;
+}
 
 export class OctomilError extends Error {
+  readonly code: ErrorCode;
+  readonly retryAfterMs?: number;
+  readonly cause?: unknown;
+
   constructor(
-    public readonly code: OctomilErrorCode,
+    code: ErrorCode | string,
     message: string,
-    public readonly cause?: unknown,
+    optionsOrCause?: { cause?: unknown; retryAfterMs?: number } | unknown,
   ) {
     super(message);
     this.name = "OctomilError";
+    this.code = normalizeCode(code);
+
+    // Accept both the new options-object form and the legacy positional `cause` form.
+    if (
+      optionsOrCause !== null &&
+      typeof optionsOrCause === "object" &&
+      !Array.isArray(optionsOrCause) &&
+      !(optionsOrCause instanceof Error) &&
+      ("cause" in (optionsOrCause as object) || "retryAfterMs" in (optionsOrCause as object))
+    ) {
+      const opts = optionsOrCause as { cause?: unknown; retryAfterMs?: number };
+      this.cause = opts.cause;
+      this.retryAfterMs = opts.retryAfterMs;
+    } else if (optionsOrCause !== undefined) {
+      // Legacy: third arg is a raw cause value (old call sites: new OctomilError(code, msg, err))
+      this.cause = optionsOrCause;
+    }
   }
 
   /** Whether this error is safe to retry. */
   get retryable(): boolean {
-    const cc = SDK_TO_CONTRACT[this.code];
-    return cc != null && ERROR_CLASSIFICATION[cc].retryClass !== "never";
+    return ERROR_CLASSIFICATION[this.code].retryClass !== "never";
   }
 
   /** The error category from the contract taxonomy. */
-  get category(): import("./_generated/error_code.js").ErrorCategory | undefined {
-    const cc = SDK_TO_CONTRACT[this.code];
-    return cc != null ? ERROR_CLASSIFICATION[cc].category : undefined;
+  get category(): import("./_generated/error_code.js").ErrorCategory {
+    return ERROR_CLASSIFICATION[this.code].category;
   }
 
   /** The retry classification from the contract taxonomy. */
-  get retryClass(): import("./_generated/error_code.js").RetryClass | undefined {
-    const cc = SDK_TO_CONTRACT[this.code];
-    return cc != null ? ERROR_CLASSIFICATION[cc].retryClass : undefined;
+  get retryClass(): import("./_generated/error_code.js").RetryClass {
+    return ERROR_CLASSIFICATION[this.code].retryClass;
   }
 
   /** Whether this error is eligible for cloud fallback. */
   get fallbackEligible(): boolean {
-    const cc = SDK_TO_CONTRACT[this.code];
-    return cc != null ? ERROR_CLASSIFICATION[cc].fallbackEligible : false;
+    return ERROR_CLASSIFICATION[this.code].fallbackEligible;
   }
 
   /** The suggested remediation action. */
-  get suggestedAction(): import("./_generated/error_code.js").SuggestedAction | undefined {
-    const cc = SDK_TO_CONTRACT[this.code];
-    return cc != null ? ERROR_CLASSIFICATION[cc].suggestedAction : undefined;
+  get suggestedAction(): import("./_generated/error_code.js").SuggestedAction {
+    return ERROR_CLASSIFICATION[this.code].suggestedAction;
   }
 
   /**
    * Create an OctomilError from an HTTP status code.
    *
    * Maps common HTTP statuses to canonical error codes:
-   *   400 -> INVALID_INPUT
-   *   401 -> AUTHENTICATION_FAILED
-   *   403 -> FORBIDDEN
-   *   404 -> MODEL_NOT_FOUND (on model endpoints; UNKNOWN elsewhere)
-   *   429 -> RATE_LIMITED
-   *   5xx -> SERVER_ERROR
+   *   400 -> InvalidInput
+   *   401 -> AuthenticationFailed
+   *   403 -> Forbidden
+   *   404 -> ModelNotFound (on model endpoints; Unknown elsewhere)
+   *   429 -> RateLimited
+   *   5xx -> ServerError
    */
   static fromHttpStatus(status: number, message?: string): OctomilError {
     const msg = message ?? `HTTP ${status}`;
-    if (status === 400) return new OctomilError("INVALID_INPUT", msg);
-    if (status === 401) return new OctomilError("AUTHENTICATION_FAILED", msg);
-    if (status === 403) return new OctomilError("FORBIDDEN", msg);
-    if (status === 404) return new OctomilError("MODEL_NOT_FOUND", msg);
-    if (status === 429) return new OctomilError("RATE_LIMITED", msg);
-    if (status >= 500) return new OctomilError("SERVER_ERROR", msg);
-    return new OctomilError("UNKNOWN", msg);
+    if (status === 400) return new OctomilError(ErrorCode.InvalidInput, msg);
+    if (status === 401) return new OctomilError(ErrorCode.AuthenticationFailed, msg);
+    if (status === 403) return new OctomilError(ErrorCode.Forbidden, msg);
+    if (status === 404) return new OctomilError(ErrorCode.ModelNotFound, msg);
+    if (status === 429) return new OctomilError(ErrorCode.RateLimited, msg);
+    if (status >= 500) return new OctomilError(ErrorCode.ServerError, msg);
+    return new OctomilError(ErrorCode.Unknown, msg);
   }
 
   /** Create an OctomilError from a contract ErrorCode. */
   static fromErrorCode(errorCode: ErrorCode, message: string, cause?: unknown): OctomilError {
-    const sdkCode = ERROR_CODE_MAP[errorCode];
-    return new OctomilError(sdkCode, message, cause);
+    return new OctomilError(errorCode, message, cause);
   }
 
   /**
@@ -316,8 +331,7 @@ export class OctomilError extends Error {
     if (typeof body?.code === "string") {
       const contractValues = Object.values(ErrorCode) as string[];
       if (contractValues.includes(body.code)) {
-        const sdkCode = ERROR_CODE_MAP[body.code as ErrorCode];
-        return new OctomilError(sdkCode, message);
+        return new OctomilError(body.code as ErrorCode, message);
       }
     }
 

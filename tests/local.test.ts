@@ -7,7 +7,7 @@ import {
   localRunnerHealthCheck,
 } from "../src/local.js";
 import { Octomil, OctomilNotInitializedError } from "../src/facade.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // Mock configure() and auth-config so we don't hit the network
@@ -125,7 +125,7 @@ describe("Local runner discovery", () => {
       } catch (err) {
         expect(err).toBeInstanceOf(OctomilError);
         const octErr = err as OctomilError;
-        expect(octErr.code).toBe("RUNTIME_UNAVAILABLE");
+        expect(octErr.code).toBe(ErrorCode.RuntimeUnavailable);
         expect(octErr.message).toContain("Local runner not available");
         expect(octErr.message).toContain("pip install octomil");
       }

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import koffi, { type IKoffiLib } from "koffi";
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
-import { OctomilError, type OctomilErrorCode } from "../../types.js";
+import { OctomilError, ErrorCode } from "../../types.js";
 
 export const ENV_RUNTIME_DYLIB = "OCTOMIL_RUNTIME_DYLIB";
 export const ENV_RUNTIME_CACHE_DIR = "OCTOMIL_RUNTIME_CACHE_DIR";
@@ -121,7 +121,7 @@ export interface NativeRuntimeDiscovery {
   available: boolean;
   libraryPath?: string;
   abi?: NativeRuntimeAbiVersion;
-  unsupportedCode?: "RUNTIME_UNAVAILABLE";
+  unsupportedCode?: ErrorCode.RuntimeUnavailable;
   unsupportedReason?: string;
 }
 
@@ -466,7 +466,7 @@ interface NativeBindings {
 export class NativeRuntimeError extends OctomilError {
   constructor(
     public readonly status: number | null,
-    code: OctomilErrorCode,
+    code: ErrorCode | string,
     message: string,
     public readonly lastError = "",
     cause?: unknown,
@@ -480,22 +480,22 @@ function statusName(status: number): string {
   return STATUS_NAMES[status] ?? `OCT_STATUS_UNKNOWN(${status})`;
 }
 
-function statusToSdkCode(status: number): OctomilErrorCode {
+function statusToSdkCode(status: number): ErrorCode {
   switch (status) {
     case OCT_STATUS_INVALID_INPUT:
-      return "INVALID_INPUT";
+      return ErrorCode.InvalidInput;
     case OCT_STATUS_NOT_FOUND:
-      return "MODEL_NOT_FOUND";
+      return ErrorCode.ModelNotFound;
     case OCT_STATUS_TIMEOUT:
-      return "REQUEST_TIMEOUT";
+      return ErrorCode.RequestTimeout;
     case OCT_STATUS_CANCELLED:
-      return "CANCELLED";
+      return ErrorCode.Cancelled;
     case OCT_STATUS_UNSUPPORTED:
     case OCT_STATUS_BUSY:
     case OCT_STATUS_INTERNAL:
     case OCT_STATUS_VERSION_MISMATCH:
     default:
-      return "RUNTIME_UNAVAILABLE";
+      return ErrorCode.RuntimeUnavailable;
   }
 }
 
@@ -562,7 +562,7 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
     if (!validFlavors.has(flavorOverride)) {
       throw new NativeRuntimeError(
         null,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `${ENV_RUNTIME_FLAVOR} is set to "${flavorOverride}", which is not a recognised flavor. ` +
           `Valid values: ${[...FLAVOR_PREFERENCE].join(", ")}`,
       );
@@ -653,7 +653,7 @@ export function resolveNativeRuntimeLibrary(
     if (isFile(options.libraryPath)) return options.libraryPath;
     throw new NativeRuntimeError(
       null,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `Native runtime library path does not exist: ${options.libraryPath}`,
     );
   }
@@ -663,7 +663,7 @@ export function resolveNativeRuntimeLibrary(
     if (isFile(override)) return override;
     throw new NativeRuntimeError(
       null,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `${ENV_RUNTIME_DYLIB} points at ${override}, but that file does not exist`,
     );
   }
@@ -676,7 +676,7 @@ export function resolveNativeRuntimeLibrary(
 
   throw new NativeRuntimeError(
     null,
-    "RUNTIME_UNAVAILABLE",
+    ErrorCode.RuntimeUnavailable,
     `Could not locate liboctomil-runtime; set ${ENV_RUNTIME_DYLIB} or populate ${runtimeCacheRoot()}`,
   );
 }
@@ -688,7 +688,7 @@ function createBindings(libraryPath: string): NativeBindings {
   } catch (error) {
     throw new NativeRuntimeError(
       null,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `Failed to load native runtime library ${libraryPath}`,
       "",
       error,
@@ -1107,7 +1107,7 @@ function createBindings(libraryPath: string): NativeBindings {
     if (error instanceof NativeRuntimeError) throw error;
     throw new NativeRuntimeError(
       null,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `Native runtime library ${libraryPath} is missing required ABI symbols`,
       "",
       error,
@@ -1120,7 +1120,7 @@ function validateBindings(bindings: NativeBindings): void {
   if (abi.major !== REQUIRED_ABI.major || abi.minor < REQUIRED_ABI.minor) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `liboctomil-runtime ABI ${abi.major}.${abi.minor}.${abi.patch} is incompatible with Node binding requirement ${REQUIRED_ABI.major}.${REQUIRED_ABI.minor}.${REQUIRED_ABI.patch}`,
     );
   }
@@ -1134,42 +1134,42 @@ function validateBindings(bindings: NativeBindings): void {
   if (runtimeConfigSize !== koffi.sizeof(bindings.runtimeConfigType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_runtime_config_t size mismatch: binding=${koffi.sizeof(bindings.runtimeConfigType)} runtime=${runtimeConfigSize}`,
     );
   }
   if (capabilitiesSize !== koffi.sizeof(bindings.capabilitiesType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_capabilities_t size mismatch: binding=${koffi.sizeof(bindings.capabilitiesType)} runtime=${capabilitiesSize}`,
     );
   }
   if (modelConfigSize !== koffi.sizeof(bindings.modelConfigType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_model_config_t size mismatch: binding=${koffi.sizeof(bindings.modelConfigType)} runtime=${modelConfigSize}`,
     );
   }
   if (sessionConfigSize !== koffi.sizeof(bindings.sessionConfigType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_session_config_t size mismatch: binding=${koffi.sizeof(bindings.sessionConfigType)} runtime=${sessionConfigSize}`,
     );
   }
   if (audioViewSize !== koffi.sizeof(bindings.audioViewType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_audio_view_t size mismatch: binding=${koffi.sizeof(bindings.audioViewType)} runtime=${audioViewSize}`,
     );
   }
   if (eventSize !== koffi.sizeof(bindings.eventType)) {
     throw new NativeRuntimeError(
       OCT_STATUS_VERSION_MISMATCH,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `oct_event_t size mismatch: binding=${koffi.sizeof(bindings.eventType)} runtime=${eventSize}`,
     );
   }
@@ -1269,7 +1269,7 @@ function normalizeCacheScope(
     default:
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache scope ${scope} is not a valid OCT_CACHE_SCOPE_* constant`,
       );
   }
@@ -1282,7 +1282,7 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
   } catch (cause) {
     throw new NativeRuntimeError(
       OCT_STATUS_INTERNAL,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       "cache introspect JSON payload is invalid",
       "",
       cause,
@@ -1295,14 +1295,14 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
   ) {
     throw new NativeRuntimeError(
       OCT_STATUS_INTERNAL,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       "cache introspect JSON is missing required bounded fields",
     );
   }
   if (!Array.isArray(parsed.entries)) {
     throw new NativeRuntimeError(
       OCT_STATUS_INTERNAL,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       "cache introspect JSON 'entries' must be an array",
     );
   }
@@ -1313,7 +1313,7 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
   if (!Number.isFinite(version) || version < 0) {
     throw new NativeRuntimeError(
       OCT_STATUS_INTERNAL,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       "cache introspect JSON has invalid version",
     );
   }
@@ -1322,7 +1322,7 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache introspect entry ${index} is not an object`,
       );
     }
@@ -1336,7 +1336,7 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
     if (!capability || !scope) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache introspect entry ${index} is missing bounded fields`,
       );
     }
@@ -1348,21 +1348,21 @@ function parseNativeCacheSnapshot(rawJson: string): NativeCacheSnapshot {
     ) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache introspect entry ${index} has non-numeric counters`,
       );
     }
     if (entriesCount < 0 || bytes < 0 || hit < 0 || miss < 0) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache introspect entry ${index} has negative counters`,
       );
     }
     if (!["request", "session", "runtime", "app"].includes(scope)) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache introspect entry ${index} has invalid scope ${scope}`,
       );
     }
@@ -1596,7 +1596,7 @@ function decodeCStringArray(ptr: unknown, maxEntries = 4096): string[] {
   }
   throw new NativeRuntimeError(
     OCT_STATUS_INTERNAL,
-    "RUNTIME_UNAVAILABLE",
+    ErrorCode.RuntimeUnavailable,
     `Native runtime returned a string list without a NULL sentinel within ${maxEntries} entries`,
   );
 }
@@ -1654,7 +1654,7 @@ export function discoverNativeRuntime(
   } catch (error) {
     return {
       available: false,
-      unsupportedCode: "RUNTIME_UNAVAILABLE",
+      unsupportedCode: ErrorCode.RuntimeUnavailable,
       unsupportedReason: error instanceof Error ? error.message : String(error),
     };
   }
@@ -1704,7 +1704,7 @@ export class NativeRuntime {
       bindings.lib.unload();
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "oct_runtime_open returned OK with a NULL runtime handle",
       );
     }
@@ -1828,7 +1828,7 @@ export class NativeRuntime {
     if (!rawJson) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "oct_runtime_cache_introspect returned an empty payload",
       );
     }
@@ -1840,7 +1840,7 @@ export class NativeRuntime {
     if (this.supports(capability)) return;
     throw new NativeRuntimeError(
       OCT_STATUS_UNSUPPORTED,
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `Native runtime does not advertise required capability ${capability}; refusing to route to cloud or fake native support`,
     );
   }
@@ -1868,7 +1868,7 @@ export class NativeRuntime {
     if (out[0] == null) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "oct_model_open returned OK with a NULL model handle",
       );
     }
@@ -1883,14 +1883,14 @@ export class NativeRuntime {
     if (borrowedModel && borrowedModel._owner !== this) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "openSession: model was opened on a different NativeRuntime",
       );
     }
     if (borrowedModel && borrowedModel._isClosedOrInvalid()) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "openSession: model handle is closed or invalidated",
       );
     }
@@ -1922,7 +1922,7 @@ export class NativeRuntime {
     if (out[0] == null) {
       throw new NativeRuntimeError(
         OCT_STATUS_INTERNAL,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "oct_session_open returned OK with a NULL session handle",
       );
     }
@@ -1972,7 +1972,7 @@ export class NativeRuntime {
     if (this.closed) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "Native runtime handle is closed",
       );
     }
@@ -2079,7 +2079,7 @@ export class NativeSession {
     if (!this._owner.supports(RuntimeCapability.EmbeddingsImage)) {
       throw new NativeRuntimeError(
         OCT_STATUS_UNSUPPORTED,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `Native runtime does not advertise required capability ${RuntimeCapability.EmbeddingsImage}; ` +
           `embeddings.image is BLOCKED_WITH_PROOF until the SigLIP adapter PR removes it from kBlockedCapabilities`,
       );
@@ -2091,7 +2091,7 @@ export class NativeSession {
     if (sendImage == null || imageViewType == null) {
       throw new NativeRuntimeError(
         OCT_STATUS_UNSUPPORTED,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `Native runtime did not expose oct_session_send_image; ABI minor < ${OPTIONAL_ABI_MINOR_IMAGE} ` +
           `(capability ${RuntimeCapability.EmbeddingsImage})`,
       );
@@ -2196,14 +2196,14 @@ export class NativeSession {
     if (this.handleInvalid) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "session handle invalidated by parent NativeRuntime.close()",
       );
     }
     if (this.closed) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "session handle is closed",
       );
     }
@@ -2272,14 +2272,14 @@ export class NativeModel {
     if (this.handleInvalid) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "model handle invalidated by parent NativeRuntime.close()",
       );
     }
     if (this.closed) {
       throw new NativeRuntimeError(
         OCT_STATUS_INVALID_INPUT,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "model handle is closed",
       );
     }
@@ -2315,7 +2315,7 @@ export function requireNativeCapability(
     ) {
       throw new NativeRuntimeError(
         OCT_STATUS_UNSUPPORTED,
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `Native runtime does not advertise required capability ${capability}; refusing to route to cloud or fake native support`,
       );
     }

@@ -26,7 +26,7 @@
  */
 
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
-import { OctomilError } from "../../types.js";
+import { OctomilError, ErrorCode} from "../../types.js";
 import {
   NativeModel,
   NativeRuntime,
@@ -64,33 +64,33 @@ function runtimeStatusToSdkError(
   lastError = "",
 ): OctomilError {
   if (status === 3 /* NOT_FOUND */) {
-    return new OctomilError("MODEL_NOT_FOUND", message);
+    return new OctomilError(ErrorCode.ModelNotFound, message);
   }
   if (status === 1 /* INVALID_INPUT */) {
-    return new OctomilError("INVALID_INPUT", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.InvalidInput, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 2 /* UNSUPPORTED */) {
     if (lastError.toLowerCase().includes("digest")) {
       return new OctomilError(
-        "CHECKSUM_MISMATCH",
+        ErrorCode.ChecksumMismatch,
         lastError ? `${message}: ${lastError}` : message,
       );
     }
-    return new OctomilError("RUNTIME_UNAVAILABLE", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 8 /* VERSION_MISMATCH */) {
-    return new OctomilError("RUNTIME_UNAVAILABLE", message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, message);
   }
   if (status === 6 /* CANCELLED */) {
-    return new OctomilError("CANCELLED", message);
+    return new OctomilError(ErrorCode.Cancelled, message);
   }
   if (status === 5 /* TIMEOUT */) {
-    return new OctomilError("REQUEST_TIMEOUT", message);
+    return new OctomilError(ErrorCode.RequestTimeout, message);
   }
   if (status === 4 /* BUSY */) {
-    return new OctomilError("SERVER_ERROR", message);
+    return new OctomilError(ErrorCode.ServerError, message);
   }
-  return new OctomilError("INFERENCE_FAILED", lastError ? `${message}: ${lastError}` : message);
+  return new OctomilError(ErrorCode.InferenceFailed, lastError ? `${message}: ${lastError}` : message);
 }
 
 // ── Input validation ──────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ function validateClipPcmF32(
 ): Float32Array {
   if (sampleRateHz !== SPEAKER_SAMPLE_RATE_HZ) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `native speaker.embedding: sample_rate_hz must be ${SPEAKER_SAMPLE_RATE_HZ} ` +
         `(sherpa speaker is mono-16kHz-only in v0.1.5); got ${sampleRateHz}`,
     );
@@ -109,12 +109,12 @@ function validateClipPcmF32(
   const arr =
     samples instanceof Float32Array ? samples : new Float32Array(samples);
   if (arr.length === 0) {
-    throw new OctomilError("INVALID_INPUT", "native speaker.embedding: zero-length audio buffer");
+    throw new OctomilError(ErrorCode.InvalidInput, "native speaker.embedding: zero-length audio buffer");
   }
   for (let i = 0; i < arr.length; i += 1) {
     if (!isFinite(arr[i] as number)) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "native speaker.embedding: audio contains NaN or Inf samples",
       );
     }
@@ -152,7 +152,7 @@ export class NativeSpeakerEmbeddingBackend {
   loadModel(modelName = SUPPORTED_MODEL_NAME): void {
     if (modelName.toLowerCase() !== SUPPORTED_MODEL_NAME) {
       throw new OctomilError(
-        "UNSUPPORTED_MODALITY",
+        ErrorCode.UnsupportedModality,
         `native speaker.embedding backend: model ${JSON.stringify(modelName)} is not ` +
           `supported in v0.1.5. Only ${JSON.stringify(SUPPORTED_MODEL_NAME)} is wired in ` +
           "this release (the runtime pins a single ERes2NetV2 SHA-256). " +
@@ -173,7 +173,7 @@ export class NativeSpeakerEmbeddingBackend {
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native speaker.embedding backend: dylib not found (${(err as Error).message ?? err})`,
       );
     }
@@ -183,14 +183,14 @@ export class NativeSpeakerEmbeddingBackend {
       this.close();
       if (probeLastError.toLowerCase().includes("digest")) {
         throw new OctomilError(
-          "CHECKSUM_MISMATCH",
+          ErrorCode.ChecksumMismatch,
           "native speaker.embedding backend: ERes2NetV2 SHA-256 does not match " +
             "the v0.1.5 runtime-pinned digest (1a331345…7a5e4b). " +
             `Re-download the artifact. Runtime diagnostic: ${probeLastError}`,
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "native speaker.embedding backend: runtime does not advertise " +
           "'audio.speaker.embedding'. Check OCTOMIL_SHERPA_SPEAKER_MODEL " +
           "(must point at the ERes2NetV2 ONNX with SHA-256 1a331345…7a5e4b) " +
@@ -203,7 +203,7 @@ export class NativeSpeakerEmbeddingBackend {
     if (!speakerBin) {
       this.close();
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native speaker.embedding backend: ${SHERPA_SPEAKER_BIN_ENV} not set. ` +
           "Point at a verified ERes2NetV2 .onnx (SHA-256 1a331345…7a5e4b).",
       );
@@ -238,7 +238,7 @@ export class NativeSpeakerEmbeddingBackend {
   ): SpeakerEmbeddingResult {
     if (this._runtime === null || this._model === null) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "NativeSpeakerEmbeddingBackend.embed called before loadModel",
       );
     }
@@ -247,7 +247,7 @@ export class NativeSpeakerEmbeddingBackend {
     const resolvedDeadlineMs = opts.deadlineMs ?? this._defaultDeadlineMs;
     if (resolvedDeadlineMs <= 0) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `deadline_ms must be > 0; got ${resolvedDeadlineMs}.`,
       );
     }
@@ -317,7 +317,7 @@ export class NativeSpeakerEmbeddingBackend {
         if (ev.type === OCT_EVENT_EMBEDDING_VECTOR) {
           if (sawEmbedding) {
             throw new OctomilError(
-              "INFERENCE_FAILED",
+              ErrorCode.InferenceFailed,
               "native speaker.embedding: runtime emitted multiple EMBEDDING_VECTOR events " +
                 "for a single-utterance session",
             );
@@ -329,7 +329,7 @@ export class NativeSpeakerEmbeddingBackend {
           embeddingIsNormalized = emb.isNormalized;
           if (embeddingNDim <= 0 || embeddingValues.length !== embeddingNDim) {
             throw new OctomilError(
-              "INFERENCE_FAILED",
+              ErrorCode.InferenceFailed,
               `native speaker.embedding: malformed embedding event ` +
                 `(n_dim=${embeddingNDim}, len(values)=${embeddingValues.length})`,
             );
@@ -356,7 +356,7 @@ export class NativeSpeakerEmbeddingBackend {
 
       if (Date.now() >= deadline) {
         throw new OctomilError(
-          "REQUEST_TIMEOUT",
+          ErrorCode.RequestTimeout,
           `native speaker.embedding backend timed out waiting for SESSION_COMPLETED (${resolvedDeadlineMs}ms)`,
         );
       }
@@ -370,7 +370,7 @@ export class NativeSpeakerEmbeddingBackend {
       }
       if (!sawEmbedding) {
         throw new OctomilError(
-          "INFERENCE_FAILED",
+          ErrorCode.InferenceFailed,
           "native speaker.embedding: SESSION_COMPLETED(OK) without preceding EMBEDDING_VECTOR",
         );
       }

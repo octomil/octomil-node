@@ -12,7 +12,7 @@ import { FacadeSpeakerEmbedding } from "../src/audio/speaker_embedding.js";
 import {
   NativeSpeakerEmbeddingBackend,
 } from "../src/runtime/native/speaker_backend.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ── 1. Facade existence ───────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ describe("FacadeSpeakerEmbedding — fail-closed without native runtime", () => 
       if (err instanceof OctomilError) {
         // Bounded: RUNTIME_UNAVAILABLE when dylib absent; INFERENCE_FAILED when
         // runtime opens but capability not configured.
-        expect(["RUNTIME_UNAVAILABLE", "CHECKSUM_MISMATCH", "INFERENCE_FAILED"]).toContain(err.code);
+        expect([ErrorCode.RuntimeUnavailable, ErrorCode.ChecksumMismatch, ErrorCode.InferenceFailed]).toContain(err.code);
       }
     }
   });
@@ -69,7 +69,7 @@ describe("FacadeSpeakerEmbedding — fail-closed without native runtime", () => 
       backend.embed(audio);
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("RUNTIME_UNAVAILABLE");
+        expect(err.code).toBe(ErrorCode.RuntimeUnavailable);
       }
     }
   });
@@ -95,7 +95,7 @@ describe("FacadeSpeakerEmbedding — fail-closed without native runtime", () => 
       backend.embed(audio, { sampleRateHz: 8000 });
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });
@@ -120,7 +120,7 @@ describe("FacadeSpeakerEmbedding — fail-closed without native runtime", () => 
       backend.embed(emptyAudio, { sampleRateHz: 16000 });
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });

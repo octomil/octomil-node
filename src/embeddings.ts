@@ -7,7 +7,7 @@
  * Supports planner-routed execution when a PlannerClient is available.
  */
 
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import {
   RequestRouter,
   type RouteMetadata,
@@ -66,12 +66,12 @@ export async function embed(
 ): Promise<EmbeddingResult> {
   if (!config.serverUrl) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "serverUrl is required for embed()",
     );
   }
   if (!config.apiKey) {
-    throw new OctomilError("INVALID_INPUT", "apiKey is required for embed()");
+    throw new OctomilError(ErrorCode.InvalidInput, "apiKey is required for embed()");
   }
 
   return embedAtEndpoint(
@@ -181,7 +181,7 @@ async function embedAtEndpoint(
 ): Promise<EmbeddingResult> {
   if (!config.baseUrl) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "serverUrl is required for embed()",
     );
   }
@@ -203,7 +203,7 @@ async function embedAtEndpoint(
     });
   } catch (err) {
     throw new OctomilError(
-      "NETWORK_UNAVAILABLE",
+      ErrorCode.NetworkUnavailable,
       `embed() request failed: ${String(err)}`,
       err,
     );
@@ -211,7 +211,7 @@ async function embedAtEndpoint(
 
   if (!response.ok) {
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       `embed() failed: HTTP ${response.status}`,
     );
   }

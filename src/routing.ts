@@ -1,4 +1,4 @@
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -190,7 +190,7 @@ export class RoutingClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Cloud inference request failed: ${String(err)}`,
         err,
       );
@@ -198,7 +198,7 @@ export class RoutingClient {
 
     if (!response.ok) {
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Cloud inference failed: HTTP ${response.status}`,
       );
     }

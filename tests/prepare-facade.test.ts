@@ -4,7 +4,7 @@ import {
   canPrepareCandidate,
   PREPAREABLE_CAPABILITIES,
 } from "../src/prepare/prepare.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 import type {
   ArtifactDownloadEndpoint,
   RuntimeArtifactPlan,
@@ -134,7 +134,7 @@ describe("prepareForFacade rejection paths", () => {
       // @ts-expect-error invalid capability for the test
       prepareForFacade(planner, { model: "m", capability: "vision" }),
     ).rejects.toMatchObject({
-      code: "INVALID_INPUT",
+      code: ErrorCode.InvalidInput,
     });
   });
 
@@ -148,7 +148,7 @@ describe("prepareForFacade rejection paths", () => {
       } catch (err) {
         expect(err).toBeInstanceOf(OctomilError);
         const msg = (err as OctomilError).message;
-        expect((err as OctomilError).code).toBe("INVALID_INPUT");
+        expect((err as OctomilError).code).toBe(ErrorCode.InvalidInput);
         expect(msg).toContain(cap);
         expect(msg.toLowerCase()).toContain("tts");
       }
@@ -159,7 +159,7 @@ describe("prepareForFacade rejection paths", () => {
     const planner = fakePlannerClient(null);
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
   });
 
   it("raises RUNTIME_UNAVAILABLE when no local sdk_runtime candidate exists", async () => {
@@ -173,7 +173,7 @@ describe("prepareForFacade rejection paths", () => {
     );
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
   });
 
   it("rejects a candidate with missing download_urls", async () => {
@@ -183,7 +183,7 @@ describe("prepareForFacade rejection paths", () => {
     const planner = fakePlannerClient(plan);
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidInput });
   });
 
   it("rejects a candidate with no digest", async () => {
@@ -193,7 +193,7 @@ describe("prepareForFacade rejection paths", () => {
     const planner = fakePlannerClient(plan);
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidInput });
   });
 
   it("rejects a multi-file artifact (no per-file manifest yet)", async () => {
@@ -205,7 +205,7 @@ describe("prepareForFacade rejection paths", () => {
     const planner = fakePlannerClient(plan);
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidInput });
   });
 
   it.each([
@@ -231,7 +231,7 @@ describe("prepareForFacade rejection paths", () => {
     const planner = fakePlannerClient(plan);
     await expect(
       prepareForFacade(planner, { model: "m" }),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    ).rejects.toMatchObject({ code: ErrorCode.InvalidInput });
   });
 
   it("accepts a prepare_required=false candidate as preparable", async () => {

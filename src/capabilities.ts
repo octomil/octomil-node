@@ -7,6 +7,7 @@
  */
 
 import * as os from "node:os";
+import { ErrorCode } from "./types.js";
 import {
   discoverNativeRuntime,
   readNativeCapabilities,
@@ -125,7 +126,7 @@ function discoverNodeNativeRuntime(): CapabilityProfile["nativeRuntime"] {
       libraryPath: discovery.libraryPath,
       abi: discovery.abi,
       runtimeKind: "node-native",
-      unsupportedCode: "RUNTIME_UNAVAILABLE",
+      unsupportedCode: ErrorCode.RuntimeUnavailable,
       unsupportedReason: error instanceof Error ? error.message : String(error),
     };
   }

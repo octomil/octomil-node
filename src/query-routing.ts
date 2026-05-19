@@ -5,7 +5,7 @@
  * simple word-count + keyword thresholds locally for offline-capable routing.
  */
 
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -210,7 +210,7 @@ export class PolicyClient {
 
     if (!response.ok) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Policy fetch failed: HTTP ${response.status}`,
       );
     }

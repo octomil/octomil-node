@@ -16,6 +16,7 @@
  *                     identity (existing claim, now backed by a test).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorCode } from "../src/_generated/error_code.js";
 
 import { Octomil } from "../src/facade.js";
 
@@ -89,7 +90,7 @@ describe("audio.speech.create app/policy routing", () => {
         policy: "private",
         app: "tts-tester",
       }),
-    ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
 
     expect(captured.plan?.routing_policy).toBe("private");
     expect(captured.plan?.app_slug).toBe("tts-tester");
@@ -140,7 +141,7 @@ describe("audio.speech.create app/policy routing", () => {
         policy: "private",
         app: "tts-tester",
       }),
-    ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
     // Hosted endpoint was never hit.
     expect(fetchMock).toHaveBeenCalledOnce();
   });
@@ -198,7 +199,7 @@ describe("audio.transcriptions.create app/policy routing", () => {
         policy: "cloud_only",
         app: "eternum",
       }),
-    ).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    ).rejects.toMatchObject({ code: ErrorCode.RuntimeUnavailable });
   });
 });
 

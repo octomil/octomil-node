@@ -24,7 +24,7 @@ import type {
   RuntimeCandidatePlan,
   RuntimePlanResponse,
 } from "../planner/types.js";
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 import type { PrepareManager } from "./prepare-manager.js";
 
 /** Capabilities `prepare()` understands. Mirror of Python
@@ -123,7 +123,7 @@ export async function prepareForFacade(
   const capability: PlannerCapability = options.capability ?? "tts";
   if (!PREPAREABLE_CAPABILITIES.has(capability)) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `client.prepare() does not yet support capability ${JSON.stringify(capability)}. ` +
         `Supported today: ${Array.from(PREPAREABLE_CAPABILITIES).sort().join(", ")}. ` +
         `Other capabilities will be added once their backends thread the prepared model_dir into dispatch.`,
@@ -142,7 +142,7 @@ export async function prepareForFacade(
   });
   if (!plan) {
     throw new OctomilError(
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       "prepare: planner is unavailable (network failure or unauthorized). " +
         "Without a planner response the SDK cannot determine which artifact to materialize.",
     );
@@ -151,7 +151,7 @@ export async function prepareForFacade(
   const candidate = pickLocalSdkRuntimeCandidate(plan);
   if (!candidate) {
     throw new OctomilError(
-      "RUNTIME_UNAVAILABLE",
+      ErrorCode.RuntimeUnavailable,
       `prepare: planner returned no local sdk_runtime candidate for model=${JSON.stringify(options.model)} ` +
         `capability=${JSON.stringify(capability)}. The model is either cloud-only or the planner ` +
         `is configured to deliver via the hosted gateway.`,
@@ -267,7 +267,7 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
   const policy = candidate.prepare_policy ?? "lazy";
   if (policy === "disabled") {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "Candidate's prepare_policy is 'disabled'. The server has marked this artifact " +
         "as ineligible for SDK-side preparation; resolve via a different routing policy.",
     );
@@ -280,21 +280,21 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
   const artifact = candidate.artifact;
   if (!artifact) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "Candidate marks prepare_required=true but carries no artifact plan. " +
         "This is a server contract violation; refusing to prepare.",
     );
   }
   if (!artifact.download_urls || artifact.download_urls.length === 0) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Artifact ${JSON.stringify(artifact.artifact_id ?? artifact.model_id)} has no download_urls. ` +
         `Cannot prepare; the planner must emit at least one endpoint.`,
     );
   }
   if (!artifact.digest) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Artifact ${JSON.stringify(artifact.artifact_id ?? artifact.model_id)} has no digest. ` +
         `Refusing to prepare without integrity verification.`,
     );
@@ -302,7 +302,7 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
   const requiredFiles = artifact.required_files ?? [];
   if (requiredFiles.length > 1) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Artifact ${JSON.stringify(artifact.artifact_id ?? artifact.model_id)} lists ` +
         `${requiredFiles.length} required_files but the planner schema in this release ` +
         `only carries a single artifact-level digest. Multi-file artifacts require a ` +
@@ -319,13 +319,13 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
   const artifactId = artifact.artifact_id || artifact.model_id;
   if (!artifactId) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "Refusing to prepare artifact with empty artifact_id.",
     );
   }
   if (artifactId.includes("\u0000")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `artifact_id contains a NUL byte: ${JSON.stringify(artifactId)}`,
     );
   }
@@ -352,19 +352,19 @@ function validatePreparable(candidate: RuntimeCandidatePlan): void {
 function validateRelativePath(relativePath: string): string {
   if (relativePath === "") {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "Required file path must not be empty.",
     );
   }
   if (relativePath.includes("\u0000")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path contains a NUL byte: ${JSON.stringify(relativePath)}`,
     );
   }
   if (relativePath.includes("\\")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path uses backslashes: ${JSON.stringify(relativePath)}. ` +
         `Artifacts must be addressed with forward-slash POSIX paths.`,
     );
@@ -373,14 +373,14 @@ function validateRelativePath(relativePath: string): string {
   for (const segment of segments) {
     if (segment === "" || segment === "." || segment === "..") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `Required file path must not contain '.', '..', or empty segments: ${JSON.stringify(relativePath)}`,
       );
     }
   }
   if (relativePath.startsWith("/")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path must be relative, got: ${JSON.stringify(relativePath)}`,
     );
   }

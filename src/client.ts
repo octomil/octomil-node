@@ -22,7 +22,7 @@ import type {
   PredictOutput,
   CacheInfo,
 } from "./types.js";
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import { streamInference } from "./streaming.js";
 import type { StreamToken, StreamInput } from "./streaming.js";
 import { OctomilAudio } from "./audio/octomil-audio.js";
@@ -269,7 +269,7 @@ export class OctomilClient {
       const hash = await computeFileHash(destPath);
       if (hash !== pullResult.checksum) {
         throw new OctomilError(
-          "CHECKSUM_MISMATCH",
+          ErrorCode.ChecksumMismatch,
           `Integrity check failed for ${modelRef}`,
         );
       }

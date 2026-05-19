@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OctomilClient } from "../src/client.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // Mock all dependencies
 vi.mock("../src/model-downloader.js", () => ({
@@ -109,7 +109,7 @@ describe("OctomilClient", () => {
         (computeFileHash as any).mockResolvedValue("wrong-hash");
         await client.pull("test-model:latest");
       } catch (err) {
-        expect((err as OctomilError).code).toBe("CHECKSUM_MISMATCH");
+        expect((err as OctomilError).code).toBe(ErrorCode.ChecksumMismatch);
       }
     });
 

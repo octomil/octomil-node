@@ -1,4 +1,4 @@
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 export interface ServerClientOptions {
   serverUrl: string;
@@ -74,7 +74,7 @@ export class ServerApiClient {
       });
     } catch (error) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Request failed: ${String(error)}`,
         error,
       );
@@ -83,7 +83,7 @@ export class ServerApiClient {
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Request failed: HTTP ${response.status}${detail ? ` ${detail}` : ""}`,
       );
     }

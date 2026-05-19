@@ -9,7 +9,7 @@ import { ModelRef as ModelRefFactory } from "../model-ref.js";
 import { ModelCapability } from "../_generated/model_capability.js";
 import type { ModelRuntime } from "../runtime/core/model-runtime.js";
 import { OctomilPredictor } from "./octomil-predictor.js";
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 
 export type TextRuntimeResolver = (ref: ModelRef) => ModelRuntime | undefined;
 
@@ -45,7 +45,7 @@ export class OctomilText {
     const runtime = this.runtimeResolver(model);
     if (!runtime) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "No runtime for text prediction model",
       );
     }

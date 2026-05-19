@@ -16,7 +16,7 @@ import type {
   TranscriptionResult,
   TranscriptionSegment,
 } from "./transcription-types.js";
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 import {
   CandidateAttemptRunner,
   type AttemptLoopResult,
@@ -151,7 +151,7 @@ export class AudioTranscriptions {
     if (!result.selectedAttempt || !result.value) {
       throw (
         result.error ??
-        new OctomilError("INFERENCE_FAILED", "No transcription route succeeded")
+        new OctomilError(ErrorCode.InferenceFailed, "No transcription route succeeded")
       );
     }
 
@@ -166,7 +166,7 @@ export class AudioTranscriptions {
     const runtime = this.runtimeResolver(model);
     if (!runtime) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "No runtime for transcription model",
       );
     }
@@ -190,7 +190,7 @@ export class AudioTranscriptions {
   ): Promise<TranscriptionResult> {
     if (!this.serverUrl || !this.apiKey) {
       throw new OctomilError(
-        "AUTHENTICATION_FAILED",
+        ErrorCode.AuthenticationFailed,
         "AudioTranscriptions requires serverUrl and apiKey for cloud requests",
       );
     }
@@ -234,7 +234,7 @@ export class AudioTranscriptions {
       );
     } catch (error) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         "Audio transcription request failed",
         error,
       );
@@ -243,7 +243,7 @@ export class AudioTranscriptions {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Audio transcription failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
       );
     }

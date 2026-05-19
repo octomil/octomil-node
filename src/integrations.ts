@@ -1,4 +1,4 @@
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 export interface MetricsIntegration {
   id: string;
@@ -68,7 +68,7 @@ export class IntegrationsClient {
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new OctomilError("NETWORK_UNAVAILABLE", `Request failed (${resp.status}): ${text}`);
+      throw new OctomilError(ErrorCode.NetworkUnavailable, `Request failed (${resp.status}): ${text}`);
     }
     if (resp.status === 204 || resp.headers.get("content-length") === "0") {
       return undefined as T;

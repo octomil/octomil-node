@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FacadeCache, Octomil } from "../src/facade.js";
 import { NativeRuntime } from "../src/runtime/native/loader.js";
 import type { NativeCacheSnapshot } from "../src/runtime/native/loader.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ── 1. Facade existence ───────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ describe("FacadeCache — fail-closed without native runtime", () => {
     } catch (err) {
       if (err instanceof OctomilError) {
         // Bounded error codes — runtime absence surfaces as RUNTIME_UNAVAILABLE.
-        expect(["RUNTIME_UNAVAILABLE", "CHECKSUM_MISMATCH"]).toContain(err.code);
+        expect([ErrorCode.RuntimeUnavailable, ErrorCode.ChecksumMismatch]).toContain(err.code);
       }
     }
   });
@@ -132,7 +132,7 @@ describe("FacadeCache — stub snapshot shape", () => {
     const openSpy = vi.spyOn(NativeRuntime, "open").mockImplementation(() => {
       return {
         cacheIntrospect: vi.fn().mockImplementation(() => {
-          throw new OctomilError("RUNTIME_UNAVAILABLE", "cache introspect failed in test");
+          throw new OctomilError(ErrorCode.RuntimeUnavailable, "cache introspect failed in test");
         }),
         close: closeFn,
       } as unknown as InstanceType<typeof NativeRuntime>;

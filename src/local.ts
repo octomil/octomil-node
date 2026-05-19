@@ -13,7 +13,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,7 +63,7 @@ export async function discoverLocalRunner(
 
   // No runner found
   throw new OctomilError(
-    "RUNTIME_UNAVAILABLE",
+    ErrorCode.RuntimeUnavailable,
     "Local runner not available. Install the Octomil CLI (pip install octomil) " +
       "and run 'octomil local endpoint --model <model>' to start a local runner, " +
       "or set OCTOMIL_LOCAL_RUNNER_URL and OCTOMIL_LOCAL_RUNNER_TOKEN environment variables.",
@@ -150,7 +150,7 @@ export async function localRunnerPost(
     });
   } catch (err) {
     throw new OctomilError(
-      "NETWORK_UNAVAILABLE",
+      ErrorCode.NetworkUnavailable,
       "Failed to connect to local runner. Ensure the runner is started.",
       err,
     );
@@ -159,7 +159,7 @@ export async function localRunnerPost(
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       `Local runner request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
     );
   }
@@ -189,7 +189,7 @@ export async function localRunnerMultipartPost(
     });
   } catch (err) {
     throw new OctomilError(
-      "NETWORK_UNAVAILABLE",
+      ErrorCode.NetworkUnavailable,
       "Failed to connect to local runner. Ensure the runner is started.",
       err,
     );
@@ -198,7 +198,7 @@ export async function localRunnerMultipartPost(
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       `Local runner request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
     );
   }
