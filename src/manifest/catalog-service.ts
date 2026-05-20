@@ -10,7 +10,7 @@ import { LocalFileModelRuntime } from "../runtime/engines/local-file-runtime.js"
 import { ModelReadinessManager } from "./readiness-manager.js";
 import type { AppManifest, AppModelEntry, ResourceBindings } from "./types.js";
 import type { ModelRef } from "../model-ref.js";
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,7 +111,7 @@ export class ModelCatalogService {
   private bootstrapBundled(entry: AppModelEntry): void {
     if (!entry.bundledPath) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `Bundled model '${entry.id}' has no bundledPath`,
       );
     }
@@ -135,7 +135,7 @@ export class ModelCatalogService {
   private bootstrapCloud(entry: AppModelEntry): void {
     if (!this.cloudRuntimeFactory) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `No cloud runtime factory for model '${entry.id}'`,
       );
     }

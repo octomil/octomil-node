@@ -23,6 +23,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { ErrorCode } from "../src/_generated/error_code.js";
 import koffi from "koffi";
 import { RuntimeCapability } from "../src/_generated/runtime_capability.js";
 import {
@@ -233,7 +234,7 @@ describe("NativeSession with minor-11 runtime, no capability", () => {
     }
     expect(caught).toBeInstanceOf(NativeRuntimeError);
     const err = caught as NativeRuntimeError;
-    expect(err.code).toBe("RUNTIME_UNAVAILABLE");
+    expect(err.code).toBe(ErrorCode.RuntimeUnavailable);
     expect(err.message).toContain(RuntimeCapability.EmbeddingsImage);
   });
 });

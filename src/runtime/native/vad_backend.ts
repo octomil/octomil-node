@@ -25,7 +25,7 @@
  */
 
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
-import { OctomilError } from "../../types.js";
+import { OctomilError, ErrorCode} from "../../types.js";
 import {
   NativeRuntime,
   NativeRuntimeError,
@@ -66,33 +66,33 @@ function runtimeStatusToSdkError(
   // Bounded mapping — mirrors Python error_mapping.map_oct_status with
   // default_unsupported_code = RUNTIME_UNAVAILABLE.
   if (status === 3 /* NOT_FOUND */) {
-    return new OctomilError("MODEL_NOT_FOUND", message);
+    return new OctomilError(ErrorCode.ModelNotFound, message);
   }
   if (status === 1 /* INVALID_INPUT */) {
-    return new OctomilError("INVALID_INPUT", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.InvalidInput, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 2 /* UNSUPPORTED */) {
     if (lastError.toLowerCase().includes("digest")) {
       return new OctomilError(
-        "CHECKSUM_MISMATCH",
+        ErrorCode.ChecksumMismatch,
         lastError ? `${message}: ${lastError}` : message,
       );
     }
-    return new OctomilError("RUNTIME_UNAVAILABLE", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 8 /* VERSION_MISMATCH */) {
-    return new OctomilError("RUNTIME_UNAVAILABLE", message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, message);
   }
   if (status === 6 /* CANCELLED */) {
-    return new OctomilError("CANCELLED", message);
+    return new OctomilError(ErrorCode.Cancelled, message);
   }
   if (status === 5 /* TIMEOUT */) {
-    return new OctomilError("REQUEST_TIMEOUT", message);
+    return new OctomilError(ErrorCode.RequestTimeout, message);
   }
   if (status === 4 /* BUSY */) {
-    return new OctomilError("SERVER_ERROR", message);
+    return new OctomilError(ErrorCode.ServerError, message);
   }
-  return new OctomilError("INFERENCE_FAILED", lastError ? `${message}: ${lastError}` : message);
+  return new OctomilError(ErrorCode.InferenceFailed, lastError ? `${message}: ${lastError}` : message);
 }
 
 // ── Input validation ──────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ function validateChunkPcmF32(
 ): Float32Array {
   if (sampleRateHz !== VAD_SAMPLE_RATE_HZ) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `native VAD: sample_rate_hz must be ${VAD_SAMPLE_RATE_HZ} ` +
         `(silero VAD is mono-16kHz-only in v0.1.5); got ${sampleRateHz}`,
     );
@@ -111,13 +111,13 @@ function validateChunkPcmF32(
   const arr =
     samples instanceof Float32Array ? samples : new Float32Array(samples);
   if (arr.length === 0) {
-    throw new OctomilError("INVALID_INPUT", "native VAD: zero-length audio buffer");
+    throw new OctomilError(ErrorCode.InvalidInput, "native VAD: zero-length audio buffer");
   }
   // Non-finite check (mirrors Python's NaN/Inf guard).
   for (let i = 0; i < arr.length; i += 1) {
     if (!isFinite(arr[i] as number)) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "native VAD: audio contains NaN or Inf samples",
       );
     }
@@ -171,7 +171,7 @@ export class VadStreamingSession {
   feedChunk(audio: Float32Array | number[], sampleRateHz?: number): void {
     if (this._closed || this._nativeSession === null) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "VadStreamingSession.feedChunk: session is closed",
       );
     }
@@ -204,7 +204,7 @@ export class VadStreamingSession {
   } = {}): IterableIterator<VadTransition> {
     if (this._closed || this._nativeSession === null) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "VadStreamingSession.pollTransitions: session is closed",
       );
     }
@@ -213,7 +213,7 @@ export class VadStreamingSession {
     const resolvedDeadlineMs = opts.deadlineMs ?? DEFAULT_DEADLINE_MS;
     if (resolvedDeadlineMs <= 0) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `VadStreamingSession.pollTransitions: deadlineMs must be > 0; got ${resolvedDeadlineMs}`,
       );
     }
@@ -274,7 +274,7 @@ export class VadStreamingSession {
 
     if (drainUntilCompleted) {
       throw new OctomilError(
-        "REQUEST_TIMEOUT",
+        ErrorCode.RequestTimeout,
         `VadStreamingSession.pollTransitions: timed out after ${resolvedDeadlineMs} ms waiting for SESSION_COMPLETED`,
       );
     }
@@ -342,7 +342,7 @@ export class NativeVadBackend {
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native VAD backend: dylib not found (${(err as Error).message ?? err})`,
       );
     }
@@ -352,14 +352,14 @@ export class NativeVadBackend {
       this.close();
       if (probeLastError.toLowerCase().includes("digest")) {
         throw new OctomilError(
-          "CHECKSUM_MISMATCH",
+          ErrorCode.ChecksumMismatch,
           "native VAD backend: ggml-silero-v6.2.0.bin SHA-256 does not match " +
             "the v0.1.5 runtime-pinned digest (2aa269b7…fb6987). " +
             `Re-download the artifact. Runtime diagnostic: ${probeLastError}`,
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "native VAD backend: runtime does not advertise 'audio.vad'. " +
           "Check OCTOMIL_SILERO_VAD_MODEL (must point at ggml-silero-v6.2.0.bin " +
           "with SHA-256 2aa269b7…fb6987) and that the dylib was built with " +
@@ -373,7 +373,7 @@ export class NativeVadBackend {
   openSession(sampleRateHz = VAD_SAMPLE_RATE_HZ): VadStreamingSession {
     if (sampleRateHz !== VAD_SAMPLE_RATE_HZ) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `NativeVadBackend: sample_rate_hz must be ${VAD_SAMPLE_RATE_HZ} ` +
           `(silero VAD is mono-16kHz-only in v0.1.5); got ${sampleRateHz}`,
       );

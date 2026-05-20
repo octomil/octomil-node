@@ -8,7 +8,7 @@ import {
   discoverNativeRuntime,
   requireNativeCapability,
 } from "../../src/runtime/native/index.js";
-import { OctomilError } from "../../src/types.js";
+import { OctomilError, ErrorCode} from "../../src/types.js";
 import { buildNativeRuntimeStub } from "../helpers/native-runtime-stub.js";
 
 function requireStubLibrary(capabilities: string[], abiMinor = 10): string {
@@ -84,7 +84,7 @@ describe("Node native runtime bridge conformance", () => {
     try {
       const discovery = discoverNativeRuntime();
       expect(discovery.available).toBe(false);
-      expect(discovery.unsupportedCode).toBe("RUNTIME_UNAVAILABLE");
+      expect(discovery.unsupportedCode).toBe(ErrorCode.RuntimeUnavailable);
 
       expect(() => NativeRuntime.open()).toThrow(OctomilError);
       expect(() => NativeRuntime.open()).toThrow(
@@ -115,7 +115,7 @@ describe("Node native runtime bridge conformance", () => {
     const discovery = discoverNativeRuntime({ libraryPath });
 
     expect(discovery.available).toBe(false);
-    expect(discovery.unsupportedCode).toBe("RUNTIME_UNAVAILABLE");
+    expect(discovery.unsupportedCode).toBe(ErrorCode.RuntimeUnavailable);
     expect(discovery.unsupportedReason).toContain("ABI 0.8.0");
   });
 

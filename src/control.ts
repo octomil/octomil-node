@@ -16,7 +16,7 @@
  * SyncManager.
  */
 
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import { hostname, platform, arch, release, totalmem } from "node:os";
 import { getSdkVersion } from "./telemetry.js";
 import { SPAN_NAMES } from "./_generated/span_names.js";
@@ -231,7 +231,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Device registration failed: ${String(err)}`,
         err,
       );
@@ -240,7 +240,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Device registration failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -280,7 +280,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Heartbeat failed: ${String(err)}`,
         err,
       );
@@ -289,7 +289,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Heartbeat failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -317,7 +317,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Assignment refresh failed: ${String(err)}`,
         err,
       );
@@ -326,7 +326,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Assignment refresh failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -409,7 +409,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Report observed state failed: ${String(err)}`,
         err,
       );
@@ -418,7 +418,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Report observed state failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -456,7 +456,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Fetch desired state failed: ${String(err)}`,
         err,
       );
@@ -465,7 +465,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Fetch desired state failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -500,7 +500,7 @@ export class ControlClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Device sync failed: ${String(err)}`,
         err,
       );
@@ -509,7 +509,7 @@ export class ControlClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Device sync failed: HTTP ${response.status}${text ? ` — ${text}` : ""}`,
       );
     }
@@ -563,7 +563,7 @@ export class ControlClient {
   private getDeviceIdOrThrow(): string {
     if (!this.deviceId) {
       throw new OctomilError(
-        "DEVICE_NOT_REGISTERED",
+        ErrorCode.DeviceNotRegistered,
         "Device not registered. Call register() first.",
       );
     }

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Model } from "../src/model.js";
 import type { InferenceEngine, SessionResult } from "../src/runtime/engines/onnx/engine.js";
 import type { TelemetryReporter } from "../src/telemetry.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 describe("Model", () => {
   let mockEngine: InferenceEngine;
@@ -96,7 +96,7 @@ describe("Model", () => {
       await model.predict({ raw: new Float32Array([1]), dims: [1] });
     } catch (err) {
       expect(err).toBeInstanceOf(OctomilError);
-      expect((err as OctomilError).code).toBe("MODEL_LOAD_FAILED");
+      expect((err as OctomilError).code).toBe(ErrorCode.ModelLoadFailed);
     }
   });
 
@@ -109,7 +109,7 @@ describe("Model", () => {
       await model.load();
     } catch (err) {
       expect(err).toBeInstanceOf(OctomilError);
-      expect((err as OctomilError).code).toBe("CANCELLED");
+      expect((err as OctomilError).code).toBe(ErrorCode.Cancelled);
     }
   });
 

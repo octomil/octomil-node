@@ -1,6 +1,6 @@
 import type { ModelRuntime } from "../../core/model-runtime.js";
 import type { LoadOptions, PredictInput, PredictOutput, NamedTensors, TensorData } from "../../../types.js";
-import { OctomilError } from "../../../types.js";
+import { OctomilError, ErrorCode} from "../../../types.js";
 
 export interface SessionResult {
   session: unknown;
@@ -33,7 +33,7 @@ export class InferenceEngine implements ModelRuntime {
       ort = await import("onnxruntime-node");
     } catch {
       throw new OctomilError(
-        "MODEL_LOAD_FAILED",
+        ErrorCode.ModelLoadFailed,
         "onnxruntime-node is not installed. Run: pnpm add onnxruntime-node",
       );
     }
@@ -67,14 +67,14 @@ export class InferenceEngine implements ModelRuntime {
           session = await ort.InferenceSession.create(filePath, sessionOptions);
         } catch (fallbackErr) {
           throw new OctomilError(
-            "MODEL_LOAD_FAILED",
+            ErrorCode.ModelLoadFailed,
             `Failed to load model: ${String(fallbackErr)}`,
             fallbackErr,
           );
         }
       } else {
         throw new OctomilError(
-          "MODEL_LOAD_FAILED",
+          ErrorCode.ModelLoadFailed,
           `Failed to load model: ${String(err)}`,
           err,
         );
@@ -102,7 +102,7 @@ export class InferenceEngine implements ModelRuntime {
     try {
       ort = await import("onnxruntime-node");
     } catch {
-      throw new OctomilError("INFERENCE_FAILED", "onnxruntime-node is not installed");
+      throw new OctomilError(ErrorCode.InferenceFailed, "onnxruntime-node is not installed");
     }
 
     const ortSession = maybeInput === undefined
@@ -114,7 +114,7 @@ export class InferenceEngine implements ModelRuntime {
 
     if (!ortSession) {
       throw new OctomilError(
-        "MODEL_LOAD_FAILED",
+        ErrorCode.ModelLoadFailed,
         "No active session. Call createSession() first.",
       );
     }
@@ -155,7 +155,7 @@ export class InferenceEngine implements ModelRuntime {
       }
     } catch (err) {
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Inference failed: ${String(err)}`,
         err,
       );

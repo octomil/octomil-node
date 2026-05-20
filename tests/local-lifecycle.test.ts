@@ -6,7 +6,7 @@ import {
 } from "../src/local-lifecycle.js";
 import type { LocalLifecycleStatus, LocalCacheStatus } from "../src/local-lifecycle.js";
 import { Octomil } from "../src/facade.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // Mock configure() and auth-config so we don't hit the network
@@ -232,7 +232,7 @@ describe("local unavailable behavior", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(OctomilError);
       const octErr = err as OctomilError;
-      expect(octErr.code).toBe("RUNTIME_UNAVAILABLE");
+      expect(octErr.code).toBe(ErrorCode.RuntimeUnavailable);
       expect(octErr.message).toContain("pip install octomil");
       expect(octErr.message).toContain("OCTOMIL_LOCAL_RUNNER_URL");
     }

@@ -42,7 +42,7 @@ import { NativeRuntime } from "../src/runtime/native/index.js";
 import { NativeSpeakerEmbeddingBackend } from "../src/runtime/native/speaker_backend.js";
 import { NativeTtsStreamBackend } from "../src/runtime/native/tts_stream_backend.js";
 import { NativeVadBackend } from "../src/runtime/native/vad_backend.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 import { buildNativeRuntimeStub } from "./helpers/native-runtime-stub.js";
 
 // ── Stub compilation ──────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ describeWhenStubAvailable(
         } catch (err) {
           if (err instanceof OctomilError) {
             // Both codes are valid bounded errors for a missing dylib.
-            expect(["RUNTIME_UNAVAILABLE", "INFERENCE_FAILED"]).toContain(err.code);
+            expect([ErrorCode.RuntimeUnavailable, ErrorCode.InferenceFailed]).toContain(err.code);
           }
         }
       } finally {

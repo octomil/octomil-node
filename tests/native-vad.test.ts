@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { FacadeVad, VadSegment } from "../src/audio/vad.js";
 import { NativeVadBackend, VadStreamingSession } from "../src/runtime/native/vad_backend.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ── 1. Facade existence ───────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ describe("FacadeVad — fail-closed without native runtime", () => {
       if (err instanceof OctomilError) {
         // Bounded taxonomy: RUNTIME_UNAVAILABLE / CHECKSUM_MISMATCH when dylib absent;
         // INFERENCE_FAILED when runtime opens but capability not configured.
-        expect(["RUNTIME_UNAVAILABLE", "CHECKSUM_MISMATCH", "INFERENCE_FAILED"]).toContain(err.code);
+        expect([ErrorCode.RuntimeUnavailable, ErrorCode.ChecksumMismatch, ErrorCode.InferenceFailed]).toContain(err.code);
       }
     }
   });
@@ -75,7 +75,7 @@ describe("FacadeVad — fail-closed without native runtime", () => {
       backend.openSession(8000);
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });

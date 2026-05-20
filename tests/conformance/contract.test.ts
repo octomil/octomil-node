@@ -26,9 +26,10 @@ import {
 
 describe("Contract Conformance", () => {
   describe("ErrorCode enum", () => {
-    it("has all 39 canonical error codes", () => {
+    it("has all 65 canonical error codes (vendored from octomil-contracts)", () => {
       const codes = Object.values(ErrorCode);
-      expect(codes).toHaveLength(39);
+      expect(codes).toHaveLength(65);
+      // Core codes that must always be present
       expect(codes).toContain("network_unavailable");
       expect(codes).toContain("request_timeout");
       expect(codes).toContain("server_error");
@@ -51,6 +52,31 @@ describe("Contract Conformance", () => {
       expect(codes).toContain("training_failed");
       expect(codes).toContain("training_not_supported");
       expect(codes).toContain("weight_upload_failed");
+      // New codes added in expanded catalog
+      expect(codes).toContain("insufficient_scope");
+      expect(codes).toContain("missing_org_context");
+      expect(codes).toContain("no_default_model");
+      expect(codes).toContain("capability_not_supported");
+      expect(codes).toContain("previous_response_not_found");
+      expect(codes).toContain("app_not_found");
+      expect(codes).toContain("capability_not_configured");
+      expect(codes).toContain("app_context_conflict");
+      expect(codes).toContain("invalid_model_ref");
+      expect(codes).toContain("version_not_found");
+      expect(codes).toContain("provider_error");
+      expect(codes).toContain("upstream_provider_error");
+      expect(codes).toContain("too_many_tools");
+      expect(codes).toContain("unsupported_tool_calling");
+      expect(codes).toContain("stream_interrupted");
+      expect(codes).toContain("cloud_inference_not_allowed");
+      expect(codes).toContain("hosted_tts_disabled");
+      expect(codes).toContain("plan_limit_exceeded");
+      expect(codes).toContain("max_tool_rounds_exceeded");
+      expect(codes).toContain("incident_not_found");
+      expect(codes).toContain("deployment_not_found");
+      expect(codes).toContain("experiment_not_found");
+      expect(codes).toContain("experiment_state_invalid");
+      expect(codes).toContain("app_backgrounded");
     });
   });
 

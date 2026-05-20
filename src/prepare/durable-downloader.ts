@@ -23,7 +23,7 @@ import { pipeline } from "node:stream/promises";
 import { createWriteStream } from "node:fs";
 import * as path from "node:path";
 
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 import { safeJoinUnder, safeJoinUnderSync } from "./safe-join.js";
 
 export interface DownloadEndpoint {
@@ -64,14 +64,14 @@ const SUPPORTED_DIGEST_ALGOS: ReadonlySet<string> = new Set(["sha256"]);
 export function parseDigest(digest: string): { algo: string; hex: string } {
   if (!digest || typeof digest !== "string") {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `digest must be a non-empty string, got ${JSON.stringify(digest)}`,
     );
   }
   const idx = digest.indexOf(":");
   if (idx <= 0 || idx === digest.length - 1) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `digest must be 'algo:hex', got ${JSON.stringify(digest)}`,
     );
   }
@@ -79,14 +79,14 @@ export function parseDigest(digest: string): { algo: string; hex: string } {
   const hex = digest.slice(idx + 1).toLowerCase();
   if (!SUPPORTED_DIGEST_ALGOS.has(algo)) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Unsupported digest algorithm ${JSON.stringify(algo)}. ` +
         `Supported: ${Array.from(SUPPORTED_DIGEST_ALGOS).join(", ")}.`,
     );
   }
   if (!/^[0-9a-f]+$/.test(hex)) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `digest hex contains non-hex characters: ${JSON.stringify(hex)}`,
     );
   }
@@ -97,7 +97,7 @@ export function parseDigest(digest: string): { algo: string; hex: string } {
 export async function fileDigest(filePath: string, algo = "sha256"): Promise<string> {
   if (!SUPPORTED_DIGEST_ALGOS.has(algo)) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Unsupported digest algorithm ${JSON.stringify(algo)}.`,
     );
   }
@@ -155,7 +155,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
 
   if (!options.endpoints || options.endpoints.length === 0) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "downloadOne: at least one endpoint is required.",
     );
   }
@@ -171,7 +171,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
       });
       if (!resp.ok || !resp.body) {
         lastError = new OctomilError(
-          "DOWNLOAD_FAILED",
+          ErrorCode.DownloadFailed,
           `prepare: download from ${ep.url} failed (${resp.status} ${resp.statusText})`,
         );
         continue;
@@ -211,7 +211,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
       if (computed !== options.digest) {
         await fsp.unlink(partPath).catch(() => {});
         throw new OctomilError(
-          "DOWNLOAD_FAILED",
+          ErrorCode.DownloadFailed,
           `prepare: digest mismatch on ${ep.url}: expected ${options.digest} got ${computed}`,
         );
       }
@@ -232,7 +232,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
   throw lastError instanceof Error
     ? lastError
     : new OctomilError(
-        "DOWNLOAD_FAILED",
+        ErrorCode.DownloadFailed,
         "prepare: all download endpoints failed without a recoverable error.",
       );
 }

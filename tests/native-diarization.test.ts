@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { FacadeDiarization } from "../src/audio/diarization.js";
 import { NativeDiarizationBackend } from "../src/runtime/native/diarization_backend.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ── 1. Facade existence ───────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ describe("FacadeDiarization — fail-closed without native runtime", () => {
       if (err instanceof OctomilError) {
         // Bounded: RUNTIME_UNAVAILABLE when dylib absent; INFERENCE_FAILED when
         // runtime opens but capability not configured.
-        expect(["RUNTIME_UNAVAILABLE", "CHECKSUM_MISMATCH", "INFERENCE_FAILED"]).toContain(err.code);
+        expect([ErrorCode.RuntimeUnavailable, ErrorCode.ChecksumMismatch, ErrorCode.InferenceFailed]).toContain(err.code);
       }
     }
   });
@@ -79,7 +79,7 @@ describe("FacadeDiarization — fail-closed without native runtime", () => {
       backend.diarize(audio, { sampleRateHz: 8000 });
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });
@@ -103,7 +103,7 @@ describe("FacadeDiarization — fail-closed without native runtime", () => {
       backend.diarize(empty, { sampleRateHz: 16000 });
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });

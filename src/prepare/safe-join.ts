@@ -19,7 +19,7 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 
 /** Reject relative paths that we should never write to disk.
  *
@@ -32,19 +32,19 @@ import { OctomilError } from "../types.js";
 export function validateRelativePath(relativePath: string): string {
   if (relativePath === "") {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       "Required file path must not be empty.",
     );
   }
   if (relativePath.includes("\u0000")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path contains a NUL byte: ${JSON.stringify(relativePath)}`,
     );
   }
   if (relativePath.includes("\\")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path uses backslashes: ${JSON.stringify(relativePath)}. ` +
         `Artifacts must be addressed with forward-slash POSIX paths.`,
     );
@@ -53,14 +53,14 @@ export function validateRelativePath(relativePath: string): string {
   for (const segment of segments) {
     if (segment === "" || segment === "." || segment === "..") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `Required file path must not contain '.', '..', or empty segments: ${JSON.stringify(relativePath)}`,
       );
     }
   }
   if (relativePath.startsWith("/")) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path must be relative, got: ${JSON.stringify(relativePath)}`,
     );
   }
@@ -88,7 +88,7 @@ export function safeJoinUnderSync(destDir: string, relativePath: string): string
   const baseWithSep = baseAbs.endsWith(path.sep) ? baseAbs : baseAbs + path.sep;
   if (candidate !== baseAbs && !candidate.startsWith(baseWithSep)) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path resolves outside the artifact directory: ` +
         `${JSON.stringify(relativePath)} -> ${candidate}`,
     );
@@ -125,7 +125,7 @@ export async function safeJoinUnder(
     !candidateResolved.startsWith(baseWithSep)
   ) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `Required file path resolves outside the artifact directory: ` +
         `${JSON.stringify(relativePath)} -> ${candidateResolved}`,
     );

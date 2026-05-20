@@ -25,7 +25,7 @@
  */
 
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
-import { OctomilError } from "../../types.js";
+import { OctomilError, ErrorCode} from "../../types.js";
 import {
   NativeModel,
   NativeRuntime,
@@ -73,33 +73,33 @@ function runtimeStatusToSdkError(
   lastError = "",
 ): OctomilError {
   if (status === 3 /* NOT_FOUND */) {
-    return new OctomilError("MODEL_NOT_FOUND", message);
+    return new OctomilError(ErrorCode.ModelNotFound, message);
   }
   if (status === 1 /* INVALID_INPUT */) {
-    return new OctomilError("INVALID_INPUT", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.InvalidInput, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 2 /* UNSUPPORTED */) {
     if (lastError.toLowerCase().includes("digest")) {
       return new OctomilError(
-        "CHECKSUM_MISMATCH",
+        ErrorCode.ChecksumMismatch,
         lastError ? `${message}: ${lastError}` : message,
       );
     }
-    return new OctomilError("RUNTIME_UNAVAILABLE", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 8 /* VERSION_MISMATCH */) {
-    return new OctomilError("RUNTIME_UNAVAILABLE", message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, message);
   }
   if (status === 6 /* CANCELLED */) {
-    return new OctomilError("CANCELLED", message);
+    return new OctomilError(ErrorCode.Cancelled, message);
   }
   if (status === 5 /* TIMEOUT */) {
-    return new OctomilError("REQUEST_TIMEOUT", message);
+    return new OctomilError(ErrorCode.RequestTimeout, message);
   }
   if (status === 4 /* BUSY */) {
-    return new OctomilError("SERVER_ERROR", message);
+    return new OctomilError(ErrorCode.ServerError, message);
   }
-  return new OctomilError("INFERENCE_FAILED", lastError ? `${message}: ${lastError}` : message);
+  return new OctomilError(ErrorCode.InferenceFailed, lastError ? `${message}: ${lastError}` : message);
 }
 
 // ── NativeTtsStreamBackend ────────────────────────────────────────────────
@@ -155,7 +155,7 @@ export class NativeTtsStreamBackend {
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native TTS-stream backend: dylib not found (${(err as Error).message ?? err})`,
       );
     }
@@ -165,13 +165,13 @@ export class NativeTtsStreamBackend {
       this.close();
       if (lastErr.includes("digest")) {
         throw new OctomilError(
-          "CHECKSUM_MISMATCH",
+          ErrorCode.ChecksumMismatch,
           "native TTS-stream backend: sherpa-onnx TTS model SHA-256 does not match " +
             "the canonical pin. Re-download the artifact.",
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "native TTS-stream backend: runtime does not advertise 'audio.tts.stream'. " +
           "Check OCTOMIL_SHERPA_TTS_MODEL (must point at the pinned VITS .onnx with sibling " +
           "tokens.txt + espeak-ng-data/) and that the dylib was built with OCT_HAVE_SHERPA_ONNX_TTS.",
@@ -182,7 +182,7 @@ export class NativeTtsStreamBackend {
     if (!resolvedModelPath) {
       this.close();
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native TTS-stream backend: ${TTS_MODEL_ENV} not set.`,
       );
     }
@@ -217,7 +217,7 @@ export class NativeTtsStreamBackend {
     if (!v) return "0";
     if (!/^\d+$/.test(v)) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `native TTS-stream: voice ${JSON.stringify(voice)} is not a non-negative integer sid string. ` +
           "sherpa-onnx accepts numeric speaker ids only at the runtime ABI; pass voice=\"0\" for the model default.",
       );
@@ -262,24 +262,24 @@ export class NativeTtsStreamBackend {
   ): IterableIterator<TtsAudioChunk> {
     if (this._runtime === null) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "NativeTtsStreamBackend.synthesizeWithChunks called before loadModel",
       );
     }
     if (this._model === null) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "NativeTtsStreamBackend.synthesizeWithChunks: model not warmed; loadModel() must succeed first",
       );
     }
     if (typeof text !== "string" || !text.trim()) {
-      throw new OctomilError("INVALID_INPUT", "native TTS-stream: text must be a non-empty string");
+      throw new OctomilError(ErrorCode.InvalidInput, "native TTS-stream: text must be a non-empty string");
     }
 
     const resolvedDeadlineMs = opts.deadlineMs ?? this._defaultDeadlineMs;
     if (resolvedDeadlineMs <= 0) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `deadline_ms must be > 0; got ${resolvedDeadlineMs}.`,
       );
     }
@@ -375,19 +375,19 @@ export class NativeTtsStreamBackend {
           if (!tts) continue;
           if (tts.sampleFormat !== OCT_SAMPLE_FORMAT_PCM_F32LE) {
             throw new OctomilError(
-              "INVALID_INPUT",
+              ErrorCode.InvalidInput,
               `native TTS-stream: unexpected sample_format ${tts.sampleFormat} (expected PCM_F32LE)`,
             );
           }
           if (tts.channels !== 1) {
             throw new OctomilError(
-              "INVALID_INPUT",
+              ErrorCode.InvalidInput,
               `native TTS-stream: unexpected channels ${tts.channels} (expected mono=1)`,
             );
           }
           if (tts.sampleRate <= 0) {
             throw new OctomilError(
-              "INFERENCE_FAILED",
+              ErrorCode.InferenceFailed,
               "native TTS-stream: zero / negative sample_rate on chunk",
             );
           }
@@ -433,7 +433,7 @@ export class NativeTtsStreamBackend {
 
       if (Date.now() >= deadline) {
         throw new OctomilError(
-          "REQUEST_TIMEOUT",
+          ErrorCode.RequestTimeout,
           `native TTS-stream backend timed out waiting for SESSION_COMPLETED (${resolvedDeadlineMs}ms)`,
         );
       }
@@ -447,7 +447,7 @@ export class NativeTtsStreamBackend {
       }
       if (!sawFinalChunk) {
         throw new OctomilError(
-          "INFERENCE_FAILED",
+          ErrorCode.InferenceFailed,
           "native TTS-stream: SESSION_COMPLETED(OK) without a preceding TTS_AUDIO_CHUNK with is_final=1",
         );
       }

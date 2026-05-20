@@ -2,7 +2,7 @@ import type { InferenceEngine } from "./runtime/engines/onnx/engine.js";
 import type { RoutingClient, DeviceCapabilities } from "./routing.js";
 import type { TelemetryReporter } from "./telemetry.js";
 import type { LoadOptions, PredictInput, PredictOutput } from "./types.js";
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 export class Model {
   private engine: InferenceEngine;
@@ -86,7 +86,7 @@ export class Model {
 
   async load(options?: LoadOptions): Promise<this> {
     if (this._disposed) {
-      throw new OctomilError("CANCELLED", "Model has been disposed");
+      throw new OctomilError(ErrorCode.Cancelled, "Model has been disposed");
     }
     const start = performance.now();
     const result = await this.engine.createSession(this.filePath, options);
@@ -105,10 +105,10 @@ export class Model {
 
   async predict(input: PredictInput): Promise<PredictOutput> {
     if (!this.isLoaded) {
-      throw new OctomilError("MODEL_LOAD_FAILED", "Model not loaded. Call load() first.");
+      throw new OctomilError(ErrorCode.ModelLoadFailed, "Model not loaded. Call load() first.");
     }
     if (this._disposed) {
-      throw new OctomilError("CANCELLED", "Model has been disposed");
+      throw new OctomilError(ErrorCode.Cancelled, "Model has been disposed");
     }
 
     // Attempt cloud routing if configured.
@@ -141,10 +141,10 @@ export class Model {
    */
   async warmup(): Promise<void> {
     if (!this.isLoaded) {
-      throw new OctomilError("MODEL_LOAD_FAILED", "Model not loaded. Call load() first.");
+      throw new OctomilError(ErrorCode.ModelLoadFailed, "Model not loaded. Call load() first.");
     }
     if (this._disposed) {
-      throw new OctomilError("CANCELLED", "Model has been disposed");
+      throw new OctomilError(ErrorCode.Cancelled, "Model has been disposed");
     }
 
     // Build a minimal dummy input using the session's declared input names.

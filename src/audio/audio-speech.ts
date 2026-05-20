@@ -12,7 +12,7 @@
  * Mirrors Python's NativeTtsStreamBackend.synthesize_with_chunks().
  */
 
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 import {
   NativeTtsStreamBackend,
   type TtsAudioChunk,
@@ -123,14 +123,14 @@ export class AudioSpeech {
   constructor(options: AudioSpeechOptions) {
     if (!options.serverUrl) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "AudioSpeech requires a serverUrl. Construct OctomilClient with serverUrl/apiKey for hosted speech.",
       );
     }
     const trimmed = options.serverUrl.replace(/\/+$/, "");
     if (/\/api(\/v1)?$/.test(trimmed)) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `Legacy control-plane base URLs are not supported by hosted clients; ` +
           `got '${options.serverUrl}'. Use https://api.octomil.com/v1.`,
       );
@@ -144,7 +144,7 @@ export class AudioSpeech {
   async create(request: SpeechCreateRequest): Promise<SpeechResponse> {
     if (!request.input || !request.input.trim()) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "`input` must be a non-empty string.",
       );
     }
@@ -176,7 +176,7 @@ export class AudioSpeech {
       // network error so callers checking `error.code` see the same
       // contract as audio.transcriptions.
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Hosted speech network failure: ${(cause as Error)?.message ?? cause}`,
         cause,
       );
@@ -185,7 +185,7 @@ export class AudioSpeech {
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Hosted speech request failed: ${resp.status} ${resp.statusText}: ${text.slice(0, 500)}`,
       );
     }

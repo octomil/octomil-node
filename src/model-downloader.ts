@@ -4,7 +4,7 @@ import { Readable, Transform } from "node:stream";
 import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import type { PullResult } from "./types.js";
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 
 export class ModelDownloader {
   constructor(
@@ -35,7 +35,7 @@ export class ModelDownloader {
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       throw new OctomilError(
-        "MODEL_NOT_FOUND",
+        ErrorCode.ModelNotFound,
         `Registry resolve failed (${resp.status}): ${text}`,
       );
     }
@@ -61,7 +61,7 @@ export class ModelDownloader {
     const resp = await fetch(url);
     if (!resp.ok || !resp.body) {
       throw new OctomilError(
-        "DOWNLOAD_FAILED",
+        ErrorCode.DownloadFailed,
         `Download failed (${resp.status})`,
       );
     }

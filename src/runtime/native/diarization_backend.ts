@@ -23,7 +23,7 @@
  */
 
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
-import { OctomilError } from "../../types.js";
+import { OctomilError, ErrorCode} from "../../types.js";
 import {
   NativeRuntime,
   NativeRuntimeError,
@@ -61,33 +61,33 @@ function runtimeStatusToSdkError(
   lastError = "",
 ): OctomilError {
   if (status === 3 /* NOT_FOUND */) {
-    return new OctomilError("MODEL_NOT_FOUND", message);
+    return new OctomilError(ErrorCode.ModelNotFound, message);
   }
   if (status === 1 /* INVALID_INPUT */) {
-    return new OctomilError("INVALID_INPUT", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.InvalidInput, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 2 /* UNSUPPORTED */) {
     if (lastError.toLowerCase().includes("digest")) {
       return new OctomilError(
-        "CHECKSUM_MISMATCH",
+        ErrorCode.ChecksumMismatch,
         lastError ? `${message}: ${lastError}` : message,
       );
     }
-    return new OctomilError("RUNTIME_UNAVAILABLE", lastError ? `${message}: ${lastError}` : message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, lastError ? `${message}: ${lastError}` : message);
   }
   if (status === 8 /* VERSION_MISMATCH */) {
-    return new OctomilError("RUNTIME_UNAVAILABLE", message);
+    return new OctomilError(ErrorCode.RuntimeUnavailable, message);
   }
   if (status === 6 /* CANCELLED */) {
-    return new OctomilError("CANCELLED", message);
+    return new OctomilError(ErrorCode.Cancelled, message);
   }
   if (status === 5 /* TIMEOUT */) {
-    return new OctomilError("REQUEST_TIMEOUT", message);
+    return new OctomilError(ErrorCode.RequestTimeout, message);
   }
   if (status === 4 /* BUSY */) {
-    return new OctomilError("SERVER_ERROR", message);
+    return new OctomilError(ErrorCode.ServerError, message);
   }
-  return new OctomilError("INFERENCE_FAILED", lastError ? `${message}: ${lastError}` : message);
+  return new OctomilError(ErrorCode.InferenceFailed, lastError ? `${message}: ${lastError}` : message);
 }
 
 // ── Input validation ──────────────────────────────────────────────────────
@@ -98,19 +98,19 @@ function validatePcmF32(
 ): Float32Array {
   if (sampleRateHz !== DIARIZATION_SAMPLE_RATE_HZ) {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `native diarization: sample_rate_hz must be ${DIARIZATION_SAMPLE_RATE_HZ}; got ${sampleRateHz}`,
     );
   }
   const arr =
     samples instanceof Float32Array ? samples : new Float32Array(samples);
   if (arr.length === 0) {
-    throw new OctomilError("INVALID_INPUT", "native diarization: zero-length audio buffer");
+    throw new OctomilError(ErrorCode.InvalidInput, "native diarization: zero-length audio buffer");
   }
   for (let i = 0; i < arr.length; i += 1) {
     if (!isFinite(arr[i] as number)) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "native diarization: audio contains NaN or Inf samples",
       );
     }
@@ -147,7 +147,7 @@ export class NativeDiarizationBackend {
         );
       }
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `native diarization backend: dylib not found (${(err as Error).message ?? err})`,
       );
     }
@@ -155,7 +155,7 @@ export class NativeDiarizationBackend {
     if (!runtimeAdvertisesAudioDiarization(this._runtime)) {
       this.close();
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "native diarization backend: runtime does not advertise 'audio.diarization'. " +
           "Check that the dylib was built with OCT_ENABLE_ENGINE_DIARIZATION=ON and that " +
           "OCTOMIL_DIARIZATION_SEGMENTATION_MODEL plus OCTOMIL_SHERPA_SPEAKER_MODEL " +
@@ -177,7 +177,7 @@ export class NativeDiarizationBackend {
 
     if (deadlineMs <= 0) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `NativeDiarizationBackend.diarize: deadlineMs must be > 0; got ${deadlineMs}`,
       );
     }
@@ -271,7 +271,7 @@ export class NativeDiarizationBackend {
       }
 
       throw new OctomilError(
-        "REQUEST_TIMEOUT",
+        ErrorCode.RequestTimeout,
         `NativeDiarizationBackend.diarize: timed out after ${deadlineMs} ms waiting for SESSION_COMPLETED`,
       );
     } finally {

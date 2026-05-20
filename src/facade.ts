@@ -23,7 +23,7 @@ import type { EmbeddingResult } from "./embeddings.js";
 import { validatePublishableKey } from "./auth-config.js";
 import { configure } from "./configure.js";
 import type { AuthConfig } from "./types.js";
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import type {
   LocalRunnerEndpoint,
   LocalRunnerDiscoveryOptions,
@@ -188,7 +188,7 @@ class LocalFacadeResponses {
 
     if (!response.body) {
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         "Local runner streaming response returned empty body",
       );
     }
@@ -336,7 +336,7 @@ class LocalFacadeEmbeddings {
   }): Promise<EmbeddingResult> {
     if (options.policy === "cloud_only") {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "embeddings.create: policy='cloud_only' is incompatible with the local runner.",
       );
     }
@@ -440,19 +440,19 @@ class LocalFacadeAudioSpeech {
   ): Promise<FacadeSpeechResponse> {
     if (!options.input || !options.input.trim()) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "`input` must be a non-empty string.",
       );
     }
     if (options.policy === "cloud_only") {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "audio.speech.create: policy='cloud_only' is incompatible with the local runner.",
       );
     }
     if (options.responseFormat && options.responseFormat !== "wav") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "format_not_supported_for_local_tts: local sherpa-onnx returns WAV. " +
           "Cloud-routed apps can request other formats; local apps should " +
           "request 'wav' until local transcoding ships.",
@@ -521,7 +521,7 @@ class HostedFacadeAudioSpeech {
   ): Promise<FacadeSpeechResponse> {
     if (!options.input || !options.input.trim()) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "`input` must be a non-empty string.",
       );
     }
@@ -554,7 +554,7 @@ class HostedFacadeAudioSpeech {
       });
     } catch (cause) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Hosted speech network failure: ${(cause as Error)?.message ?? cause}`,
         cause,
       );
@@ -562,7 +562,7 @@ class HostedFacadeAudioSpeech {
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Hosted speech failed: HTTP ${resp.status} ${resp.statusText}${text ? ` - ${text.slice(0, 500)}` : ""}`,
       );
     }
@@ -674,7 +674,7 @@ async function postLocalSpeech(
     );
   } catch (err) {
     throw new OctomilError(
-      "NETWORK_UNAVAILABLE",
+      ErrorCode.NetworkUnavailable,
       "Failed to connect to local runner. Ensure the runner is started.",
       err,
     );
@@ -683,7 +683,7 @@ async function postLocalSpeech(
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new OctomilError(
-      "INFERENCE_FAILED",
+      ErrorCode.InferenceFailed,
       `Local runner request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
     );
   }
@@ -756,7 +756,7 @@ function speechRuntimeModel(
 
 function localTtsUnavailable(model: string): OctomilError {
   return new OctomilError(
-    "RUNTIME_UNAVAILABLE",
+    ErrorCode.RuntimeUnavailable,
     "local_tts_runtime_unavailable: local TTS is required by this app's " +
       `routing policy, but no local runner endpoint is configured for '${model}'. ` +
       "Set OCTOMIL_LOCAL_RUNNER_URL and OCTOMIL_LOCAL_RUNNER_TOKEN, or use Octomil.local().",
@@ -833,7 +833,7 @@ class LocalFacadeAudioTranscriptions {
   }): Promise<LocalTranscriptionResult> {
     if (options.policy === "cloud_only") {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "audio.transcriptions.create: policy='cloud_only' is incompatible with the local runner. " +
           "Use a hosted Octomil client for cloud-only transcription.",
       );
@@ -1009,7 +1009,7 @@ export class FacadeCache {
     } catch (err) {
       if (err instanceof OctomilError) throw err;
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `cache.introspect: native runtime unavailable (${(err as Error).message ?? err})`,
       );
     } finally {
@@ -1277,7 +1277,7 @@ export class Octomil {
     }
     if (!this._localEndpoint) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "Audio transcriptions via local runner require Octomil.local(). " +
           "Use the audio namespace on OctomilClient for hosted transcription.",
       );
@@ -1391,7 +1391,7 @@ export class Octomil {
     });
     if (!prepareOutcome.prepared || !prepareOutcome.modelDir || !prepareOutcome.primaryPath) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         `warmup: prepare did not materialize bytes for ${JSON.stringify(options.model)}. ` +
           `Cannot load a backend without a prepared artifact.`,
       );
@@ -1489,7 +1489,7 @@ export class Octomil {
         const apiKey = serverApiKeyFromOptions(this.options);
         if (!apiKey) {
           throw new OctomilError(
-            "AUTHENTICATION_FAILED",
+            ErrorCode.AuthenticationFailed,
             "audio.speech requires a server-side apiKey. Publishable keys cannot call hosted speech.",
           );
         }

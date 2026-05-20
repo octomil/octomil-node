@@ -7,7 +7,7 @@
 
 import { performance } from "node:perf_hooks";
 
-import { OctomilError } from "./types.js";
+import { OctomilError, ErrorCode} from "./types.js";
 import type { TelemetryReporter } from "./telemetry.js";
 import type {
   LocalResponsesRuntime,
@@ -300,7 +300,7 @@ export class ResponsesClient {
     }
     throw (
       result.error ??
-      new OctomilError("INFERENCE_FAILED", "No response route succeeded")
+      new OctomilError(ErrorCode.InferenceFailed, "No response route succeeded")
     );
   }
 
@@ -336,7 +336,7 @@ export class ResponsesClient {
     if (!result.selectedAttempt || !result.value) {
       throw (
         result.error ??
-        new OctomilError("INFERENCE_FAILED", "No response route succeeded")
+        new OctomilError(ErrorCode.InferenceFailed, "No response route succeeded")
       );
     }
 
@@ -403,7 +403,7 @@ export class ResponsesClient {
     });
     const selected = readiness.selectedAttempt;
     if (!selected) {
-      throw new OctomilError("INFERENCE_FAILED", "No response route succeeded");
+      throw new OctomilError(ErrorCode.InferenceFailed, "No response route succeeded");
     }
 
     if (selected.locality === "cloud") {
@@ -451,7 +451,7 @@ export class ResponsesClient {
     });
     const selected = readiness.selectedAttempt;
     if (!selected) {
-      throw new OctomilError("INFERENCE_FAILED", "No response route succeeded");
+      throw new OctomilError(ErrorCode.InferenceFailed, "No response route succeeded");
     }
 
     if (selected.locality === "cloud") {
@@ -485,7 +485,7 @@ export class ResponsesClient {
             : null;
       if (!stream) {
         throw new OctomilError(
-          "RUNTIME_UNAVAILABLE",
+          ErrorCode.RuntimeUnavailable,
           "No local response transport is available for the selected planner candidate",
         );
       }
@@ -544,7 +544,7 @@ export class ResponsesClient {
     const response = await this.post(body);
     if (!response.body) {
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         "Streaming response returned empty body",
       );
     }
@@ -917,7 +917,7 @@ export class ResponsesClient {
   private async createExternal(request: ResponseRequest): Promise<ResponseObj> {
     if (!this.externalEndpoint) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "ResponsesClient requires externalEndpoint for local endpoint requests",
       );
     }
@@ -999,7 +999,7 @@ export class ResponsesClient {
   ): AsyncGenerator<ResponseStreamEvent> {
     if (!this.externalEndpoint) {
       throw new OctomilError(
-        "RUNTIME_UNAVAILABLE",
+        ErrorCode.RuntimeUnavailable,
         "ResponsesClient requires externalEndpoint for local endpoint requests",
       );
     }
@@ -1018,7 +1018,7 @@ export class ResponsesClient {
     });
     if (!response.body) {
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         "Streaming response returned empty body",
       );
     }
@@ -1520,7 +1520,7 @@ export class ResponsesClient {
   private async post(body: ChatCompletionRequest): Promise<Response> {
     if (!this.apiKey) {
       throw new OctomilError(
-        "AUTHENTICATION_FAILED",
+        ErrorCode.AuthenticationFailed,
         "ResponsesClient requires apiKey for cloud requests",
       );
     }
@@ -1552,7 +1552,7 @@ export class ResponsesClient {
       });
     } catch (err) {
       throw new OctomilError(
-        "NETWORK_UNAVAILABLE",
+        ErrorCode.NetworkUnavailable,
         `Responses request failed: ${String(err)}`,
         err,
       );
@@ -1561,7 +1561,7 @@ export class ResponsesClient {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new OctomilError(
-        "INFERENCE_FAILED",
+        ErrorCode.InferenceFailed,
         `Responses request failed: HTTP ${response.status}${text ? ` - ${text}` : ""}`,
       );
     }

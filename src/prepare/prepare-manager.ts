@@ -20,7 +20,7 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { OctomilError } from "../types.js";
+import { OctomilError, ErrorCode} from "../types.js";
 import type {
   ArtifactDownloadEndpoint,
   RuntimeCandidatePlan,
@@ -93,47 +93,47 @@ export class PrepareManager {
   async prepare(candidate: RuntimeCandidatePlan): Promise<MaterializedArtifact> {
     if (candidate.locality !== "local") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "PrepareManager: only local sdk_runtime candidates are preparable.",
       );
     }
     const deliveryMode = candidate.delivery_mode ?? "sdk_runtime";
     if (deliveryMode !== "sdk_runtime") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `PrepareManager: delivery_mode ${JSON.stringify(deliveryMode)} is not sdk_runtime.`,
       );
     }
     if (candidate.prepare_policy === "disabled") {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "PrepareManager: candidate.prepare_policy is 'disabled'.",
       );
     }
     const artifact = candidate.artifact;
     if (!artifact) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "PrepareManager: candidate carries no artifact plan.",
       );
     }
     if (!artifact.digest) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `PrepareManager: artifact ${JSON.stringify(artifact.artifact_id ?? artifact.model_id)} has no digest. ` +
           `Refusing to materialize without integrity verification.`,
       );
     }
     if (!artifact.download_urls || artifact.download_urls.length === 0) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `PrepareManager: artifact has no download_urls.`,
       );
     }
     const requiredFiles = artifact.required_files ?? [];
     if (requiredFiles.length > 1) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         `PrepareManager: multi-file artifacts (${requiredFiles.length} files) are not yet supported. ` +
           `Per-file manifest_uri integrity is required first.`,
       );
@@ -145,7 +145,7 @@ export class PrepareManager {
     const artifactId = artifact.artifact_id || artifact.model_id;
     if (!artifactId) {
       throw new OctomilError(
-        "INVALID_INPUT",
+        ErrorCode.InvalidInput,
         "PrepareManager: artifact_id is empty.",
       );
     }
@@ -183,7 +183,7 @@ export class PrepareManager {
       const reverify = await fileDigest(downloadResult.filePath);
       if (reverify !== artifact.digest) {
         throw new OctomilError(
-          "DOWNLOAD_FAILED",
+          ErrorCode.DownloadFailed,
           `PrepareManager: cached artifact failed digest re-verification. ` +
             `expected ${artifact.digest} got ${reverify}`,
         );
@@ -226,13 +226,13 @@ function defaultCacheRoot(): string {
  *  stable hash suffix would be overkill here. */
 function sanitizeFsKey(artifactId: string): string {
   if (!artifactId) {
-    throw new OctomilError("INVALID_INPUT", "artifact_id is empty.");
+    throw new OctomilError(ErrorCode.InvalidInput, "artifact_id is empty.");
   }
   const cleaned = artifactId.replace(/[^A-Za-z0-9._-]+/g, "_");
   // Belt-and-braces: the result must not be empty, "." or "..".
   if (cleaned === "" || cleaned === "." || cleaned === "..") {
     throw new OctomilError(
-      "INVALID_INPUT",
+      ErrorCode.InvalidInput,
       `artifact_id sanitizes to an unsafe segment: ${JSON.stringify(artifactId)}`,
     );
   }

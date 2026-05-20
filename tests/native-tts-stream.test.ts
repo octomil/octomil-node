@@ -14,7 +14,7 @@ import {
   NativeTtsStreamBackend,
   TTS_FIRST_AUDIO_MS_METRIC_NAME,
 } from "../src/runtime/native/tts_stream_backend.js";
-import { OctomilError } from "../src/types.js";
+import { OctomilError, ErrorCode} from "../src/types.js";
 
 // ── 1. Facade existence ───────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ describe("NativeTtsStreamBackend — fail-closed without native runtime", () => 
       if (err instanceof OctomilError) {
         // Bounded: RUNTIME_UNAVAILABLE when dylib absent; INFERENCE_FAILED when
         // runtime opens but TTS capability not configured.
-        expect(["RUNTIME_UNAVAILABLE", "CHECKSUM_MISMATCH", "INFERENCE_FAILED"]).toContain(err.code);
+        expect([ErrorCode.RuntimeUnavailable, ErrorCode.ChecksumMismatch, ErrorCode.InferenceFailed]).toContain(err.code);
       }
     }
   });
@@ -75,7 +75,7 @@ describe("NativeTtsStreamBackend — fail-closed without native runtime", () => 
       gen.next();
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("RUNTIME_UNAVAILABLE");
+        expect(err.code).toBe(ErrorCode.RuntimeUnavailable);
       }
     }
   });
@@ -116,7 +116,7 @@ describe("NativeTtsStreamBackend — voice validation", () => {
       backend.validateVoice("alice");
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });
@@ -144,7 +144,7 @@ describe("NativeTtsStreamBackend — voice validation", () => {
       gen.next();
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INVALID_INPUT");
+        expect(err.code).toBe(ErrorCode.InvalidInput);
       }
     }
   });
@@ -258,7 +258,7 @@ describe("NativeTtsStreamBackend — lifecycle with stub runtime", () => {
       Array.from(backend.synthesizeWithChunks("Hi"));
     } catch (err) {
       if (err instanceof OctomilError) {
-        expect(err.code).toBe("INFERENCE_FAILED");
+        expect(err.code).toBe(ErrorCode.InferenceFailed);
       }
     }
   });
