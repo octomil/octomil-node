@@ -9,6 +9,13 @@ export enum ErrorCode {
   DeviceNotRegistered = "device_not_registered",
   TokenExpired = "token_expired",
   DeviceRevoked = "device_revoked",
+  PasskeyChallengeExpired = "passkey_challenge_expired",
+  PasskeyCredentialNotFound = "passkey_credential_not_found",
+  InvalidToken = "invalid_token",
+  EmailAlreadyVerified = "email_already_verified",
+  EmailAlreadyInUse = "email_already_in_use",
+  LastAuthMethod = "last_auth_method",
+  OauthProviderNotLinked = "oauth_provider_not_linked",
   NetworkUnavailable = "network_unavailable",
   RequestTimeout = "request_timeout",
   ServerError = "server_error",
@@ -63,6 +70,19 @@ export enum ErrorCode {
   BillingCustomerNotFound = "billing_customer_not_found",
   ActionNotFound = "action_not_found",
   ActionStateInvalid = "action_state_invalid",
+  CredentialNotFound = "credential_not_found",
+  ConnectionNotFound = "connection_not_found",
+  LocalRuntimeNotFound = "local_runtime_not_found",
+  CheckoutNotComplete = "checkout_not_complete",
+  UpstreamProviderUnavailable = "upstream_provider_unavailable",
+  AgentSystemUnavailable = "agent_system_unavailable",
+  ThreadNotFound = "thread_not_found",
+  RunNotFound = "run_not_found",
+  RunStateInvalid = "run_state_invalid",
+  ApprovalNotFound = "approval_not_found",
+  ApprovalAlreadyResolved = "approval_already_resolved",
+  JobNotFound = "job_not_found",
+  JobStateInvalid = "job_state_invalid",
   Cancelled = "cancelled",
   AppBackgrounded = "app_backgrounded",
   Unknown = "unknown",
@@ -93,10 +113,10 @@ export type SuggestedAction =
   | "reauthenticate"
   | "check_permissions"
   | "register_device"
+  | "fix_request"
   | "retry_or_fallback"
   | "retry"
   | "retry_after"
-  | "fix_request"
   | "reduce_input_or_fallback"
   | "check_model_id"
   | "use_alternate_model"
@@ -130,6 +150,13 @@ export const ERROR_CLASSIFICATION: Record<ErrorCode, ErrorClassification> = {
   [ErrorCode.DeviceNotRegistered]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "register_device" },
   [ErrorCode.TokenExpired]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "reauthenticate" },
   [ErrorCode.DeviceRevoked]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "register_device" },
+  [ErrorCode.PasskeyChallengeExpired]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "reauthenticate" },
+  [ErrorCode.PasskeyCredentialNotFound]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.InvalidToken]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.EmailAlreadyVerified]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.EmailAlreadyInUse]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.LastAuthMethod]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.OauthProviderNotLinked]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
   [ErrorCode.NetworkUnavailable]: { category: "network", retryClass: "backoff_safe", fallbackEligible: true, suggestedAction: "retry_or_fallback" },
   [ErrorCode.RequestTimeout]: { category: "network", retryClass: "conditional", fallbackEligible: true, suggestedAction: "retry_or_fallback" },
   [ErrorCode.ServerError]: { category: "network", retryClass: "backoff_safe", fallbackEligible: true, suggestedAction: "retry" },
@@ -184,6 +211,19 @@ export const ERROR_CLASSIFICATION: Record<ErrorCode, ErrorClassification> = {
   [ErrorCode.BillingCustomerNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
   [ErrorCode.ActionNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
   [ErrorCode.ActionStateInvalid]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.CredentialNotFound]: { category: "auth", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.ConnectionNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.LocalRuntimeNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.CheckoutNotComplete]: { category: "control", retryClass: "conditional", fallbackEligible: false, suggestedAction: "retry" },
+  [ErrorCode.UpstreamProviderUnavailable]: { category: "network", retryClass: "backoff_safe", fallbackEligible: false, suggestedAction: "retry" },
+  [ErrorCode.AgentSystemUnavailable]: { category: "network", retryClass: "backoff_safe", fallbackEligible: false, suggestedAction: "retry" },
+  [ErrorCode.ThreadNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.RunNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.RunStateInvalid]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.ApprovalNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.ApprovalAlreadyResolved]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.JobNotFound]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
+  [ErrorCode.JobStateInvalid]: { category: "control", retryClass: "never", fallbackEligible: false, suggestedAction: "fix_request" },
   [ErrorCode.Cancelled]: { category: "lifecycle", retryClass: "never", fallbackEligible: false, suggestedAction: "none" },
   [ErrorCode.AppBackgrounded]: { category: "lifecycle", retryClass: "conditional", fallbackEligible: false, suggestedAction: "resume_on_foreground" },
   [ErrorCode.Unknown]: { category: "unknown", retryClass: "never", fallbackEligible: false, suggestedAction: "report_bug" },
