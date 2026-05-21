@@ -26,9 +26,11 @@ import {
 
 describe("Contract Conformance", () => {
   describe("ErrorCode enum", () => {
-    it("has all 65 canonical error codes (vendored from octomil-contracts)", () => {
+    it("has all 85 canonical error codes (vendored from octomil-contracts)", () => {
+      // Contract is at 1.27.0 — 85 codes after the passkey / account-linking
+      // / admin batches. Bump alongside contract releases.
       const codes = Object.values(ErrorCode);
-      expect(codes).toHaveLength(65);
+      expect(codes).toHaveLength(85);
       // Core codes that must always be present
       expect(codes).toContain("network_unavailable");
       expect(codes).toContain("request_timeout");
