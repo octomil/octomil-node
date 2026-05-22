@@ -1,7 +1,20 @@
 import { ServerApiClient, type ServerClientOptions } from "./server-api.js";
+import type { components } from "./generated/types.js";
 
-export type AlertRule = Record<string, unknown>;
-export type UpdateAlertRuleRequest = Record<string, unknown>;
+// Pilot use of OSS-generated transport types.
+//
+// Public AlertRule / UpdateAlertRuleRequest names stay stable for SDK
+// consumers — but their definitions now come from openapi-typescript,
+// which derives them from octomil-contracts/dist/openapi.yaml. Drift
+// between facade and contract becomes a compile error rather than a
+// runtime 4xx.
+//
+// Pattern to replicate across the rest of the SDK in follow-up PRs:
+//   1. Import `components` from src/generated/types.js
+//   2. Re-export the public name as an alias of the generated schema
+//   3. Keep the facade method signatures unchanged
+export type AlertRule = components["schemas"]["AlertRuleResponse"];
+export type UpdateAlertRuleRequest = components["schemas"]["UpdateAlertRuleRequest"];
 
 export class MonitoringClient extends ServerApiClient {
   constructor(options: ServerClientOptions) {
