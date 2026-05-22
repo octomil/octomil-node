@@ -1,0 +1,75 @@
+name: OpenAPI Types Fresh
+
+# Drift gate for src/generated/types.ts. On every PR, regenerate from
+# octomil-contracts dist/openapi.yaml using the same generator + exact
+# version we'd use locally — then fail if the committed file differs.
+#
+# Pairs with octomil-contracts/tools/sdkgen/generate-typescript.sh.
+
+on:
+  pull_request:
+    paths:
+      - 'src/generated/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/openapi-types-fresh.yml'
+  push:
+    branches: [main]
+
+jobs:
+  openapi-types-fresh:
+    name: src/generated/types.ts matches contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout octomil-node
+        uses: actions/checkout@v4
+
+      - name: Checkout octomil-contracts (matching commit if PR pins one)
+        uses: actions/checkout@v4
+        with:
+          repository: octomil/octomil-contracts
+          path: .contracts-checkout
+          # Default: latest main. To pin a specific contracts commit per
+          # PR, push the SHA to the SPEC_COVERAGE_CONTRACTS_SHA repo var
+          # or override here. See octomil-contracts PR #181 for the
+          # snapshot-pinning pattern.
+          ref: ${{ vars.CONTRACTS_REF || 'main' }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate src/generated/types.ts
+        env:
+          OCTOMIL_NODE_PATH: ${{ github.workspace }}
+          OCTOMIL_NODE: '1'
+          OCTOMIL_BROWSER: '0'
+          # Skip the per-script `pnpm add` step — frozen lockfile already
+          # installed openapi-typescript at the pinned version.
+          OCTOMIL_SKIP_INSTALL: '1'
+        run: |
+          chmod +x "$GITHUB_WORKSPACE/.contracts-checkout/tools/sdkgen/generate-typescript.sh"
+          "$GITHUB_WORKSPACE/.contracts-checkout/tools/sdkgen/generate-typescript.sh"
+
+      - name: Verify src/generated/types.ts is committed-fresh
+        run: |
+          if ! git diff --exit-code -- src/generated/types.ts; then
+            echo "::error::src/generated/types.ts is stale relative to octomil-contracts dist/openapi.yaml"
+            echo ""
+            echo "Run locally to fix:"
+            echo "    pnpm openapi:generate"
+            echo "    git add src/generated/ && git commit"
+            exit 1
+          fi
+          echo "✓ src/generated/types.ts matches the contract"
