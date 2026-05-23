@@ -7,12 +7,10 @@ name: OpenAPI Types Fresh
 # Pairs with octomil-contracts/tools/sdkgen/generate-typescript.sh.
 
 on:
+  # Run on every PR — drift can be introduced upstream (contracts SHA bump,
+  # CONTRACTS_REF var change, auto-refresh PRs) with no local footprint
+  # under src/generated/**. Mirrors Python's model.
   pull_request:
-    paths:
-      - 'src/generated/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/openapi-types-fresh.yml'
   push:
     branches: [main]
 
@@ -35,6 +33,11 @@ jobs:
           # or override here. See octomil-contracts PR #181 for the
           # snapshot-pinning pattern.
           ref: ${{ vars.CONTRACTS_REF || 'main' }}
+          # Cross-repo checkout of a private repo — github.token cannot
+          # read it. CROSS_REPO_READ_TOKEN must be a PAT (or fine-grained
+          # token) with `contents: read` on octomil/octomil-contracts.
+          # Falls back to github.token only for forks/public mirrors.
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
