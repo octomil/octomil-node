@@ -3,9 +3,14 @@ import {
   ServerApiClient,
   type ServerClientOptions,
 } from "./server-api.js";
+import type { components } from "./generated/types.js";
 
-export type TrainingJob = Record<string, unknown>;
-export type TrainingJobStatus = Record<string, unknown>;
+// Mirror the monitoring.ts pattern: public names stay stable, definitions
+// derive from openapi-typescript so drift becomes a compile error.
+export type TrainingJob = components["schemas"]["Job"];
+// Job is the server's canonical training-job record; all three training-job
+// endpoints (create / status / complete) return the same Job shape.
+export type TrainingJobStatus = components["schemas"]["Job"];
 
 export interface TrainingClientOptions extends ServerClientOptions {
   getDeviceId: () => string | null;

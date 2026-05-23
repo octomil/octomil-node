@@ -1,11 +1,19 @@
 import { ServerApiClient, type ServerClientOptions } from "./server-api.js";
+import type { components } from "./generated/types.js";
 
-export type BillingSession = Record<string, unknown>;
+// createCheckoutSession -> CheckoutResponse; createPortalSession -> PortalResponse.
+// The old BillingSession alias covered both with Record<string, unknown>; we now
+// split into the concrete generated shapes. Public method names are unchanged.
+export type BillingSession = components["schemas"]["CheckoutResponse"] | components["schemas"]["PortalResponse"];
+// TODO: bind to generated when schema is tightened — settings_billing_update
+// returns Record<string, never> (empty object) in the contract; widening to
+// BillingState = Record<string, unknown> is safe for consumers, narrowing
+// would break them. Leave until the contract exposes a named type.
 export type BillingState = Record<string, unknown>;
-export type UsageLimits = Record<string, unknown>;
-export type Integration = Record<string, unknown>;
-export type IntegrationValidation = Record<string, unknown>;
-export type IntegrationPatch = Record<string, unknown>;
+export type UsageLimits = components["schemas"]["UsageLimitsResponse"];
+export type Integration = components["schemas"]["IntegrationDetailResponse"];
+export type IntegrationValidation = components["schemas"]["IntegrationTestResponse"];
+export type IntegrationPatch = components["schemas"]["UpdateIntegrationRequest"];
 
 export class SettingsClient extends ServerApiClient {
   constructor(options: ServerClientOptions) {
