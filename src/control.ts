@@ -16,7 +16,8 @@
  * SyncManager.
  */
 
-import { OctomilError, ErrorCode} from "./types.js";
+import { OctomilError, ErrorCode } from "./types.js";
+import type { components } from "./generated/types.js";
 import { hostname, platform, arch, release, totalmem } from "node:os";
 import { getSdkVersion } from "./telemetry.js";
 import { SPAN_NAMES } from "./_generated/span_names.js";
@@ -27,6 +28,7 @@ import type { TelemetryReporter } from "./telemetry.js";
 // Types
 // ---------------------------------------------------------------------------
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 export interface DeviceRegistration {
   id: string;
   deviceIdentifier: string;
@@ -34,17 +36,20 @@ export interface DeviceRegistration {
   status: string;
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 export interface HeartbeatResponse {
   status: string;
   serverTime?: string;
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 export interface DeviceAssignment {
   modelId: string;
   version?: string;
   config?: Record<string, unknown>;
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 export interface ControlSyncResult {
   updated: boolean;
   configVersion: string;
@@ -54,6 +59,7 @@ export interface ControlSyncResult {
   assignments?: DeviceAssignment[];
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 /** Per-model status in an observed state report. */
 export interface ObservedModelStatus {
   modelId: string;
@@ -65,46 +71,15 @@ export interface ObservedModelStatus {
 }
 
 /** Per-model entry in server-authoritative desired state. */
-export interface DesiredModelEntry {
-  modelId: string;
-  desiredVersion: string;
-  currentChannel?: string;
-  deliveryMode?: string;
-  activationPolicy?: string;
-  enginePolicy?: {
-    allowed?: string[];
-    forced?: string;
-  };
-  artifactManifest?: {
-    downloadUrl: string;
-    sizeBytes?: number;
-    sha256?: string;
-  };
-  rolloutId?: string;
-}
+export type DesiredModelEntry = components["schemas"]["desired_model_entry"];
 
 /** Observed state payload sent to the server. */
-export interface ObservedStatePayload {
-  schemaVersion: string;
-  deviceId: string;
-  reportedAt: string;
-  models: ObservedModelStatus[];
-  sdkVersion?: string;
-  osVersion?: string;
-}
+export type ObservedStatePayload = components["schemas"]["observed_state"];
 
 /** Server-authoritative desired state for this device. */
-export interface DesiredState {
-  schemaVersion: string;
-  deviceId: string;
-  generatedAt: string;
-  activeBinding?: Record<string, unknown>;
-  models: DesiredModelEntry[];
-  policyConfig?: Record<string, unknown>;
-  federationOffers?: Array<{ roundId: string; jobId: string; expiresAt: string }>;
-  gcEligibleArtifactIds?: string[];
-}
+export type DesiredState = components["schemas"]["desired_state"];
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 export interface ModelInventoryEntry {
   modelId: string;
   version: string;
@@ -112,37 +87,15 @@ export interface ModelInventoryEntry {
   status?: string;
 }
 
-export interface DeviceSyncRequest {
-  schemaVersion?: string;
-  requestedAt?: string;
-  knownStateVersion?: string;
-  sdkVersion?: string;
-  platform?: string;
-  appId?: string;
-  appVersion?: string;
-  modelInventory?: ModelInventoryEntry[];
-  activeVersions?: Array<Record<string, string>>;
-  availableStorageBytes?: number;
-}
+export type DeviceSyncRequest = components["schemas"]["device_sync_request"];
 
-export interface DeviceSyncResponse {
-  schemaVersion: string;
-  deviceId: string;
-  generatedAt?: string;
-  stateChanged: boolean;
-  models: DesiredModelEntry[];
-  gcEligibleArtifactIds: string[];
-  nextPollIntervalSeconds: number;
-  serverTimestamp?: string;
-  serving?: Array<Record<string, unknown>>;
-  training_policy?: Record<string, unknown> | null;
-  round_offers?: Array<Record<string, unknown>>;
-}
+export type DeviceSyncResponse = components["schemas"]["device_sync_response"];
 
 // ---------------------------------------------------------------------------
 // Wire-format types (snake_case from server)
 // ---------------------------------------------------------------------------
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 interface WireDeviceRegistration {
   id: string;
   device_identifier: string;
@@ -150,11 +103,13 @@ interface WireDeviceRegistration {
   status: string;
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 interface WireHeartbeatResponse {
   status: string;
   server_time?: string;
 }
 
+// No named schema in contract (inline response type); hand-typed by necessity.
 interface WireAssignmentsResponse {
   assignments?: Array<{
     model_id: string;
@@ -189,7 +144,12 @@ export class ControlClient {
   private heartbeatSequence = 0;
   private readonly telemetry: TelemetryReporter | null;
 
-  constructor(serverUrl: string, apiKey: string, orgId: string, telemetry?: TelemetryReporter | null) {
+  constructor(
+    serverUrl: string,
+    apiKey: string,
+    orgId: string,
+    telemetry?: TelemetryReporter | null,
+  ) {
     this.serverUrl = serverUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
     this.orgId = orgId;
@@ -270,14 +230,17 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/heartbeat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
+      response = await fetch(
+        `${this.serverUrl}/api/v1/devices/${id}/heartbeat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({ device_id: id }),
         },
-        body: JSON.stringify({ device_id: id }),
-      });
+      );
     } catch (err) {
       throw new OctomilError(
         ErrorCode.NetworkUnavailable,
@@ -309,12 +272,15 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/assignments`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+      response = await fetch(
+        `${this.serverUrl}/api/v1/devices/${id}/assignments`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+          },
         },
-      });
+      );
     } catch (err) {
       throw new OctomilError(
         ErrorCode.NetworkUnavailable,
@@ -333,15 +299,20 @@ export class ControlClient {
 
     const data = (await response.json()) as WireAssignmentsResponse;
 
-    const assignments: DeviceAssignment[] = (data.assignments ?? []).map((a) => ({
-      modelId: a.model_id,
-      version: a.version,
-      config: a.config,
-    }));
+    const assignments: DeviceAssignment[] = (data.assignments ?? []).map(
+      (a) => ({
+        modelId: a.model_id,
+        version: a.version,
+        config: a.config,
+      }),
+    );
     const configVersion = data.config_version ?? "";
     const rolloutsChanged = data.rollouts_changed ?? false;
 
-    const assignmentsChanged = !this.assignmentsEqual(this.previousAssignments, assignments);
+    const assignmentsChanged = !this.assignmentsEqual(
+      this.previousAssignments,
+      assignments,
+    );
     const updated = assignmentsChanged || rolloutsChanged;
 
     this.previousAssignments = assignments;
@@ -392,21 +363,29 @@ export class ControlClient {
       schemaVersion: "1.4.0",
       deviceId: id,
       reportedAt: new Date().toISOString(),
-      models,
+      // ObservedModelStatus is the SDK-facing per-model shape and is a
+      // structural superset of the contract's observed_state.models entries
+      // (both carry modelId + status). The contract omits the SDK's optional
+      // progress fields (version/bytesDownloaded/totalBytes); they are sent
+      // as extra wire fields and ignored server-side.
+      models: models as unknown as ObservedStatePayload["models"],
       sdkVersion: "1.0.0",
       osVersion: `${platform()} ${release()}`,
     };
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/observed-state`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
+      response = await fetch(
+        `${this.serverUrl}/api/v1/devices/${id}/observed-state`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
     } catch (err) {
       throw new OctomilError(
         ErrorCode.NetworkUnavailable,
@@ -448,12 +427,15 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/desired-state`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+      response = await fetch(
+        `${this.serverUrl}/api/v1/devices/${id}/desired-state`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+          },
         },
-      });
+      );
     } catch (err) {
       throw new OctomilError(
         ErrorCode.NetworkUnavailable,
@@ -473,7 +455,9 @@ export class ControlClient {
     return (await response.json()) as DesiredState;
   }
 
-  async sync(request: DeviceSyncRequest = {}): Promise<DeviceSyncResponse> {
+  async sync(
+    request: Partial<DeviceSyncRequest> = {},
+  ): Promise<DeviceSyncResponse> {
     const id = this.getDeviceIdOrThrow();
 
     let response: Response;
@@ -529,7 +513,11 @@ export class ControlClient {
       });
     }, intervalMs);
     // Allow the process to exit even if the timer is running
-    if (this.heartbeatTimer && typeof this.heartbeatTimer === "object" && "unref" in this.heartbeatTimer) {
+    if (
+      this.heartbeatTimer &&
+      typeof this.heartbeatTimer === "object" &&
+      "unref" in this.heartbeatTimer
+    ) {
       this.heartbeatTimer.unref();
     }
   }

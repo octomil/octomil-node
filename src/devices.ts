@@ -17,15 +17,17 @@ export class DevicesClient {
     await this.control.reportObservedState(models);
   }
 
-  async sync(request: {
-    knownStateVersion?: string;
-    sdkVersion?: string;
-    appId?: string;
-    appVersion?: string;
-    modelInventory?: DeviceSyncRequest["modelInventory"];
-    activeVersions?: DeviceSyncRequest["activeVersions"];
-    availableStorageBytes?: number;
-  } = {}): Promise<DeviceSyncResponse> {
+  async sync(
+    request: {
+      knownStateVersion?: string;
+      sdkVersion?: string;
+      appId?: string;
+      appVersion?: string;
+      modelInventory?: DeviceSyncRequest["modelInventory"];
+      activeVersions?: DeviceSyncRequest["activeVersions"];
+      availableStorageBytes?: number;
+    } = {},
+  ): Promise<DeviceSyncResponse> {
     return this.control.sync(request);
   }
 }
