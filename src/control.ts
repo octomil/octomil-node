@@ -479,6 +479,7 @@ export class ControlClient {
           appVersion: request.appVersion,
           modelInventory: request.modelInventory ?? [],
           activeVersions: request.activeVersions ?? [],
+          observedState: request.observedState,
           availableStorageBytes: request.availableStorageBytes,
         }),
       });
