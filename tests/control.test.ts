@@ -417,8 +417,15 @@ describe("ControlClient", () => {
           deviceId: "dev-123",
           generatedAt: "2026-03-22T12:00:00Z",
           stateChanged: true,
-          models: [],
-          gcEligibleArtifactIds: [],
+          // device_sync_response nests state under `desiredState`;
+          // models/gcEligibleArtifactIds live inside it, not at top level.
+          desiredState: {
+            schemaVersion: "1.12.0",
+            deviceId: "dev-123",
+            generatedAt: "2026-03-22T12:00:00Z",
+            models: [],
+            gcEligibleArtifactIds: [],
+          },
           nextPollIntervalSeconds: 60,
         }),
       );
