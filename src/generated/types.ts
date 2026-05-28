@@ -6661,727 +6661,30 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * TelemetryBatch
-         * @description Batched telemetry event payload uploaded by the device to the telemetry ingestion endpoint.
+         * AgentManifest
+         * @description Registry-driven metadata for all registered agents.
          */
-        telemetry_batch: {
-            /** @description Unique identifier for this batch, used for deduplication on the server. */
-            batchId: string;
-            /** @description Opaque device identifier. */
-            deviceId: string;
-            /** @description Version of the Octomil SDK that generated this batch. */
-            sdkVersion?: string;
-            /**
-             * Format: date-time
-             * @description ISO 8601 timestamp when this batch was assembled on-device.
-             */
-            capturedAt: string;
-            /** @description List of telemetry events in this batch. */
-            events: {
-                /** @description Unique event identifier (UUID or equivalent). */
-                eventId: string;
-                /** @description Event name from event_names.yaml (e.g. artifact.download_started). */
-                name: string;
-                /**
-                 * Format: date-time
-                 * @description ISO 8601 timestamp when the event occurred.
-                 */
-                timestamp: string;
-                /**
-                 * @description TelemetryClass enum value governing upload priority.
-                 * @enum {string}
-                 */
-                telemetryClass: Telemetry_batchEventsTelemetryClass;
-                /** @description OTLP trace ID if this event is attached to a span. */
-                traceId?: string;
-                /** @description OTLP span ID if this event is a span event. */
-                spanId?: string;
-                /** @description Arbitrary key-value attributes for this event. */
-                attributes?: {
-                    [key: string]: string | number | boolean;
-                };
-            }[];
+        AgentManifest: {
+            [key: string]: unknown;
         };
         /**
-         * UpdateUsageLimitsRequest
-         * @description Request body for updating usage limits.
+         * AlertRuleResponse
+         * @description Full alert rule configuration.
          */
-        UpdateUsageLimitsRequest: {
-            limits: {
-                metric: string;
-                limit_value: number;
-            }[];
-        };
-        /**
-         * UsageLimitsResponse
-         * @description Usage limits for an organization.
-         */
-        UsageLimitsResponse: {
-            /** @description Organization identifier. */
-            org_id: string;
-            limits: {
-                /** @description Limit metric name (devices, training_rounds, models, etc.). */
-                metric: string;
-                /** @description Maximum allowed value for this metric. */
-                limit_value: number;
-            }[];
-        };
-        /**
-         * UpdatePoliciesRequest
-         * @description Partial update for org-level policies. All fields optional.
-         */
-        UpdatePoliciesRequest: {
-            serving_policy?: Record<string, never> | null;
-            telemetry_enabled?: boolean;
-            /** @enum {string} */
-            privacy_mode?: UpdatePoliciesRequestPrivacy_mode;
-        };
-        /**
-         * PoliciesResponse
-         * @description Org-level serving and data-handling policy configuration.
-         */
-        PoliciesResponse: {
-            /** @description Open-shape serving policy object. See ServingPolicy domain type. */
-            serving_policy?: Record<string, never> | null;
-            telemetry_enabled: boolean;
-            /** @enum {string} */
-            privacy_mode: PoliciesResponsePrivacy_mode;
-        };
-        /**
-         * UpdateAuthConfigRequest
-         * @description Partial update for org-level authentication configuration. OAuth provider availability cannot be set here.
-         */
-        UpdateAuthConfigRequest: {
-            /** @enum {string} */
-            identity_mode?: UpdateAuthConfigRequestIdentity_mode;
-            email_password_enabled?: boolean;
-            sso_provider?: string | null;
-            sso_domain?: string | null;
-            scim_enabled?: boolean;
-        };
-        /**
-         * AuthConfigResponse
-         * @description Authentication and identity provider configuration for the organization.
-         */
-        AuthConfigResponse: {
-            /** @enum {string} */
-            identity_mode: AuthConfigResponseIdentity_mode;
-            email_password_enabled: boolean;
-            /** @description Derived from server env vars; read-only from SDK. */
-            google_enabled: boolean;
-            /** @description Derived from server env vars; read-only from SDK. */
-            apple_enabled: boolean;
-            /** @description Derived from server env vars; read-only from SDK. */
-            github_enabled: boolean;
-            passkeys_enabled: boolean;
-            sso_provider?: string | null;
-            sso_domain?: string | null;
-            scim_enabled: boolean;
-        };
-        /**
-         * UpdateSettingsRequest
-         * @description Partial update for organization-level settings. All fields are optional.
-         */
-        UpdateSettingsRequest: {
-            audit_retention_days?: number;
-            require_mfa_for_admin?: boolean;
-            require_admin_approval?: boolean;
-            auto_rollback_enabled?: boolean;
-            protect_production?: boolean;
-            /** @enum {string} */
-            identity_mode?: UpdateSettingsRequestIdentity_mode;
-            device_battery_threshold?: number;
-            /** @enum {string} */
-            device_network_policy?: UpdateSettingsRequestDevice_network_policy;
-        };
-        /**
-         * OrgSettingsResponse
-         * @description Organization-level governance and operational settings.
-         */
-        OrgSettingsResponse: {
-            /** @description Organization identifier (UUIDv4). */
-            org_id: string;
-            /** @description Number of days to retain audit log entries. */
-            audit_retention_days: number;
-            /** @description When true, admin-role users must authenticate with MFA. */
-            require_mfa_for_admin: boolean;
-            /** @description When true, deployments and other destructive actions require explicit admin approval. */
-            require_admin_approval: boolean;
-            /** @description When true, the platform automatically rolls back failed deployments. */
-            auto_rollback_enabled: boolean;
-            /** @description When true, production environment changes require additional confirmation. */
-            protect_production: boolean;
-            /**
-             * @description Primary identity authentication mode for the org.
-             * @enum {string}
-             */
-            identity_mode: OrgSettingsResponseIdentity_mode;
-            /**
-             * Format: date-time
-             * @description ISO-8601 UTC timestamp when the settings record was created.
-             */
-            created_at: string;
-            /**
-             * Format: date-time
-             * @description ISO-8601 UTC timestamp of the last settings update.
-             */
-            updated_at: string;
-        };
-        /**
-         * CreatePublishableKeyRequest
-         * @description Request body for creating a publishable key for client-side SDK use.
-         */
-        CreatePublishableKeyRequest: {
-            name: string;
-            /**
-             * @default live
-             * @enum {string}
-             */
-            environment: CreatePublishableKeyRequestEnvironment;
-            allowed_app_ids?: string[] | null;
-            allowed_origins?: string[] | null;
-            scopes?: string[] | null;
-            rate_limit_rpm?: number;
-        };
-        /**
-         * CreatePublishableKeyResponse
-         * @description Response for publishable key creation. key is the raw secret returned ONLY once.
-         */
-        CreatePublishableKeyResponse: {
-            /** @description Full raw publishable key. Store immediately. */
-            key: string;
-            key_id: string;
-            org_id: string;
-            name: string;
-            /** @enum {string} */
-            environment: CreatePublishableKeyResponseEnvironment;
-            scopes: string[];
-            allowed_app_ids?: string[] | null;
-            allowed_origins?: string[] | null;
-            rate_limit_rpm: number;
-        };
-        /**
-         * IntegrationTestResponse
-         * @description Result of an integration validation check.
-         */
-        IntegrationTestResponse: {
-            success: boolean;
-            message: string;
-        };
-        /**
-         * UpdateIntegrationRequest
-         * @description Partial update fields for an integration.
-         */
-        UpdateIntegrationRequest: {
-            name?: string;
-            enabled?: boolean;
-            webhook_url?: string;
-            webhook_events?: string;
-            slack_workspace_id?: string;
-            slack_channel_id?: string;
-            email_recipients?: string;
-            email_from?: string;
-            siem_format?: string;
-            siem_endpoint?: string;
-            notify_on_deploy?: boolean;
-            notify_on_incident?: boolean;
-            notify_on_approval?: boolean;
-        };
-        /**
-         * IntegrationDetailResponse
-         * @description Full integration configuration details.
-         */
-        IntegrationDetailResponse: {
+        AlertRuleResponse: {
             id: string;
             name: string;
             /** @enum {string} */
-            integration_type: IntegrationDetailResponseIntegration_type;
+            alert_type: AlertRuleResponseAlert_type;
+            /** @enum {string} */
+            severity: AlertRuleResponseSeverity;
+            metric_name: string;
+            threshold_value?: number | null;
+            threshold_duration_minutes?: number | null;
             enabled: boolean;
-            webhook_url?: string | null;
-            webhook_events?: string | null;
-            slack_workspace_id?: string | null;
-            slack_channel_id?: string | null;
-            email_recipients?: string | null;
-            email_from?: string | null;
-            siem_format?: string | null;
-            siem_endpoint?: string | null;
-            notify_on_deploy?: boolean;
-            notify_on_incident?: boolean;
-            notify_on_approval?: boolean;
+            notify_channels?: string[] | null;
             created_at?: string | null;
             updated_at?: string | null;
-        };
-        /**
-         * CreateIntegrationRequest
-         * @description Request body for creating a notification or data integration.
-         */
-        CreateIntegrationRequest: {
-            name: string;
-            /** @enum {string} */
-            integration_type: CreateIntegrationRequestIntegration_type;
-            /** @description Provider-specific config. Use PATCH after creation to set individual fields. */
-            config?: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * IntegrationResponse
-         * @description Summary integration record as returned by list and create operations.
-         */
-        IntegrationResponse: {
-            id: string;
-            name: string;
-            /** @enum {string} */
-            integration_type: IntegrationResponseIntegration_type;
-            enabled: boolean;
-            /** Format: date-time */
-            created_at?: string | null;
-        };
-        /**
-         * UpdateRoutingRequest
-         * @description Partial update for cloud routing strategy and cooldown.
-         */
-        UpdateRoutingRequest: {
-            /** @enum {string|null} */
-            cloud_routing_strategy?: "ordered_failover" | "weighted_shuffle" | "least_busy" | null;
-            cloud_cooldown_seconds?: number | null;
-        };
-        /**
-         * UpdateRoutingResponse
-         * @description Applied routing configuration after a PATCH.
-         */
-        UpdateRoutingResponse: {
-            /** @enum {string} */
-            cloud_routing_strategy: UpdateRoutingResponseCloud_routing_strategy;
-            cloud_cooldown_seconds: number;
-        };
-        /**
-         * UpdateLocalRuntimeRequest
-         * @description Partial update for a local runtime target.
-         */
-        UpdateLocalRuntimeRequest: {
-            label?: string | null;
-            endpoint?: string | null;
-            model?: string | null;
-            protocol?: string | null;
-            /** @enum {string|null} */
-            status?: "active" | "disabled" | null;
-            routing_priority?: number | null;
-        };
-        /**
-         * LocalTargetResponse
-         * @description A locally-reachable inference runtime target configured for cloud-execution routing.
-         */
-        LocalTargetResponse: {
-            id: string;
-            label: string;
-            endpoint: string;
-            model: string;
-            /** @description e.g. 'openai_compatible' */
-            protocol: string;
-            /** @enum {string} */
-            status: LocalTargetResponseStatus;
-            routing_priority: number;
-            /** @default false */
-            is_env_fallback: boolean;
-            /** Format: date-time */
-            last_verified_at?: string | null;
-            verification_latency_ms?: number | null;
-            last_verification_error?: string | null;
-        };
-        /**
-         * TestConnectionResponse
-         * @description Result of an active probe against a cloud provider connection or local runtime.
-         */
-        TestConnectionResponse: {
-            success: boolean;
-            error?: string | null;
-            latency_ms?: number | null;
-        };
-        /**
-         * CreateLocalRuntimeRequest
-         * @description Request body for registering a new local runtime target in the execution config.
-         */
-        CreateLocalRuntimeRequest: {
-            label: string;
-            /** @description Base URL for the local runtime, e.g. 'http://localhost:11434'. */
-            endpoint: string;
-            /** @default  */
-            model: string;
-            /** @default openai_compatible */
-            protocol: string;
-            /** @default 0 */
-            routing_priority: number;
-        };
-        /**
-         * ExecutionHealthResponse
-         * @description Live health snapshot for all execution targets.
-         */
-        ExecutionHealthResponse: {
-            targets: {
-                target_id: string;
-                target_type: string;
-                provider: string;
-                /** @default 0 */
-                cooldown_remaining: number;
-                /** @default 0 */
-                rpm: number;
-                /** @default 0 */
-                tpm: number;
-                /** @default 0 */
-                inflight: number;
-                /** @default 0 */
-                successes: number;
-                /** @default 0 */
-                failures: number;
-                /** @default 0 */
-                failure_rate: number;
-                /** Format: date-time */
-                last_verified_at?: string | null;
-                verification_latency_ms?: number | null;
-                last_verification_error?: string | null;
-            }[];
-            /** @enum {string} */
-            strategy: ExecutionHealthResponseStrategy;
-            cooldown_seconds: number;
-        };
-        /**
-         * ExecutionConfigResponse
-         * @description Full execution configuration: local runtime targets, cloud targets, and routing settings.
-         */
-        ExecutionConfigResponse: {
-            local_targets: components["schemas"]["LocalTargetResponse"][];
-            cloud_targets: components["schemas"]["CloudTargetResponse"][];
-            /** @enum {string} */
-            routing_strategy: ExecutionConfigResponseRouting_strategy;
-            cooldown_seconds: number;
-        };
-        /**
-         * CloudTargetResponse
-         * @description A cloud provider target in the execution routing configuration.
-         */
-        CloudTargetResponse: {
-            target_id: string;
-            provider: string;
-            connection_type: string;
-            connection_id?: string | null;
-            /** @default active */
-            status: string;
-            /** @default 0 */
-            routing_priority: number;
-            /** @default 1 */
-            routing_weight: number;
-            /** @default 0 */
-            rpm_limit: number;
-            /** @default 0 */
-            tpm_limit: number;
-        };
-        /**
-         * UpdateCloudPolicyRequest
-         * @description Partial update for the org cloud fallback policy.
-         */
-        UpdateCloudPolicyRequest: {
-            cloud_fallback_enabled?: boolean | null;
-            /** @enum {string|null} */
-            cloud_credential_policy?: "byok_only" | "byok_and_managed" | "managed_only" | "disabled" | null;
-            cloud_allowed_providers?: string[] | null;
-            cloud_fallback_model?: string | null;
-        };
-        /**
-         * CloudPolicyResponse
-         * @description Cloud fallback policy configuration for the org.
-         */
-        CloudPolicyResponse: {
-            cloud_fallback_enabled: boolean;
-            /**
-             * @description Which credential sources are permitted for cloud inference.
-             * @enum {string}
-             */
-            cloud_credential_policy: CloudPolicyResponseCloud_credential_policy;
-            /** @description Allowlist of provider identifiers. Null means all allowed. */
-            cloud_allowed_providers?: string[] | null;
-            /** @description Default cloud model id used when falling back. */
-            cloud_fallback_model?: string | null;
-        };
-        /**
-         * UpdateCredentialRequest
-         * @description Partial update for a BYOK cloud provider credential.
-         */
-        UpdateCredentialRequest: {
-            /** @description New raw API key. Stored encrypted; never returned. */
-            api_key?: string | null;
-            label?: string | null;
-            base_url?: string | null;
-            is_active?: boolean | null;
-        };
-        /**
-         * CredentialResponse
-         * @description A BYOK cloud provider credential stored for an org. API key is never returned.
-         */
-        CredentialResponse: {
-            id: string;
-            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
-            provider: string;
-            label: string;
-            is_active: boolean;
-            base_url?: string | null;
-            /** Format: date-time */
-            last_used_at?: string | null;
-            last_error?: string | null;
-            /** Format: date-time */
-            created_at?: string | null;
-            /** Format: date-time */
-            updated_at?: string | null;
-        };
-        /**
-         * CreateCredentialRequest
-         * @description Request body for creating a BYOK cloud provider credential.
-         */
-        CreateCredentialRequest: {
-            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
-            provider: string;
-            /** @description Raw API key. Stored encrypted; never returned. */
-            api_key: string;
-            /** @default default */
-            label: string;
-            base_url?: string | null;
-        };
-        /**
-         * UpdateConnectionRequest
-         * @description Partial update for a cloud provider connection.
-         */
-        UpdateConnectionRequest: {
-            api_key?: string | null;
-            label?: string | null;
-            base_url?: string | null;
-            status?: string | null;
-        };
-        /**
-         * ConnectionResponse
-         * @description A cloud provider connection (BYOK or managed).
-         */
-        ConnectionResponse: {
-            id: string;
-            org_id: string;
-            provider: string;
-            /** @enum {string} */
-            connection_type: ConnectionResponseConnection_type;
-            status: string;
-            label: string;
-            base_url?: string | null;
-            /** Format: date-time */
-            last_used_at?: string | null;
-            last_error?: string | null;
-            error_count: number;
-            /** Format: date-time */
-            created_at: string;
-            verification_status?: string | null;
-            verification_latency_ms?: number | null;
-            /** Format: date-time */
-            last_verified_at?: string | null;
-        };
-        /**
-         * ConnectionModelsResponse
-         * @description List of model ids available from a cloud provider connection.
-         */
-        ConnectionModelsResponse: {
-            /** @description Sorted list of model ids reported by the provider's /models endpoint. */
-            models: string[];
-        };
-        /**
-         * CreateConnectionRequest
-         * @description Request body for creating a cloud provider connection.
-         */
-        CreateConnectionRequest: {
-            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
-            provider: string;
-            /**
-             * @description Only 'byok' is currently accepted by the server.
-             * @enum {string}
-             */
-            connection_type: CreateConnectionRequestConnection_type;
-            /** @description Raw API key for BYOK connections. Stored encrypted; never returned. */
-            api_key?: string | null;
-            /** @default default */
-            label: string;
-            base_url?: string | null;
-        };
-        /**
-         * UpdateBillingRequest
-         * @description Request body for updating the local billing plan (admin/dev path).
-         */
-        UpdateBillingRequest: {
-            /** @description Plan name (free, team, enterprise). */
-            plan: string;
-        };
-        /**
-         * BillingSupportContextResponse
-         * @description Billing context bundle for support handoff. Contains plan, subscription, and latest invoice summary.
-         */
-        BillingSupportContextResponse: {
-            org_id: string;
-            /** @enum {string} */
-            plan: BillingSupportContextResponsePlan;
-            status: string;
-            billing_interval?: string | null;
-            stripe_customer_id?: string | null;
-            stripe_subscription_id?: string | null;
-            /** @description Latest Stripe invoice summary. Null if no customer or no invoices. */
-            latest_invoice?: {
-                [key: string]: unknown;
-            } | null;
-            /** @description Derived support tier label for the plan, e.g. 'community', 'standard', 'priority'. */
-            support_tier: string;
-        };
-        /**
-         * BillingInvoicesResponse
-         * @description Recent invoices sourced live from Stripe with a 90s server-side cache. Up to 20 invoices.
-         */
-        BillingInvoicesResponse: {
-            invoices: {
-                id?: string;
-                number?: string | null;
-                status?: string | null;
-                /** @description Minor currency units (cents). */
-                amount_due?: number | null;
-                amount_paid?: number | null;
-                /** @description ISO 4217 currency code. */
-                currency?: string | null;
-                hosted_invoice_url?: string | null;
-                invoice_pdf?: string | null;
-                /** @description Unix epoch timestamp. */
-                created?: number | null;
-                period_start?: number | null;
-                period_end?: number | null;
-            }[];
-        };
-        /**
-         * BillingResponse
-         * @description Current billing subscription state. Projection of the Stripe subscription cache; may lag by up to one webhook delivery cycle.
-         */
-        BillingResponse: {
-            org_id: string;
-            /** @enum {string} */
-            plan: BillingResponsePlan;
-            /** @enum {string} */
-            status: BillingResponseStatus;
-            /** @enum {string|null} */
-            billing_interval?: "monthly" | "annual" | null;
-            stripe_customer_id?: string | null;
-            /** Format: date-time */
-            current_period_end?: string | null;
-        };
-        /**
-         * PortalRequest
-         * @description Request body for creating a Stripe billing portal session.
-         */
-        PortalRequest: {
-            /** Format: uri */
-            return_url: string;
-        };
-        /**
-         * PortalResponse
-         * @description Stripe billing portal session URL.
-         */
-        PortalResponse: {
-            /** Format: uri */
-            url: string;
-        };
-        /**
-         * CheckoutRequest
-         * @description Request body for creating a Stripe checkout session.
-         */
-        CheckoutRequest: {
-            /** @description Target plan (team, enterprise). */
-            plan: string;
-            /** Format: uri */
-            success_url: string;
-            /** Format: uri */
-            cancel_url: string;
-        };
-        /**
-         * CheckoutResponse
-         * @description Stripe checkout session details.
-         */
-        CheckoutResponse: {
-            session_id: string;
-            /** Format: uri */
-            url: string;
-        };
-        /**
-         * ReconcileCheckoutRequest
-         * @description Request body for reconciling a Stripe Checkout session after redirect-back.
-         */
-        ReconcileCheckoutRequest: {
-            /** @description Stripe checkout.Session id returned in the success_url ?session_id= query param. */
-            session_id: string;
-        };
-        /**
-         * ReconcileCheckoutResponse
-         * @description Projected subscription state after reconciling a completed Stripe Checkout session.
-         */
-        ReconcileCheckoutResponse: {
-            org_id: string;
-            /** @enum {string} */
-            plan: ReconcileCheckoutResponsePlan;
-            /** @enum {string} */
-            status: ReconcileCheckoutResponseStatus;
-            /** @enum {string|null} */
-            billing_interval?: "monthly" | "annual" | null;
-            stripe_customer_id?: string | null;
-            stripe_subscription_id?: string | null;
-            /** Format: date-time */
-            current_period_end?: string | null;
-        };
-        /**
-         * CreateAppKeyRequest
-         * @description Request body for creating an app key for server-side inference.
-         */
-        CreateAppKeyRequest: {
-            name: string;
-            app_id: string;
-            /**
-             * @default live
-             * @enum {string}
-             */
-            environment: CreateAppKeyRequestEnvironment;
-        };
-        /**
-         * CreateAppKeyResponse
-         * @description Response for app key creation. key is the raw secret returned ONLY once.
-         */
-        CreateAppKeyResponse: {
-            /** @description Full raw app key. Store immediately. */
-            key: string;
-            key_id: string;
-            org_id: string;
-            name: string;
-            app_id: string;
-            /** @enum {string} */
-            environment: CreateAppKeyResponseEnvironment;
-            scopes: string[];
-        };
-        /**
-         * CreateApiKeyResponse
-         * @description Response for API key creation. api_key is the raw secret returned ONLY once.
-         */
-        CreateApiKeyResponse: {
-            id: string;
-            org_id: string;
-            name: string;
-            prefix: string;
-            scopes: {
-                [key: string]: boolean;
-            };
-            app_id?: string | null;
-            federation_id?: string | null;
-            model_id?: string | null;
-            last_used_at?: string | null;
-            revoked_at?: string | null;
-            /** Format: date-time */
-            created_at: string | null;
-            /** @description Full raw API key. Store immediately — not retrievable again. */
-            api_key: string;
         };
         /**
          * ApiKeyResponse
@@ -7437,6 +6740,195 @@ export interface components {
                 };
             };
         };
+        ApiKeyScopesResponse__KeyTypeScopesResponse: {
+            groups: {
+                [key: string]: {
+                    label: string;
+                    description: string;
+                    scopes: string[];
+                };
+            };
+        };
+        /**
+         * ApprovalRequest
+         * @description A high-risk tool action awaiting approval.
+         */
+        ApprovalRequest: {
+            id: string;
+            tool_name: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            risk_level: ApprovalRequestRisk_level;
+            /** @enum {string} */
+            status: ApprovalRequestStatus;
+        };
+        /**
+         * AuthConfigResponse
+         * @description Authentication and identity provider configuration for the organization.
+         */
+        AuthConfigResponse: {
+            /** @enum {string} */
+            identity_mode: AuthConfigResponseIdentity_mode;
+            email_password_enabled: boolean;
+            /** @description Derived from server env vars; read-only from SDK. */
+            google_enabled: boolean;
+            /** @description Derived from server env vars; read-only from SDK. */
+            apple_enabled: boolean;
+            /** @description Derived from server env vars; read-only from SDK. */
+            github_enabled: boolean;
+            passkeys_enabled: boolean;
+            sso_provider?: string | null;
+            sso_domain?: string | null;
+            scim_enabled: boolean;
+        };
+        /**
+         * BillingInvoicesResponse
+         * @description Recent invoices sourced live from Stripe with a 90s server-side cache. Up to 20 invoices.
+         */
+        BillingInvoicesResponse: {
+            invoices: {
+                id?: string;
+                number?: string | null;
+                status?: string | null;
+                /** @description Minor currency units (cents). */
+                amount_due?: number | null;
+                amount_paid?: number | null;
+                /** @description ISO 4217 currency code. */
+                currency?: string | null;
+                hosted_invoice_url?: string | null;
+                invoice_pdf?: string | null;
+                /** @description Unix epoch timestamp. */
+                created?: number | null;
+                period_start?: number | null;
+                period_end?: number | null;
+            }[];
+        };
+        /**
+         * BillingResponse
+         * @description Current billing subscription state. Projection of the Stripe subscription cache; may lag by up to one webhook delivery cycle.
+         */
+        BillingResponse: {
+            org_id: string;
+            /** @enum {string} */
+            plan: BillingResponsePlan;
+            /** @enum {string} */
+            status: BillingResponseStatus;
+            /** @enum {string|null} */
+            billing_interval?: "monthly" | "annual" | null;
+            stripe_customer_id?: string | null;
+            /** Format: date-time */
+            current_period_end?: string | null;
+        };
+        /**
+         * BillingSupportContextResponse
+         * @description Billing context bundle for support handoff. Contains plan, subscription, and latest invoice summary.
+         */
+        BillingSupportContextResponse: {
+            org_id: string;
+            /** @enum {string} */
+            plan: BillingSupportContextResponsePlan;
+            status: string;
+            billing_interval?: string | null;
+            stripe_customer_id?: string | null;
+            stripe_subscription_id?: string | null;
+            /** @description Latest Stripe invoice summary. Null if no customer or no invoices. */
+            latest_invoice?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description Derived support tier label for the plan, e.g. 'community', 'standard', 'priority'. */
+            support_tier: string;
+        };
+        /**
+         * CheckoutRequest
+         * @description Request body for creating a Stripe checkout session.
+         */
+        CheckoutRequest: {
+            /** @description Target plan (team, enterprise). */
+            plan: string;
+            /** Format: uri */
+            success_url: string;
+            /** Format: uri */
+            cancel_url: string;
+        };
+        /**
+         * CheckoutResponse
+         * @description Stripe checkout session details.
+         */
+        CheckoutResponse: {
+            session_id: string;
+            /** Format: uri */
+            url: string;
+        };
+        /**
+         * CloudPolicyResponse
+         * @description Cloud fallback policy configuration for the org.
+         */
+        CloudPolicyResponse: {
+            cloud_fallback_enabled: boolean;
+            /**
+             * @description Which credential sources are permitted for cloud inference.
+             * @enum {string}
+             */
+            cloud_credential_policy: CloudPolicyResponseCloud_credential_policy;
+            /** @description Allowlist of provider identifiers. Null means all allowed. */
+            cloud_allowed_providers?: string[] | null;
+            /** @description Default cloud model id used when falling back. */
+            cloud_fallback_model?: string | null;
+        };
+        /**
+         * CloudTargetResponse
+         * @description A cloud provider target in the execution routing configuration.
+         */
+        CloudTargetResponse: {
+            target_id: string;
+            provider: string;
+            connection_type: string;
+            connection_id?: string | null;
+            /** @default active */
+            status: string;
+            /** @default 0 */
+            routing_priority: number;
+            /** @default 1 */
+            routing_weight: number;
+            /** @default 0 */
+            rpm_limit: number;
+            /** @default 0 */
+            tpm_limit: number;
+        };
+        /**
+         * ConnectionModelsResponse
+         * @description List of model ids available from a cloud provider connection.
+         */
+        ConnectionModelsResponse: {
+            /** @description Sorted list of model ids reported by the provider's /models endpoint. */
+            models: string[];
+        };
+        /**
+         * ConnectionResponse
+         * @description A cloud provider connection (BYOK or managed).
+         */
+        ConnectionResponse: {
+            id: string;
+            org_id: string;
+            provider: string;
+            /** @enum {string} */
+            connection_type: ConnectionResponseConnection_type;
+            status: string;
+            label: string;
+            base_url?: string | null;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            last_error?: string | null;
+            error_count: number;
+            /** Format: date-time */
+            created_at: string;
+            verification_status?: string | null;
+            verification_latency_ms?: number | null;
+            /** Format: date-time */
+            last_verified_at?: string | null;
+        };
         /**
          * CreateApiKeyRequest
          * @description Request body for creating an org-scoped API key.
@@ -7448,278 +6940,498 @@ export interface components {
             app_id?: string | null;
         };
         /**
-         * RuntimePlanResponse
-         * @description Response body from POST /api/v2/runtime/plan. Contains an ordered list of engine candidates the SDK should try.
+         * CreateApiKeyResponse
+         * @description Response for API key creation. api_key is the raw secret returned ONLY once.
          */
-        runtime_plan_response_schema: {
-            /**
-             * @description Schema version of the plan response. Version 2 introduces gate_class, evaluation_phase, fallback_eligible on CandidateGate.
-             * @default 2
-             */
-            plan_schema_version: number;
-            /** @description Model identifier the plan was generated for. */
-            model: string;
-            /** @description Capability the plan was generated for. */
-            capability: string;
-            /** @description Routing policy that was applied (may differ from the request if defaulted). */
-            policy: string;
-            /** @description Ordered engine candidates (highest priority first). */
-            candidates: components["schemas"]["runtime_plan_response_schema__RuntimeCandidatePlan"][];
-            /** @description Fallback candidates if primary candidates all fail. */
-            fallback_candidates?: components["schemas"]["runtime_plan_response_schema__RuntimeCandidatePlan"][];
-            /**
-             * @description How long this plan is valid, in seconds. Default: 604800 (7 days).
-             * @default 604800
-             */
-            plan_ttl_seconds: number;
-            /**
-             * @description Whether the SDK is allowed to fall back to cloud inference if all local candidates fail. Private/local_only policies set this to false.
-             * @default true
-             */
-            fallback_allowed: boolean;
-            /**
-             * @description Whether public clients (browser publishable keys, mobile bundle keys) are allowed to dispatch this plan against the hosted gateway. Default false. Server flips true only when the app capability has 'Allow public clients' enabled AND the routing policy is not Private/local_only AND the request key carries the cloud:inference:public scope. Server-key callers ignore this field.
-             * @default false
-             */
-            public_client_allowed: boolean;
-            /**
-             * Format: date-time
-             * @description ISO 8601 timestamp of when the server generated this plan.
-             */
-            server_generated_at: string;
-            /** @description Opaque server-generated ID for correlating the plan with SDK route events and monitoring records. */
-            plan_correlation_id?: string;
-            /** @description Resolved application context when the request used an @app/{slug}/{capability} model ref or explicit app_slug. Null for plain model requests. */
-            app_resolution?: components["schemas"]["app_resolution_schema"] | null;
-            /** @description General model-reference resolution metadata for plain, capability-default, deployment, and experiment refs. App refs use app_resolution. */
-            resolution?: components["schemas"]["runtime_plan_response_schema__ModelResolution"] | null;
+        CreateApiKeyResponse: {
+            id: string;
+            org_id: string;
+            name: string;
+            prefix: string;
+            scopes: {
+                [key: string]: boolean;
+            };
+            app_id?: string | null;
+            federation_id?: string | null;
+            model_id?: string | null;
+            last_used_at?: string | null;
+            revoked_at?: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** @description Full raw API key. Store immediately — not retrievable again. */
+            api_key: string;
         };
         /**
-         * ModelRefKind
-         * @description Canonical classification of a model reference string. This is the single source of truth for how SDKs and the server categorize model references. Grammar-based parsing (local, no server round-trip): model, app, capability, deployment, experiment, alias, default, unknown. Server resolution required for: app (resolve slug to model), capability (resolve default model), deployment (resolve deploy_ prefix to model), experiment (resolve exp_ to variant and model).
-         * @enum {string}
+         * CreateAppKeyRequest
+         * @description Request body for creating an app key for server-side inference.
          */
-        model_ref_kind_schema: Model_ref_kind_schema;
-        /**
-         * CandidateGate
-         * @description A gate requirement attached to a candidate by the planner. SDKs evaluate gates per-request before selecting a candidate.
-         */
-        candidate_gate_schema: {
-            /**
-             * @description Gate code identifying the check to perform.
-             * @enum {string}
-             */
-            code: Candidate_gate_schemaCode;
-            /** @description Whether the candidate must pass this gate to be selected. If false, gate failure is advisory only. */
-            required: boolean;
-            /** @description Numeric threshold for the gate (e.g. min tok/s, max TTFT ms, min bytes). */
-            threshold_number?: number;
-            /** @description String threshold (e.g. modality name, format identifier). */
-            threshold_string?: string;
-            /** @description Time window for historical metrics (e.g. benchmark freshness in seconds). */
-            window_seconds?: number;
-            /**
-             * @description Who defined this gate: server (planner), sdk (local config), or runtime (engine self-report).
-             * @enum {string}
-             */
-            source: Candidate_gate_schemaSource;
-            /**
-             * @description Classification of this gate by evaluation concern. Inferred from code if absent.
-             * @enum {string}
-             */
-            gate_class: Candidate_gate_schemaGate_class;
-            /**
-             * @description When this gate is evaluated relative to inference. Inferred from code if absent.
-             * @enum {string}
-             */
-            evaluation_phase: Candidate_gate_schemaEvaluation_phase;
-            /** @description Whether failure of this gate can trigger fallback to the next candidate. May be suppressed by routing policy. */
-            fallback_eligible: boolean;
-            /** @description Default value for 'required' when the server does not specify. Used by SDKs for inference of gate severity. */
-            blocking_default?: boolean;
-        };
-        /**
-         * AppResolution
-         * @description Resolved application context returned by the server planner when the model reference is an @app/{slug}/{capability} ref or an explicit app_slug. Provides enough local execution data for SDKs to run inference without a second server round-trip.
-         */
-        app_resolution_schema: {
-            /** @description Server-assigned application identifier (UUID). */
+        CreateAppKeyRequest: {
+            name: string;
             app_id: string;
-            /** @description Human-readable app slug used in the @app/ reference. */
-            app_slug?: string | null;
-            /** @description Resolved capability (e.g. 'chat', 'embeddings', 'transcription'). */
-            capability: string;
-            /** @description Effective routing policy from the app's serving configuration. Overrides request-level policy. */
-            routing_policy: string;
-            /** @description Concrete model name resolved from the app's deployment (e.g. 'gemma3-1b'). */
-            selected_model: string;
-            /** @description Catalog model variant identifier for the selected model. */
-            selected_model_variant_id?: string | null;
-            /** @description Version string of the selected model. */
-            selected_model_version?: string | null;
-            /** @description Available artifact options for the resolved model, filtered for the requesting device. */
-            artifact_candidates?: components["schemas"]["runtime_plan_response_schema__RuntimeArtifactPlan"][];
-            /** @description Ordered list of preferred engine identifiers for this device and capability. */
-            preferred_engines?: string[];
-            /** @description Fallback locality ('cloud') or null if no fallback is permitted (e.g. private/local_only). */
-            fallback_policy?: string | null;
             /**
-             * @description How long this resolution is valid, in seconds. Default: 604800 (7 days).
-             * @default 604800
-             */
-            plan_ttl_seconds: number;
-            /**
-             * @description Per-app capability flag. True when the operator has explicitly enabled public-client (browser publishable / mobile bundle) calls against the hosted gateway for this app. Default false. Private/local_only routing keeps this false even if the flag is on. Server-side enforcement still requires the request key to carry cloud:inference:public.
-             * @default false
-             */
-            public_client_allowed: boolean;
-        };
-        /**
-         * RuntimePlanRequest
-         * @description Request body for POST /api/v2/runtime/plan. Asks the server to resolve an optimized runtime execution plan for a model on a specific device.
-         */
-        runtime_plan_request_schema: {
-            /** @description Model identifier to plan for (e.g. 'gemma-3-1b', 'smollm2-135m'). */
-            model: string;
-            /**
-             * @description Inference capability the plan should target.
+             * @default live
              * @enum {string}
              */
-            capability: Runtime_plan_request_schemaCapability;
-            /**
-             * @description Routing policy controlling how candidates are prioritized and filtered. Defaults to local_first on the server. The auto value is retained for older SDK compatibility and is resolved by the server.
-             * @enum {string}
-             */
-            routing_policy?: Runtime_plan_request_schemaRouting_policy;
-            /** @description Application identifier registered with Octomil. */
-            app_id?: string;
-            /** @description Application slug for @app/{slug}/{capability} resolution. When present, the server resolves the app's configured model and routing policy. */
-            app_slug?: string;
-            /** @description Organization identifier. May also be derived from auth context on the server. */
-            org_id?: string;
-            /** @description Device runtime profile describing the hardware and installed engines. */
-            device: components["schemas"]["device_runtime_profile_schema"];
-            /** @description When true (or omitted), cloud candidates may appear in fallback_candidates under local_first policy. Set to false to suppress cloud fallback entirely. */
-            allow_cloud_fallback?: boolean;
+            environment: CreateAppKeyRequestEnvironment;
         };
         /**
-         * DeviceRuntimeProfile
-         * @description Hardware and software profile sent to the server runtime planner endpoint. Collected by each SDK to describe the device requesting a plan.
+         * CreateAppKeyResponse
+         * @description Response for app key creation. key is the raw secret returned ONLY once.
          */
-        device_runtime_profile_schema: {
-            /**
-             * @description SDK platform identifier.
-             * @enum {string}
-             */
-            sdk: Device_runtime_profile_schemaSdk;
-            /** @description SDK version string (e.g. '1.15.0'). */
-            sdk_version: string;
-            /** @description Operating system platform (e.g. 'Darwin', 'Linux', 'iOS', 'macOS'). */
-            platform: string;
-            /** @description CPU architecture (e.g. 'arm64', 'x86_64'). */
-            arch: string;
-            /** @description OS version string. */
-            os_version?: string;
-            /** @description Chip/SoC identifier (e.g. 'Apple M2', 'A17 Pro', 'Snapdragon 8 Gen 3'). */
-            chip?: string;
-            /** @description Total system RAM in bytes. */
-            ram_total_bytes?: number;
-            /** @description Number of GPU cores, if known. */
-            gpu_core_count?: number;
-            /** @description Available hardware accelerators (e.g. 'metal', 'cuda', 'ane', 'nnapi', 'webgpu'). */
-            accelerators?: string[];
-            /** @description Locally-installed inference engines detected on this device. */
-            installed_runtimes?: components["schemas"]["device_runtime_profile_schema__InstalledRuntime"][];
-            /** @description Device-environment gate codes this SDK can evaluate. Absent or empty = device-environment gates stripped, no candidate suppression. Non-empty = server may suppress local candidates with required unsupported device-environment gates. */
-            supported_gate_codes?: components["schemas"]["candidate_gate_schema"]["code"][];
-        };
-        /**
-         * RuntimeBenchmarkSubmissionResponse
-         * @description Response body for POST /api/v2/runtime/benchmarks after a benchmark is accepted for aggregation.
-         */
-        runtime_benchmark_submission_response_schema: {
-            /** @description Server-generated benchmark submission identifier. */
-            id: string;
-            /**
-             * @description True when the submission passed validation and was stored.
-             * @constant
-             */
-            accepted: true;
-            /**
-             * Format: date-time
-             * @description ISO 8601 timestamp when the server accepted the submission.
-             */
-            created_at: string;
-        };
-        /**
-         * RuntimeBenchmarkSubmission
-         * @description Request body for POST /api/v2/runtime/benchmarks. Submits real inference benchmark results from a device. Must NOT contain prompts, responses, audio, transcripts, or file paths.
-         */
-        runtime_benchmark_submission_schema: {
-            /**
-             * @description Where this benchmark originated.
-             * @default planner
-             * @enum {string}
-             */
-            source: Runtime_benchmark_submission_schemaSource;
-            /** @description Model identifier that was benchmarked. */
-            model: string;
-            /** @description Model version string, if known. */
-            model_version?: string;
-            /** @description Content digest of the artifact that was benchmarked (e.g. SHA-256 hex). */
-            artifact_digest?: string;
-            /** @description Capability that was benchmarked (e.g. 'chat', 'embeddings', 'transcription'). */
-            capability: string;
-            /** @description Canonical engine identifier used for the benchmark (e.g. 'mlx-lm', 'llama.cpp'). */
-            engine: string;
-            /** @description Engine version string, if known. */
-            engine_version?: string;
-            /** @description Quantization level used (e.g. 'q4_k_m', 'int8'). */
-            quantization?: string;
-            /** @description Device runtime profile describing the hardware where the benchmark ran. */
-            device: components["schemas"]["device_runtime_profile_schema"];
-            /** @description Number of tokens generated during the benchmark run. */
-            benchmark_tokens?: number;
-            /** @description Time to first token in milliseconds. */
-            ttft_ms?: number;
-            /** @description Token generation throughput in tokens per second. */
-            tokens_per_second?: number;
-            /** @description Total inference latency in milliseconds. */
-            latency_ms?: number;
-            /** @description Peak memory usage during inference in bytes. */
-            peak_memory_bytes?: number;
-            /** @description Whether the benchmark run completed successfully. */
-            success: boolean;
-            /** @description Error code if the benchmark failed. */
-            error_code?: string;
-            /** @description Arbitrary metadata. Must NOT contain keys related to prompts, responses, audio, transcripts, or file paths. */
-            metadata?: {
-                [key: string]: unknown;
-            };
-        };
-        response_stream_event: components["schemas"]["response_stream_event__TextDeltaEvent"] | components["schemas"]["response_stream_event__ToolCallDeltaEvent"] | components["schemas"]["response_stream_event__DoneEvent"];
-        response: {
-            id: string;
-            model: string;
-            output: components["schemas"]["response__OutputItem"][];
+        CreateAppKeyResponse: {
+            /** @description Full raw app key. Store immediately. */
+            key: string;
+            key_id: string;
+            org_id: string;
+            name: string;
+            app_id: string;
             /** @enum {string} */
-            finishReason: ResponseFinishReason;
-            usage?: components["schemas"]["response__Usage"];
+            environment: CreateAppKeyResponseEnvironment;
+            scopes: string[];
         };
-        response_request: {
-            model: string;
-            input: string | components["schemas"]["response_request__ContentBlock"][];
-            tools?: components["schemas"]["response_request__ToolDef"][];
-            instructions?: string;
-            previousResponseId?: string;
-            maxOutputTokens?: number;
-            temperature?: number;
-            topP?: number;
-            stop?: string[];
-            responseFormat?: components["schemas"]["response_request__ResponseFormat"];
-            metadata?: {
+        /**
+         * CreateConnectionRequest
+         * @description Request body for creating a cloud provider connection.
+         */
+        CreateConnectionRequest: {
+            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
+            provider: string;
+            /**
+             * @description Only 'byok' is currently accepted by the server.
+             * @enum {string}
+             */
+            connection_type: CreateConnectionRequestConnection_type;
+            /** @description Raw API key for BYOK connections. Stored encrypted; never returned. */
+            api_key?: string | null;
+            /** @default default */
+            label: string;
+            base_url?: string | null;
+        };
+        /**
+         * CreateCredentialRequest
+         * @description Request body for creating a BYOK cloud provider credential.
+         */
+        CreateCredentialRequest: {
+            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
+            provider: string;
+            /** @description Raw API key. Stored encrypted; never returned. */
+            api_key: string;
+            /** @default default */
+            label: string;
+            base_url?: string | null;
+        };
+        /**
+         * CreateIntegrationRequest
+         * @description Request body for creating a notification or data integration.
+         */
+        CreateIntegrationRequest: {
+            name: string;
+            /** @enum {string} */
+            integration_type: CreateIntegrationRequestIntegration_type;
+            /** @description Provider-specific config. Use PATCH after creation to set individual fields. */
+            config?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * CreateLocalRuntimeRequest
+         * @description Request body for registering a new local runtime target in the execution config.
+         */
+        CreateLocalRuntimeRequest: {
+            label: string;
+            /** @description Base URL for the local runtime, e.g. 'http://localhost:11434'. */
+            endpoint: string;
+            /** @default  */
+            model: string;
+            /** @default openai_compatible */
+            protocol: string;
+            /** @default 0 */
+            routing_priority: number;
+        };
+        /**
+         * CreatePublishableKeyRequest
+         * @description Request body for creating a publishable key for client-side SDK use.
+         */
+        CreatePublishableKeyRequest: {
+            name: string;
+            /**
+             * @default live
+             * @enum {string}
+             */
+            environment: CreatePublishableKeyRequestEnvironment;
+            allowed_app_ids?: string[] | null;
+            allowed_origins?: string[] | null;
+            scopes?: string[] | null;
+            rate_limit_rpm?: number;
+        };
+        /**
+         * CreatePublishableKeyResponse
+         * @description Response for publishable key creation. key is the raw secret returned ONLY once.
+         */
+        CreatePublishableKeyResponse: {
+            /** @description Full raw publishable key. Store immediately. */
+            key: string;
+            key_id: string;
+            org_id: string;
+            name: string;
+            /** @enum {string} */
+            environment: CreatePublishableKeyResponseEnvironment;
+            scopes: string[];
+            allowed_app_ids?: string[] | null;
+            allowed_origins?: string[] | null;
+            rate_limit_rpm: number;
+        };
+        /**
+         * CreateSessionResponse
+         * @description Response to POST /agents/sessions.
+         */
+        CreateSessionResponse: {
+            session_id: string;
+            model: string;
+            model_ref?: string | null;
+            model_name?: string | null;
+            model_version?: string | null;
+            use_case: string;
+            binding_key: string;
+            device_id?: string | null;
+            deployment_id?: string | null;
+            deployment_key?: string | null;
+            tools: {
+                [key: string]: unknown;
+            }[];
+            instructions: string;
+        };
+        /**
+         * CredentialResponse
+         * @description A BYOK cloud provider credential stored for an org. API key is never returned.
+         */
+        CredentialResponse: {
+            id: string;
+            /** @description Provider identifier, e.g. 'openai', 'anthropic', 'azure_openai'. */
+            provider: string;
+            label: string;
+            is_active: boolean;
+            base_url?: string | null;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            last_error?: string | null;
+            /** Format: date-time */
+            created_at?: string | null;
+            /** Format: date-time */
+            updated_at?: string | null;
+        };
+        ErrorEnvelope: {
+            error: {
+                /** @enum {string} */
+                code: ErrorEnvelopeErrorCode;
+                message: string;
+                details?: {
+                    [key: string]: unknown;
+                };
+                request_id?: string;
+            };
+        };
+        /**
+         * ExecutionConfigResponse
+         * @description Full execution configuration: local runtime targets, cloud targets, and routing settings.
+         */
+        ExecutionConfigResponse: {
+            local_targets: components["schemas"]["LocalTargetResponse"][];
+            cloud_targets: components["schemas"]["CloudTargetResponse"][];
+            /** @enum {string} */
+            routing_strategy: ExecutionConfigResponseRouting_strategy;
+            cooldown_seconds: number;
+        };
+        /**
+         * ExecutionHealthResponse
+         * @description Live health snapshot for all execution targets.
+         */
+        ExecutionHealthResponse: {
+            targets: {
+                target_id: string;
+                target_type: string;
+                provider: string;
+                /** @default 0 */
+                cooldown_remaining: number;
+                /** @default 0 */
+                rpm: number;
+                /** @default 0 */
+                tpm: number;
+                /** @default 0 */
+                inflight: number;
+                /** @default 0 */
+                successes: number;
+                /** @default 0 */
+                failures: number;
+                /** @default 0 */
+                failure_rate: number;
+                /** Format: date-time */
+                last_verified_at?: string | null;
+                verification_latency_ms?: number | null;
+                last_verification_error?: string | null;
+            }[];
+            /** @enum {string} */
+            strategy: ExecutionHealthResponseStrategy;
+            cooldown_seconds: number;
+        };
+        /**
+         * Experiment
+         * @description An A/B experiment within a deployment. Mirrors server/app/models/experiment.py Experiment.to_dict().
+         */
+        Experiment: {
+            /** @description Experiment UUID. */
+            id: string;
+            name: string;
+            description?: string | null;
+            /** @description Internal Model registry UUID (see workspace memory `Model Registries`). */
+            model_id: string;
+            /**
+             * @description From ExperimentStatus enum. Lifecycle transitions: draft → running → (paused ↔ running) → completed; any → cancelled.
+             * @enum {string}
+             */
+            status: ExperimentStatus;
+            /** @description Percentage of eligible devices included (0-100). */
+            traffic_percentage: number;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            ended_at?: string | null;
+            min_sample_size?: number | null;
+            confidence_level?: number | null;
+            primary_metric?: string | null;
+            /** @description e.g. `"version"` (compare model versions), `"variant"` (compare variants). */
+            experiment_type: string;
+            /** Format: date-time */
+            created_at?: string | null;
+            /** Format: date-time */
+            updated_at?: string | null;
+            /** @description Per-variant traffic allocation. Present when include_variants=true (the default). */
+            variants?: {
+                id?: string;
+                name?: string;
+                model_version?: string | null;
+                traffic_allocation?: number;
+                is_control?: boolean;
+            }[] | null;
+            /** @description Device groups the experiment targets. Empty array when none configured. */
+            target_groups?: {
+                id: string;
+                name: string;
+                group_type?: string | null;
+            }[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentAnalytics
+         * @description Full analytics summary for an experiment: per-variant stats, t-test significance, and statistical power. Mirrors get_experiment_analytics() return shape.
+         */
+        ExperimentAnalytics: {
+            /** @description Experiment UUID. */
+            experiment_id: string;
+            experiment_name: string;
+            /** @enum {string} */
+            status: ExperimentAnalyticsStatus;
+            /** @description Metric name used for analysis. Defaults to experiment.primary_metric when metric_name query param is omitted. */
+            primary_metric: string;
+            total_events: number;
+            total_devices: number;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** @description Per-variant analytics summary. */
+            variants: components["schemas"]["ExperimentAnalytics__VariantAnalytics"][];
+            /** @description Welch t-test result. Null when either variant has fewer than 2 observations. */
+            significance_result?: components["schemas"]["ExperimentAnalytics__SignificanceResult"] | null;
+            /** @description Observed statistical power. Null when significance_result is null. */
+            statistical_power?: number | null;
+            recommendation?: string | null;
+            warnings?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        ExperimentAnalytics__ConfidenceInterval: {
+            lower?: number;
+            upper?: number;
+            confidence_level?: number;
+            mean?: number;
+            margin_of_error?: number;
+        };
+        ExperimentAnalytics__SignificanceResult: {
+            is_significant: boolean;
+            p_value: number;
+            t_statistic?: number | null;
+            significance_level?: number | null;
+            confidence_level?: number | null;
+            control_mean?: number | null;
+            treatment_mean?: number | null;
+            relative_difference?: number | null;
+            absolute_difference?: number | null;
+            effect_size?: number | null;
+            effect_magnitude?: string | null;
+            control_n?: number | null;
+            treatment_n?: number | null;
+            degrees_of_freedom?: number | null;
+            is_sufficient_sample?: boolean | null;
+        };
+        ExperimentAnalytics__VariantAnalytics: {
+            variant_id: string;
+            variant_name: string;
+            is_control: boolean;
+            sample_count: number;
+            unique_devices: number;
+            mean?: number | null;
+            std_dev?: number | null;
+            confidence_interval?: components["schemas"]["ExperimentAnalytics__ConfidenceInterval"] | null;
+        };
+        /**
+         * ExperimentGuardrailsResult
+         * @description Per-metric guardrail check results. Mirrors check_experiment_guardrails() return shape.
+         */
+        ExperimentGuardrailsResult: {
+            experiment_id: string;
+            /** @description One entry per metric in the request body. Shape of each entry is returned from StatisticalAnalyzer.check_guardrails(). */
+            guardrails: ({
+                metric_name?: string;
+                /**
+                 * @description pass = guardrail held; violation = threshold breached.
+                 * @enum {string}
+                 */
+                status?: ExperimentGuardrailsResultGuardrailsStatus;
+            } & {
+                [key: string]: unknown;
+            })[];
+            /** @description True if any metric status == 'violation'. */
+            any_violation: boolean;
+            /** @description Human-readable summary: 'All guardrails pass' or 'Guardrail violation detected — review before proceeding'. */
+            recommendation: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentListResponse
+         * @description Bare array of experiment objects scoped to one deployment.
+         */
+        ExperimentListResponse: components["schemas"]["Experiment"][];
+        /**
+         * ExperimentNonparametric
+         * @description Nonparametric analysis results: Mann-Whitney U test plus per-variant normality assessment. Mirrors get_nonparametric_analysis() return shape.
+         */
+        ExperimentNonparametric: {
+            experiment_id: string;
+            metric: string;
+            /** @description Mann-Whitney U test output from StatisticalAnalyzer.mann_whitney_test(). Shape is analyzer-defined; treat all sub-fields as optional. */
+            mann_whitney?: {
+                [key: string]: unknown;
+            };
+            /** @description Normality test output for the control group from StatisticalAnalyzer.test_normality(). */
+            normality_control?: {
+                is_normal?: boolean;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @description Normality test output for the treatment group. */
+            normality_treatment?: {
+                is_normal?: boolean;
+            } & {
+                [key: string]: unknown;
+            };
+            /**
+             * @description 't-test' when both groups pass normality; 'mann_whitney_u' otherwise.
+             * @enum {string}
+             */
+            recommended_test: ExperimentNonparametricRecommended_test;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentSampleSize
+         * @description Required sample size for the experiment's primary metric and current enrollment progress. Mirrors get_experiment_sample_size() return shape.
+         */
+        ExperimentSampleSize: {
+            /** @description Required observations per variant group. */
+            sample_size_per_group: number;
+            /** @description sample_size_per_group * 2. */
+            total_sample_size: number;
+            /** @description Target statistical power (e.g. 0.80). */
+            power: number;
+            /** @description Significance level (e.g. 0.05). */
+            alpha: number;
+            /** @description Minimum relative effect size the experiment is powered to detect. */
+            minimum_detectable_effect: number;
+            /** @description Effect type label returned by StatisticalAnalyzer (e.g. 'relative'). */
+            effect_type: string;
+            /** @description Current number of control-group observations. */
+            current_control_n: number;
+            /** @description Current number of treatment-group observations. */
+            current_treatment_n: number;
+            /** @description Enrollment progress as percentage of total_sample_size. Rounded to 1 decimal place. */
+            progress_percent: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentSegmentAnalysis
+         * @description Remaining fields are merged from StatisticalAnalyzer.segment_analysis() and are analyzer-defined.
+         */
+        ExperimentSegmentAnalysis: {
+            experiment_id: string;
+            metric: string;
+            /** @description Device metadata key used to partition events (e.g. 'platform', 'os_version'). Defaults to 'platform' when the query param is omitted. */
+            segment_by: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentSequentialAnalysis
+         * @description The server returns StatisticalAnalyzer.sequential_test() verbatim. No fixed required fields are guaranteed by the server today — treat all fields as optional in SDK codegen until the analyzer interface is stabilised.
+         */
+        ExperimentSequentialAnalysis: {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentTargetGroups
+         * @description Device groups targeted by an experiment. Shared response shape for GET and PUT target-groups endpoints.
+         */
+        ExperimentTargetGroups: {
+            experiment_id: string;
+            /** @description Empty array when no groups are configured. */
+            target_groups: ({
+                id: string;
+                name: string;
+                group_type?: string | null;
+            } & {
+                [key: string]: unknown;
+            })[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ExperimentTimeseries
+         * @description Time-bucketed metric means per variant. Interval buckets are 'hour', 'day' (default), or 'week'. Mirrors get_experiment_timeseries() return shape.
+         */
+        ExperimentTimeseries: {
+            experiment_id: string;
+            metric_name: string;
+            /**
+             * @description Bucket granularity. Values outside this set default to 'day' on the server.
+             * @enum {string}
+             */
+            interval: ExperimentTimeseriesInterval;
+            variants: {
+                variant_id: string;
+                variant_name: string;
+                is_control: boolean;
+                data_points: {
+                    /** @description Bucket key. Format depends on interval: ISO datetime string for 'hour', YYYY-MM-DD for 'day', YYYY-WWW for 'week'. */
+                    timestamp: string;
+                    /** @description Mean metric value across all events in this bucket. */
+                    value: number;
+                    /** @description Number of events in this bucket. */
+                    count: number;
+                }[];
+            }[];
+        } & {
+            [key: string]: unknown;
         };
         /**
          * Incident
@@ -7770,37 +7482,49 @@ export interface components {
          */
         IncidentListResponse: components["schemas"]["Incident"][];
         /**
-         * UpdateAlertRuleRequest
-         * @description Partial update fields for an alert rule.
+         * IntegrationDetailResponse
+         * @description Full integration configuration details.
          */
-        UpdateAlertRuleRequest: {
-            name?: string;
-            /** @enum {string} */
-            severity?: UpdateAlertRuleRequestSeverity;
-            metric_name?: string;
-            threshold_value?: number;
-            threshold_duration_minutes?: number;
-            enabled?: boolean;
-            notify_channels?: string[];
-        };
-        /**
-         * AlertRuleResponse
-         * @description Full alert rule configuration.
-         */
-        AlertRuleResponse: {
+        IntegrationDetailResponse: {
             id: string;
             name: string;
             /** @enum {string} */
-            alert_type: AlertRuleResponseAlert_type;
-            /** @enum {string} */
-            severity: AlertRuleResponseSeverity;
-            metric_name: string;
-            threshold_value?: number | null;
-            threshold_duration_minutes?: number | null;
+            integration_type: IntegrationDetailResponseIntegration_type;
             enabled: boolean;
-            notify_channels?: string[] | null;
+            webhook_url?: string | null;
+            webhook_events?: string | null;
+            slack_workspace_id?: string | null;
+            slack_channel_id?: string | null;
+            email_recipients?: string | null;
+            email_from?: string | null;
+            siem_format?: string | null;
+            siem_endpoint?: string | null;
+            notify_on_deploy?: boolean;
+            notify_on_incident?: boolean;
+            notify_on_approval?: boolean;
             created_at?: string | null;
             updated_at?: string | null;
+        };
+        /**
+         * IntegrationResponse
+         * @description Summary integration record as returned by list and create operations.
+         */
+        IntegrationResponse: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            integration_type: IntegrationResponseIntegration_type;
+            enabled: boolean;
+            /** Format: date-time */
+            created_at?: string | null;
+        };
+        /**
+         * IntegrationTestResponse
+         * @description Result of an integration validation check.
+         */
+        IntegrationTestResponse: {
+            success: boolean;
+            message: string;
         };
         /**
          * Job
@@ -7858,160 +7582,360 @@ export interface components {
             [key: string]: unknown;
         };
         /**
-         * TrainingPlan
-         * @description Server-issued training plan defining local training configuration for a federated round.
+         * LocalTargetResponse
+         * @description A locally-reachable inference runtime target configured for cloud-execution routing.
          */
-        training_plan: {
-            /** @description Opaque unique identifier for this training plan. */
-            planId: string;
-            /** @description Federated round this plan belongs to. */
-            roundId: string;
-            /** @description Training job this round is part of. */
-            jobId: string;
-            /** @description ArtifactId of the base model to train. Device must have this artifact staged. */
-            modelArtifactId: string;
-            /** @description ArtifactId of an adapter to fine-tune, if applicable. */
-            adapterArtifactId?: string;
-            /** @description Local training hyperparameters. */
-            hyperparameters: {
-                /** @description Number of local training epochs. */
-                epochs: number;
-                /** @description Mini-batch size for local SGD. */
-                batchSize: number;
-                /** @description Initial learning rate. */
-                learningRate: number;
-                /** @description Gradient clipping norm bound for DP. */
-                maxGradNorm?: number;
-                weightDecay?: number;
-                warmupSteps?: number;
-            };
-            /** @description Differential privacy configuration. */
-            privacyConfig: {
-                /**
-                 * @description DP noise mechanism to apply.
-                 * @enum {string}
-                 */
-                mechanism: Training_planPrivacyConfigMechanism;
-                /** @description Privacy budget epsilon. */
-                epsilon?: number;
-                /** @description Privacy budget delta. */
-                delta?: number;
-                noiseMultiplier?: number;
-                /** @description L2 sensitivity bound for clipping. */
-                clipNorm?: number;
-                /**
-                 * @description Whether secure aggregation is required for this round.
-                 * @default false
-                 */
-                secureAggregation: boolean;
-            };
-            /** @description Local data selection constraints. */
-            dataConfig?: {
-                /** @description SDK-registered dataset key to train on. */
-                datasetKey?: string;
-                /** @description Maximum number of local samples to use. */
-                maxSamples?: number;
-                /** @description Minimum required samples; device aborts if below this. */
-                minSamples?: number;
-            };
-            /** @description Maximum wall-clock seconds allowed for local training. */
-            executionWindowSeconds?: number;
-            /**
-             * Format: date-time
-             * @description Round deadline; device must complete and upload before this timestamp.
-             */
-            expiresAt: string;
+        LocalTargetResponse: {
+            id: string;
+            label: string;
+            endpoint: string;
+            model: string;
+            /** @description e.g. 'openai_compatible' */
+            protocol: string;
+            /** @enum {string} */
+            status: LocalTargetResponseStatus;
+            routing_priority: number;
+            /** @default false */
+            is_env_fallback: boolean;
+            /** Format: date-time */
+            last_verified_at?: string | null;
+            verification_latency_ms?: number | null;
+            last_verification_error?: string | null;
         };
         /**
-         * DeviceSyncRequest
-         * @description Unified sync request combining device inventory and observed state in a single round-trip.
+         * Message
+         * @description A message within an agent thread.
          */
-        device_sync_request: {
-            /** @description Contract schema version this payload conforms to (e.g. '1.12.0'). */
-            schemaVersion: string;
-            /** @description Opaque device identifier. */
-            deviceId: string;
-            /**
-             * Format: date-time
-             * @description ISO 8601 timestamp when the SDK initiated this sync.
-             */
-            requestedAt: string;
-            /** @description Last applied desired state syncRevision. Server may short-circuit if unchanged. */
-            knownStateVersion?: string;
-            /** @description Version of the Octomil SDK. */
-            sdkVersion?: string;
-            /** @description DevicePlatform enum value (ios, android, python, browser, node). */
-            platform?: string;
-            /** @description Application identifier registered with Octomil. */
-            appId?: string;
-            /** @description Version of the host application. */
-            appVersion?: string;
-            /** @description Installed model artifacts and their statuses. */
-            modelInventory?: {
-                modelId: string;
-                version: string;
-                artifactId?: string;
-                /** @description ArtifactStatus enum value. */
-                status: string;
-            }[];
-            /** @description Models currently loaded and serving inference. */
-            activeVersions?: {
-                modelId: string;
-                version: string;
-            }[];
-            /** @description Full observed state snapshot, inlined for single round-trip. */
-            observedState?: components["schemas"]["observed_state"];
-            /** @description Free storage available on the device. */
-            availableStorageBytes?: number;
+        Message: {
+            id: string;
+            thread_id: string;
+            /** @enum {string} */
+            role: MessageRole;
+            content?: string | null;
+            tool_calls?: {
+                [key: string]: unknown;
+            }[] | null;
+            tool_call_id?: string | null;
+            metrics?: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            created_at: string;
         };
         /**
-         * ObservedState
-         * @description Device-reported observed state sent to the server during control-plane sync.
+         * OrgSettingsResponse
+         * @description Organization-level governance and operational settings.
          */
-        observed_state: {
-            /** @description Contract schema version this payload conforms to. */
-            schemaVersion: string;
-            /** @description Opaque device identifier. */
-            deviceId: string;
+        OrgSettingsResponse: {
+            /** @description Organization identifier (UUIDv4). */
+            org_id: string;
+            /** @description Number of days to retain audit log entries. */
+            audit_retention_days: number;
+            /** @description When true, admin-role users must authenticate with MFA. */
+            require_mfa_for_admin: boolean;
+            /** @description When true, deployments and other destructive actions require explicit admin approval. */
+            require_admin_approval: boolean;
+            /** @description When true, the platform automatically rolls back failed deployments. */
+            auto_rollback_enabled: boolean;
+            /** @description When true, production environment changes require additional confirmation. */
+            protect_production: boolean;
+            /**
+             * @description Primary identity authentication mode for the org.
+             * @enum {string}
+             */
+            identity_mode: OrgSettingsResponseIdentity_mode;
             /**
              * Format: date-time
-             * @description ISO 8601 timestamp when this snapshot was captured on-device.
+             * @description ISO-8601 UTC timestamp when the settings record was created.
              */
-            reportedAt: string;
-            /** @description Currently active base model pointer. Null if no model is active. */
-            activeModelPointer?: components["schemas"]["active_model_pointer"];
-            /** @description Currently active serving binding. Null if no binding is active. */
-            activeBinding?: components["schemas"]["active_binding"];
-            /** @description Per-model observed state with installed version, active version, status, and health. */
-            models?: {
-                /** @description Model variant identifier. */
-                modelId: string;
-                /** @description Version of the model artifact currently on disk. */
-                installedVersion?: string;
-                /** @description Version currently loaded and serving inference. Null if not active. */
-                activeVersion?: string | null;
-                /** @description ArtifactStatus enum value. */
-                status: string;
-                /**
-                 * @description Current health of this model on-device.
-                 * @enum {string}
-                 */
-                health?: Observed_stateModelsHealth;
-                /** @description Most recent error message if status indicates failure. Null otherwise. */
-                lastError?: string | null;
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 UTC timestamp of the last settings update.
+             */
+            updated_at: string;
+        };
+        /**
+         * PoliciesResponse
+         * @description Org-level serving and data-handling policy configuration.
+         */
+        PoliciesResponse: {
+            /** @description Open-shape serving policy object. See ServingPolicy domain type. */
+            serving_policy?: Record<string, never> | null;
+            telemetry_enabled: boolean;
+            /** @enum {string} */
+            privacy_mode: PoliciesResponsePrivacy_mode;
+        };
+        /**
+         * PortalRequest
+         * @description Request body for creating a Stripe billing portal session.
+         */
+        PortalRequest: {
+            /** Format: uri */
+            return_url: string;
+        };
+        /**
+         * PortalResponse
+         * @description Stripe billing portal session URL.
+         */
+        PortalResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        /**
+         * ReconcileCheckoutRequest
+         * @description Request body for reconciling a Stripe Checkout session after redirect-back.
+         */
+        ReconcileCheckoutRequest: {
+            /** @description Stripe checkout.Session id returned in the success_url ?session_id= query param. */
+            session_id: string;
+        };
+        /**
+         * ReconcileCheckoutResponse
+         * @description Projected subscription state after reconciling a completed Stripe Checkout session.
+         */
+        ReconcileCheckoutResponse: {
+            org_id: string;
+            /** @enum {string} */
+            plan: ReconcileCheckoutResponsePlan;
+            /** @enum {string} */
+            status: ReconcileCheckoutResponseStatus;
+            /** @enum {string|null} */
+            billing_interval?: "monthly" | "annual" | null;
+            stripe_customer_id?: string | null;
+            stripe_subscription_id?: string | null;
+            /** Format: date-time */
+            current_period_end?: string | null;
+        };
+        /**
+         * Run
+         * @description One agent invocation within a thread.
+         */
+        Run: {
+            id: string;
+            thread_id: string;
+            agent_type: string;
+            model: string;
+            /** @enum {string} */
+            status: RunStatus;
+            query: string;
+            summary?: string | null;
+            confidence?: number | null;
+            error?: string | null;
+            steps?: components["schemas"]["Step"][] | null;
+            pending_approvals?: components["schemas"]["ApprovalRequest"][] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            completed_at?: string | null;
+        };
+        /**
+         * Step
+         * @description Atomic trace unit within a run.
+         */
+        Step: {
+            id: string;
+            step_index: number;
+            /** @enum {string} */
+            step_type: StepStep_type;
+            tool_name?: string | null;
+            tool_call_id?: string | null;
+            status: string;
+            error_code?: string | null;
+            latency_ms: number;
+        };
+        /**
+         * TestConnectionResponse
+         * @description Result of an active probe against a cloud provider connection or local runtime.
+         */
+        TestConnectionResponse: {
+            success: boolean;
+            error?: string | null;
+            latency_ms?: number | null;
+        };
+        /**
+         * Thread
+         * @description Agent conversation thread.
+         */
+        Thread: {
+            id: string;
+            agent_type: string;
+            model?: string | null;
+            title?: string | null;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            messages?: components["schemas"]["Message"][] | null;
+        };
+        /**
+         * UpdateAlertRuleRequest
+         * @description Partial update fields for an alert rule.
+         */
+        UpdateAlertRuleRequest: {
+            name?: string;
+            /** @enum {string} */
+            severity?: UpdateAlertRuleRequestSeverity;
+            metric_name?: string;
+            threshold_value?: number;
+            threshold_duration_minutes?: number;
+            enabled?: boolean;
+            notify_channels?: string[];
+        };
+        /**
+         * UpdateAuthConfigRequest
+         * @description Partial update for org-level authentication configuration. OAuth provider availability cannot be set here.
+         */
+        UpdateAuthConfigRequest: {
+            /** @enum {string} */
+            identity_mode?: UpdateAuthConfigRequestIdentity_mode;
+            email_password_enabled?: boolean;
+            sso_provider?: string | null;
+            sso_domain?: string | null;
+            scim_enabled?: boolean;
+        };
+        /**
+         * UpdateBillingRequest
+         * @description Request body for updating the local billing plan (admin/dev path).
+         */
+        UpdateBillingRequest: {
+            /** @description Plan name (free, team, enterprise). */
+            plan: string;
+        };
+        /**
+         * UpdateCloudPolicyRequest
+         * @description Partial update for the org cloud fallback policy.
+         */
+        UpdateCloudPolicyRequest: {
+            cloud_fallback_enabled?: boolean | null;
+            /** @enum {string|null} */
+            cloud_credential_policy?: "byok_only" | "byok_and_managed" | "managed_only" | "disabled" | null;
+            cloud_allowed_providers?: string[] | null;
+            cloud_fallback_model?: string | null;
+        };
+        /**
+         * UpdateConnectionRequest
+         * @description Partial update for a cloud provider connection.
+         */
+        UpdateConnectionRequest: {
+            api_key?: string | null;
+            label?: string | null;
+            base_url?: string | null;
+            status?: string | null;
+        };
+        /**
+         * UpdateCredentialRequest
+         * @description Partial update for a BYOK cloud provider credential.
+         */
+        UpdateCredentialRequest: {
+            /** @description New raw API key. Stored encrypted; never returned. */
+            api_key?: string | null;
+            label?: string | null;
+            base_url?: string | null;
+            is_active?: boolean | null;
+        };
+        /**
+         * UpdateIntegrationRequest
+         * @description Partial update fields for an integration.
+         */
+        UpdateIntegrationRequest: {
+            name?: string;
+            enabled?: boolean;
+            webhook_url?: string;
+            webhook_events?: string;
+            slack_workspace_id?: string;
+            slack_channel_id?: string;
+            email_recipients?: string;
+            email_from?: string;
+            siem_format?: string;
+            siem_endpoint?: string;
+            notify_on_deploy?: boolean;
+            notify_on_incident?: boolean;
+            notify_on_approval?: boolean;
+        };
+        /**
+         * UpdateLocalRuntimeRequest
+         * @description Partial update for a local runtime target.
+         */
+        UpdateLocalRuntimeRequest: {
+            label?: string | null;
+            endpoint?: string | null;
+            model?: string | null;
+            protocol?: string | null;
+            /** @enum {string|null} */
+            status?: "active" | "disabled" | null;
+            routing_priority?: number | null;
+        };
+        /**
+         * UpdatePoliciesRequest
+         * @description Partial update for org-level policies. All fields optional.
+         */
+        UpdatePoliciesRequest: {
+            serving_policy?: Record<string, never> | null;
+            telemetry_enabled?: boolean;
+            /** @enum {string} */
+            privacy_mode?: UpdatePoliciesRequestPrivacy_mode;
+        };
+        /**
+         * UpdateRoutingRequest
+         * @description Partial update for cloud routing strategy and cooldown.
+         */
+        UpdateRoutingRequest: {
+            /** @enum {string|null} */
+            cloud_routing_strategy?: "ordered_failover" | "weighted_shuffle" | "least_busy" | null;
+            cloud_cooldown_seconds?: number | null;
+        };
+        /**
+         * UpdateRoutingResponse
+         * @description Applied routing configuration after a PATCH.
+         */
+        UpdateRoutingResponse: {
+            /** @enum {string} */
+            cloud_routing_strategy: UpdateRoutingResponseCloud_routing_strategy;
+            cloud_cooldown_seconds: number;
+        };
+        /**
+         * UpdateSettingsRequest
+         * @description Partial update for organization-level settings. All fields are optional.
+         */
+        UpdateSettingsRequest: {
+            audit_retention_days?: number;
+            require_mfa_for_admin?: boolean;
+            require_admin_approval?: boolean;
+            auto_rollback_enabled?: boolean;
+            protect_production?: boolean;
+            /** @enum {string} */
+            identity_mode?: UpdateSettingsRequestIdentity_mode;
+            device_battery_threshold?: number;
+            /** @enum {string} */
+            device_network_policy?: UpdateSettingsRequestDevice_network_policy;
+        };
+        /**
+         * UpdateUsageLimitsRequest
+         * @description Request body for updating usage limits.
+         */
+        UpdateUsageLimitsRequest: {
+            limits: {
+                metric: string;
+                limit_value: number;
             }[];
-            /** @description Current participation state for any active federated rounds. */
-            federationParticipations?: {
-                roundId: string;
-                /** @description FederatedParticipationState enum value. */
-                state: string;
+        };
+        /**
+         * UsageLimitsResponse
+         * @description Usage limits for an organization.
+         */
+        UsageLimitsResponse: {
+            /** @description Organization identifier. */
+            org_id: string;
+            limits: {
+                /** @description Limit metric name (devices, training_rounds, models, etc.). */
+                metric: string;
+                /** @description Maximum allowed value for this metric. */
+                limit_value: number;
             }[];
-            /** @description Version of the Octomil SDK running on-device. */
-            sdkVersion?: string;
-            /** @description Host OS version string. */
-            osVersion?: string;
-            /** @description Free storage available on the device at time of report. */
-            availableStorageBytes?: number;
         };
         /**
          * ActiveBinding
@@ -8071,30 +7995,365 @@ export interface components {
             isFallback: boolean;
         };
         /**
-         * DeviceSyncResponse
-         * @description Unified sync response returning desired state and server directives in a single round-trip.
+         * AppResolution
+         * @description Resolved application context returned by the server planner when the model reference is an @app/{slug}/{capability} ref or an explicit app_slug. Provides enough local execution data for SDKs to run inference without a second server round-trip.
          */
-        device_sync_response: {
-            /** @description Contract schema version this payload conforms to. */
-            schemaVersion: string;
-            /** @description Opaque device identifier this response targets. */
-            deviceId: string;
+        app_resolution_schema: {
+            /** @description Server-assigned application identifier (UUID). */
+            app_id: string;
+            /** @description Human-readable app slug used in the @app/ reference. */
+            app_slug?: string | null;
+            /** @description Resolved capability (e.g. 'chat', 'embeddings', 'transcription'). */
+            capability: string;
+            /** @description Effective routing policy from the app's serving configuration. Overrides request-level policy. */
+            routing_policy: string;
+            /** @description Concrete model name resolved from the app's deployment (e.g. 'gemma3-1b'). */
+            selected_model: string;
+            /** @description Catalog model variant identifier for the selected model. */
+            selected_model_variant_id?: string | null;
+            /** @description Version string of the selected model. */
+            selected_model_version?: string | null;
+            /** @description Available artifact options for the resolved model, filtered for the requesting device. */
+            artifact_candidates?: components["schemas"]["runtime_plan_response_schema__RuntimeArtifactPlan"][];
+            /** @description Ordered list of preferred engine identifiers for this device and capability. */
+            preferred_engines?: string[];
+            /** @description Fallback locality ('cloud') or null if no fallback is permitted (e.g. private/local_only). */
+            fallback_policy?: string | null;
+            /**
+             * @description How long this resolution is valid, in seconds. Default: 604800 (7 days).
+             * @default 604800
+             */
+            plan_ttl_seconds: number;
+            /**
+             * @description Per-app capability flag. True when the operator has explicitly enabled public-client (browser publishable / mobile bundle) calls against the hosted gateway for this app. Default false. Private/local_only routing keeps this false even if the flag is on. Server-side enforcement still requires the request key to carry cloud:inference:public.
+             * @default false
+             */
+            public_client_allowed: boolean;
+        };
+        /**
+         * ArtifactManifest
+         * @description Chunked download manifest for a model artifact, including integrity metadata for each chunk.
+         */
+        artifact_manifest: {
+            /** @description Opaque unique identifier for this artifact version. */
+            artifactId: string;
+            /** @description Model variant identifier this artifact belongs to. */
+            modelId: string;
+            /** @description Model version string. */
+            version: string;
+            /** @description ArtifactFormat enum value (e.g. coreml, tflite, gguf). */
+            format: string;
+            /** @description Total size of the complete artifact in bytes. */
+            totalBytes: number;
+            /** @description SHA-256 hex digest of the complete assembled artifact. */
+            sha256?: string;
+            /** @description Ordered list of chunk descriptors. Download in order and concatenate. */
+            chunks: {
+                /** @description Zero-based chunk sequence index. */
+                index: number;
+                /** @description Byte offset of this chunk within the assembled artifact. */
+                offset: number;
+                /** @description Size of this chunk in bytes. */
+                size: number;
+                /** @description SHA-256 hex digest of this chunk. */
+                sha256: string;
+            }[];
+            /**
+             * Format: uri
+             * @description Base URL for signed chunk downloads. Combined with chunk path to form the download URL.
+             */
+            cdnBaseUrl?: string;
             /**
              * Format: date-time
-             * @description ISO 8601 timestamp when this response was generated server-side.
+             * @description Expiry time for any pre-signed URLs embedded in this manifest.
              */
-            generatedAt: string;
-            /** @description False if the knownStateVersion matched and no update is needed. */
-            stateChanged: boolean;
-            /** @description Full desired state. Absent when stateChanged is false. */
-            desiredState?: components["schemas"]["desired_state"];
-            /** @description Server hint for how often the device should sync (seconds). */
-            nextPollIntervalSeconds?: number;
+            urlExpiresAt?: string;
+            /** @description Primary file to load within the artifact. */
+            entrypoint?: string;
+            /** @description RuntimeExecutor values this artifact supports (e.g. llamacpp, mlx). */
+            engineCompatibility?: string[];
+            /**
+             * @description True if this artifact is a LoRA adapter rather than a full base model.
+             * @default false
+             */
+            isAdapter: boolean;
+            /** @description For adapters: the artifactId of the base model this adapter targets. */
+            baseModelArtifactId?: string;
+        };
+        /** @description Request schema for audio.speech.create. Synthesizes speech from text via the unified facade (local sherpa-onnx or hosted cloud, decided by routing policy). */
+        audio_speech_request: {
+            /** @description Model ref. Common forms: an Octomil app ref like '@app/<slug>/tts', a hosted provider model id like 'tts-1', or a local model id like 'kokoro-82m'. Must resolve to a model with the tts ModelCapability. */
+            model: string;
+            /** @description Text to synthesize. Must not be empty. Maximum 4096 characters per call (matches OpenAI tts-1 input cap). */
+            input: string;
+            /** @description Voice id. Pass-through to the routed locality: cloud accepts provider voices ('alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer' for OpenAI), local accepts model-specific voices (e.g. Kokoro 'af_bella', 'am_adam'). Mismatches raise voice_not_supported_for_locality. Defaults to the model's locality-appropriate first voice when omitted. */
+            voice?: string;
+            /**
+             * @description Output audio format. 'wav' is supported on every locality. mp3/ogg/opus/flac/aac/pcm depend on the routed locality: cloud providers cover all, local sherpa-onnx is wav-only until local transcoding ships (see PR 6 in the implementation plan).
+             * @default wav
+             * @enum {string}
+             */
+            response_format: Audio_speech_requestResponse_format;
+            /**
+             * @description Playback speed multiplier. Bounds match OpenAI audio.speech.create.
+             * @default 1
+             */
+            speed: number;
+        };
+        /** @description Result schema for audio.speech.create. Carries audio bytes plus routing metadata. */
+        audio_speech_result: {
+            /** @description Synthesized audio. Wire encoding is platform-native bytes for SDK transports; the contract reference uses base64 for inspectability. */
+            audio_bytes: string;
+            /** @description MIME type of the audio bytes. e.g. 'audio/wav', 'audio/mpeg', 'audio/ogg'. */
+            content_type: string;
+            /**
+             * @description Audio format actually returned. May differ from request.response_format if the locality cannot honor the request and cloud fallback was selected.
+             * @enum {string}
+             */
+            format: Audio_speech_resultFormat;
+            /** @description Resolved model id (after app ref resolution). For @app/<slug>/tts requests this is the underlying model the app maps to. */
+            model: string;
+            /** @description Upstream provider key when cloud execution was selected ('openai', 'elevenlabs', ...). Null when execution was local. */
+            provider?: string | null;
+            /** @description Voice actually used. May echo the caller's voice or be the locality default when the caller omitted it. */
+            voice?: string | null;
+            /** @description Sample rate of the audio in Hz, when known. Local sherpa returns the model's native rate (typically 24000 for Kokoro, 22050 for Piper). Cloud providers may not surface this. */
+            sample_rate?: number | null;
+            /** @description Audio duration in milliseconds, when computable. Local execution always populates this; cloud execution may leave it null. */
+            duration_ms?: number | null;
+            /** @description End-to-end latency of the synthesis call in milliseconds, measured from request start to bytes received. */
+            latency_ms?: number;
+            /** @description Routing metadata. No user content (input text, raw audio bytes, file paths, provider request ids). */
+            route?: {
+                /**
+                 * @description Where the synthesis ran.
+                 * @enum {string}
+                 */
+                locality: Audio_speech_resultRouteLocality;
+                /** @description Engine id. 'sherpa-onnx' for on-device, null or provider name for cloud. */
+                engine?: string | null;
+                /** @description Resolved routing policy preset (e.g. 'local_only', 'cloud_only', 'auto', 'local_first'). */
+                policy?: string | null;
+                /**
+                 * @description True when the primary locality failed and the request succeeded via fallback (e.g. local failed, cloud_first cloud succeeded).
+                 * @default false
+                 */
+                fallback_used: boolean;
+            };
+            /** @description Generic billing unit count for cloud execution. Pairs with unit_kind. Null on local. */
+            billed_units?: number | null;
+            /**
+             * @description Unit kind for billed_units. 'characters' for OpenAI tts-1 / tts-1-hd, 'milliseconds' for per-minute billed providers. Null on local.
+             * @enum {string|null}
+             */
+            unit_kind?: "characters" | "milliseconds" | null;
+        };
+        /**
+         * CandidateGate
+         * @description A gate requirement attached to a candidate by the planner. SDKs evaluate gates per-request before selecting a candidate.
+         */
+        candidate_gate_schema: {
+            /**
+             * @description Gate code identifying the check to perform.
+             * @enum {string}
+             */
+            code: Candidate_gate_schemaCode;
+            /** @description Whether the candidate must pass this gate to be selected. If false, gate failure is advisory only. */
+            required: boolean;
+            /** @description Numeric threshold for the gate (e.g. min tok/s, max TTFT ms, min bytes). */
+            threshold_number?: number;
+            /** @description String threshold (e.g. modality name, format identifier). */
+            threshold_string?: string;
+            /** @description Time window for historical metrics (e.g. benchmark freshness in seconds). */
+            window_seconds?: number;
+            /**
+             * @description Who defined this gate: server (planner), sdk (local config), or runtime (engine self-report).
+             * @enum {string}
+             */
+            source: Candidate_gate_schemaSource;
+            /**
+             * @description Classification of this gate by evaluation concern. Inferred from code if absent.
+             * @enum {string}
+             */
+            gate_class: Candidate_gate_schemaGate_class;
+            /**
+             * @description When this gate is evaluated relative to inference. Inferred from code if absent.
+             * @enum {string}
+             */
+            evaluation_phase: Candidate_gate_schemaEvaluation_phase;
+            /** @description Whether failure of this gate can trigger fallback to the next candidate. May be suppressed by routing policy. */
+            fallback_eligible: boolean;
+            /** @description Default value for 'required' when the server does not specify. Used by SDKs for inference of gate severity. */
+            blocking_default?: boolean;
+        };
+        /**
+         * ChatMessage
+         * @description A single message within a chat thread.
+         */
+        chat_message: {
+            /** @description Unique message identifier. */
+            id: string;
+            /** @description Parent thread identifier. */
+            threadId: string;
+            /**
+             * @description Message author role.
+             * @enum {string}
+             */
+            role: Chat_messageRole;
+            /** @description Text content of the message. */
+            content?: string | null;
+            /** @description Tool calls emitted by the assistant. */
+            toolCalls?: components["schemas"]["response__ToolCall"][] | null;
+            /** @description For role=tool, the ID of the tool call being responded to. */
+            toolCallId?: string | null;
+            /** @description Optional generation performance metrics. */
+            metrics?: components["schemas"]["chat_message__GenerationMetrics"] | null;
+            /** @description Typed content parts (canonical when present). content field becomes derived shorthand: concatenation of all InputText parts joined by newline, null if no text parts. Both present with conflicting values is invalid. Assistant messages use content only (output parts reserved for future). */
+            contentParts?: components["schemas"]["content_part"][] | null;
             /**
              * Format: date-time
-             * @description Current server time for clock skew correction.
+             * @description ISO 8601 creation timestamp.
              */
-            serverTimestamp?: string;
+            createdAt: string;
+        };
+        chat_message__GenerationMetrics: {
+            /** @description Time to first token in milliseconds. */
+            ttftMs: number;
+            /** @description Decode throughput in tokens per second. */
+            decodeTokensPerSec: number;
+            /** @description Total tokens generated. */
+            totalTokens: number;
+            /** @description Total generation latency in milliseconds. */
+            totalLatencyMs: number;
+        };
+        /**
+         * ChatThread
+         * @description A conversation thread containing messages.
+         */
+        chat_thread: {
+            /** @description Unique thread identifier. */
+            id: string;
+            /** @description Optional display title for the thread. */
+            title?: string;
+            /** @description Model used for inference in this thread. */
+            model: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 creation timestamp.
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 last-updated timestamp.
+             */
+            updatedAt: string;
+            /** @description Arbitrary key-value metadata. */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ChatTurnRequest
+         * @description Request to submit a user turn and receive an assistant response.
+         */
+        chat_turn_request: {
+            /** @description Thread to append the turn to. */
+            threadId: string;
+            /** @description User message text. */
+            input: string;
+            /** @description Typed input parts (transitional — mirrors contentParts on messages). When present, takes precedence over input string. */
+            inputParts?: components["schemas"]["content_part"][] | null;
+            /** @description Optional generation configuration. */
+            config?: {
+                maxTokens?: number;
+                temperature?: number;
+                topP?: number;
+                stop?: string[];
+            };
+        };
+        /**
+         * ChatTurnResult
+         * @description Result of a chat turn containing the user and assistant messages.
+         */
+        chat_turn_result: {
+            /** @description The user message that initiated the turn. */
+            userMessage: components["schemas"]["chat_message"];
+            /** @description The assistant response message. */
+            assistantMessage: components["schemas"]["chat_message"];
+        };
+        /** @description Typed content part for multimodal messages. Each media part requires exactly one source (assetId, url, or data). */
+        content_part: components["schemas"]["content_part__InputText"] | components["schemas"]["content_part__InputImage"] | components["schemas"]["content_part__InputAudio"] | components["schemas"]["content_part__InputVideo"];
+        content_part__InputAudio: {
+            /** @constant */
+            type: "input_audio";
+            assetId?: string;
+            /** Format: uri */
+            url?: string;
+            data?: string;
+            /** @enum {string} */
+            mediaType?: Content_part__InputAudioMediaType;
+        } & (unknown | unknown | unknown);
+        content_part__InputImage: {
+            /** @constant */
+            type: "input_image";
+            /** @description Asset service reference (preferred for persisted messages) */
+            assetId?: string;
+            /** Format: uri */
+            url?: string;
+            /** @description Base64 offline fallback, ~10MB max. Do not use for persisted chat history. */
+            data?: string;
+            /** @enum {string} */
+            mediaType?: Content_part__InputImageMediaType;
+            /**
+             * @description Vision model routing hint
+             * @default auto
+             * @enum {string}
+             */
+            detail: Content_part__InputImageDetail;
+        } & (unknown | unknown | unknown);
+        content_part__InputText: {
+            /** @constant */
+            type: "input_text";
+            text: string;
+        };
+        content_part__InputVideo: {
+            /** @constant */
+            type: "input_video";
+            assetId?: string;
+            /** Format: uri */
+            url?: string;
+            data?: string;
+            /** @enum {string} */
+            mediaType?: Content_part__InputVideoMediaType;
+            /** @description Runtime hint for frame extraction */
+            maxFrames?: number;
+        } & (unknown | unknown | unknown);
+        /**
+         * DesiredModelEntry
+         * @description Per-model entry within desired state, specifying the target version, delivery mode, activation policy, and engine constraints.
+         */
+        desired_model_entry: {
+            /** @description Model variant identifier. */
+            modelId: string;
+            /** @description Target model version the device should converge to. */
+            desiredVersion: string;
+            /** @description Release channel for this model (e.g. stable, beta, canary). */
+            currentChannel?: string;
+            /** @description DeliveryMode enum value — how the model is delivered to the device. */
+            deliveryMode?: string;
+            /** @description ActivationPolicy enum value — when to activate a newly staged artifact. */
+            activationPolicy?: string;
+            /** @description Engine constraints for runtime executor selection. */
+            enginePolicy?: {
+                /** @description RuntimeExecutor values this model may use. */
+                allowed?: string[];
+                /** @description If set, override engine selection and always use this executor. */
+                forced?: string;
+            };
+            /** @description Download manifest for the target artifact version. */
+            artifactManifest?: components["schemas"]["artifact_manifest"];
+            /** @description Opaque identifier for the rollout this entry belongs to. */
+            rolloutId?: string;
         };
         /**
          * DesiredState
@@ -8129,6 +8388,178 @@ export interface components {
             }[];
             /** @description Artifact IDs the server considers safe to evict from local storage. */
             gcEligibleArtifactIds?: string[];
+        };
+        /**
+         * DeviceRuntimeProfile
+         * @description Hardware and software profile sent to the server runtime planner endpoint. Collected by each SDK to describe the device requesting a plan.
+         */
+        device_runtime_profile_schema: {
+            /**
+             * @description SDK platform identifier.
+             * @enum {string}
+             */
+            sdk: Device_runtime_profile_schemaSdk;
+            /** @description SDK version string (e.g. '1.15.0'). */
+            sdk_version: string;
+            /** @description Operating system platform (e.g. 'Darwin', 'Linux', 'iOS', 'macOS'). */
+            platform: string;
+            /** @description CPU architecture (e.g. 'arm64', 'x86_64'). */
+            arch: string;
+            /** @description OS version string. */
+            os_version?: string;
+            /** @description Chip/SoC identifier (e.g. 'Apple M2', 'A17 Pro', 'Snapdragon 8 Gen 3'). */
+            chip?: string;
+            /** @description Total system RAM in bytes. */
+            ram_total_bytes?: number;
+            /** @description Number of GPU cores, if known. */
+            gpu_core_count?: number;
+            /** @description Available hardware accelerators (e.g. 'metal', 'cuda', 'ane', 'nnapi', 'webgpu'). */
+            accelerators?: string[];
+            /** @description Locally-installed inference engines detected on this device. */
+            installed_runtimes?: components["schemas"]["device_runtime_profile_schema__InstalledRuntime"][];
+            /** @description Device-environment gate codes this SDK can evaluate. Absent or empty = device-environment gates stripped, no candidate suppression. Non-empty = server may suppress local candidates with required unsupported device-environment gates. */
+            supported_gate_codes?: components["schemas"]["candidate_gate_schema"]["code"][];
+        };
+        /** @description A locally-installed inference engine detected on the device. */
+        device_runtime_profile_schema__InstalledRuntime: {
+            /** @description Canonical engine identifier (e.g. 'coreml', 'mlx-lm', 'llama.cpp', 'onnxruntime'). */
+            engine: string;
+            /** @description Engine version string, if known. */
+            version?: string;
+            /**
+             * @description Whether the engine is currently usable.
+             * @default true
+             */
+            available: boolean;
+            /** @description Hardware accelerator used by this engine (e.g. 'metal', 'ane', 'cuda'). */
+            accelerator?: string;
+            /** @description Arbitrary metadata about the engine installation. */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * DeviceSyncRequest
+         * @description Unified sync request combining device inventory and observed state in a single round-trip.
+         */
+        device_sync_request: {
+            /** @description Contract schema version this payload conforms to (e.g. '1.12.0'). */
+            schemaVersion: string;
+            /** @description Opaque device identifier. */
+            deviceId: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp when the SDK initiated this sync.
+             */
+            requestedAt: string;
+            /** @description Last applied desired state syncRevision. Server may short-circuit if unchanged. */
+            knownStateVersion?: string;
+            /** @description Version of the Octomil SDK. */
+            sdkVersion?: string;
+            /** @description DevicePlatform enum value (ios, android, python, browser, node). */
+            platform?: string;
+            /** @description Application identifier registered with Octomil. */
+            appId?: string;
+            /** @description Version of the host application. */
+            appVersion?: string;
+            /** @description Installed model artifacts and their statuses. */
+            modelInventory?: {
+                modelId: string;
+                version: string;
+                artifactId?: string;
+                /** @description ArtifactStatus enum value. */
+                status: string;
+            }[];
+            /** @description Models currently loaded and serving inference. */
+            activeVersions?: {
+                modelId: string;
+                version: string;
+            }[];
+            /** @description Full observed state snapshot, inlined for single round-trip. */
+            observedState?: components["schemas"]["observed_state"];
+            /** @description Free storage available on the device. */
+            availableStorageBytes?: number;
+        };
+        /**
+         * DeviceSyncResponse
+         * @description Unified sync response returning desired state and server directives in a single round-trip.
+         */
+        device_sync_response: {
+            /** @description Contract schema version this payload conforms to. */
+            schemaVersion: string;
+            /** @description Opaque device identifier this response targets. */
+            deviceId: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp when this response was generated server-side.
+             */
+            generatedAt: string;
+            /** @description False if the knownStateVersion matched and no update is needed. */
+            stateChanged: boolean;
+            /** @description Full desired state. Absent when stateChanged is false. */
+            desiredState?: components["schemas"]["desired_state"];
+            /** @description Server hint for how often the device should sync (seconds). */
+            nextPollIntervalSeconds?: number;
+            /**
+             * Format: date-time
+             * @description Current server time for clock skew correction.
+             */
+            serverTimestamp?: string;
+        };
+        /**
+         * ModelRefKind
+         * @description Canonical classification of a model reference string. This is the single source of truth for how SDKs and the server categorize model references. Grammar-based parsing (local, no server round-trip): model, app, capability, deployment, experiment, alias, default, unknown. Server resolution required for: app (resolve slug to model), capability (resolve default model), deployment (resolve deploy_ prefix to model), experiment (resolve exp_ to variant and model).
+         * @enum {string}
+         */
+        model_ref_kind_schema: Model_ref_kind_schema;
+        /**
+         * ObservedState
+         * @description Device-reported observed state sent to the server during control-plane sync.
+         */
+        observed_state: {
+            /** @description Contract schema version this payload conforms to. */
+            schemaVersion: string;
+            /** @description Opaque device identifier. */
+            deviceId: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp when this snapshot was captured on-device.
+             */
+            reportedAt: string;
+            /** @description Currently active base model pointer. Null if no model is active. */
+            activeModelPointer?: components["schemas"]["active_model_pointer"];
+            /** @description Currently active serving binding. Null if no binding is active. */
+            activeBinding?: components["schemas"]["active_binding"];
+            /** @description Per-model observed state with installed version, active version, status, and health. */
+            models?: {
+                /** @description Model variant identifier. */
+                modelId: string;
+                /** @description Version of the model artifact currently on disk. */
+                installedVersion?: string;
+                /** @description Version currently loaded and serving inference. Null if not active. */
+                activeVersion?: string | null;
+                /** @description ArtifactStatus enum value. */
+                status: string;
+                /**
+                 * @description Current health of this model on-device.
+                 * @enum {string}
+                 */
+                health?: Observed_stateModelsHealth;
+                /** @description Most recent error message if status indicates failure. Null otherwise. */
+                lastError?: string | null;
+            }[];
+            /** @description Current participation state for any active federated rounds. */
+            federationParticipations?: {
+                roundId: string;
+                /** @description FederatedParticipationState enum value. */
+                state: string;
+            }[];
+            /** @description Version of the Octomil SDK running on-device. */
+            sdkVersion?: string;
+            /** @description Host OS version string. */
+            osVersion?: string;
+            /** @description Free storage available on the device at time of report. */
+            availableStorageBytes?: number;
         };
         /**
          * PolicyConfig
@@ -8222,588 +8653,224 @@ export interface components {
                 credentialPolicy: Policy_configCloudFallbackCredentialPolicy;
             };
         };
-        /**
-         * DesiredModelEntry
-         * @description Per-model entry within desired state, specifying the target version, delivery mode, activation policy, and engine constraints.
-         */
-        desired_model_entry: {
-            /** @description Model variant identifier. */
-            modelId: string;
-            /** @description Target model version the device should converge to. */
-            desiredVersion: string;
-            /** @description Release channel for this model (e.g. stable, beta, canary). */
-            currentChannel?: string;
-            /** @description DeliveryMode enum value — how the model is delivered to the device. */
-            deliveryMode?: string;
-            /** @description ActivationPolicy enum value — when to activate a newly staged artifact. */
-            activationPolicy?: string;
-            /** @description Engine constraints for runtime executor selection. */
-            enginePolicy?: {
-                /** @description RuntimeExecutor values this model may use. */
-                allowed?: string[];
-                /** @description If set, override engine selection and always use this executor. */
-                forced?: string;
-            };
-            /** @description Download manifest for the target artifact version. */
-            artifactManifest?: components["schemas"]["artifact_manifest"];
-            /** @description Opaque identifier for the rollout this entry belongs to. */
-            rolloutId?: string;
+        response: {
+            id: string;
+            model: string;
+            output: components["schemas"]["response__OutputItem"][];
+            /** @enum {string} */
+            finishReason: ResponseFinishReason;
+            usage?: components["schemas"]["response__Usage"];
         };
-        /**
-         * ArtifactManifest
-         * @description Chunked download manifest for a model artifact, including integrity metadata for each chunk.
-         */
-        artifact_manifest: {
-            /** @description Opaque unique identifier for this artifact version. */
-            artifactId: string;
-            /** @description Model variant identifier this artifact belongs to. */
-            modelId: string;
-            /** @description Model version string. */
-            version: string;
-            /** @description ArtifactFormat enum value (e.g. coreml, tflite, gguf). */
-            format: string;
-            /** @description Total size of the complete artifact in bytes. */
-            totalBytes: number;
-            /** @description SHA-256 hex digest of the complete assembled artifact. */
-            sha256?: string;
-            /** @description Ordered list of chunk descriptors. Download in order and concatenate. */
-            chunks: {
-                /** @description Zero-based chunk sequence index. */
-                index: number;
-                /** @description Byte offset of this chunk within the assembled artifact. */
-                offset: number;
-                /** @description Size of this chunk in bytes. */
-                size: number;
-                /** @description SHA-256 hex digest of this chunk. */
-                sha256: string;
-            }[];
-            /**
-             * Format: uri
-             * @description Base URL for signed chunk downloads. Combined with chunk path to form the download URL.
-             */
-            cdnBaseUrl?: string;
-            /**
-             * Format: date-time
-             * @description Expiry time for any pre-signed URLs embedded in this manifest.
-             */
-            urlExpiresAt?: string;
-            /** @description Primary file to load within the artifact. */
-            entrypoint?: string;
-            /** @description RuntimeExecutor values this artifact supports (e.g. llamacpp, mlx). */
-            engineCompatibility?: string[];
-            /**
-             * @description True if this artifact is a LoRA adapter rather than a full base model.
-             * @default false
-             */
-            isAdapter: boolean;
-            /** @description For adapters: the artifactId of the base model this adapter targets. */
-            baseModelArtifactId?: string;
+        response__OutputItem: components["schemas"]["response__TextOutput"] | components["schemas"]["response__ToolCallOutput"];
+        response__TextOutput: {
+            /** @constant */
+            type: "text";
+            text: string;
         };
-        /**
-         * ExperimentTargetGroups
-         * @description Device groups targeted by an experiment. Shared response shape for GET and PUT target-groups endpoints.
-         */
-        ExperimentTargetGroups: {
-            experiment_id: string;
-            /** @description Empty array when no groups are configured. */
-            target_groups: ({
-                id: string;
-                name: string;
-                group_type?: string | null;
-            } & {
-                [key: string]: unknown;
-            })[];
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * Experiment
-         * @description An A/B experiment within a deployment. Mirrors server/app/models/experiment.py Experiment.to_dict().
-         */
-        Experiment: {
-            /** @description Experiment UUID. */
+        response__ToolCall: {
             id: string;
             name: string;
-            description?: string | null;
-            /** @description Internal Model registry UUID (see workspace memory `Model Registries`). */
-            model_id: string;
-            /**
-             * @description From ExperimentStatus enum. Lifecycle transitions: draft → running → (paused ↔ running) → completed; any → cancelled.
-             * @enum {string}
-             */
-            status: ExperimentStatus;
-            /** @description Percentage of eligible devices included (0-100). */
-            traffic_percentage: number;
-            /** Format: date-time */
-            started_at?: string | null;
-            /** Format: date-time */
-            ended_at?: string | null;
-            min_sample_size?: number | null;
-            confidence_level?: number | null;
-            primary_metric?: string | null;
-            /** @description e.g. `"version"` (compare model versions), `"variant"` (compare variants). */
-            experiment_type: string;
-            /** Format: date-time */
-            created_at?: string | null;
-            /** Format: date-time */
-            updated_at?: string | null;
-            /** @description Per-variant traffic allocation. Present when include_variants=true (the default). */
-            variants?: {
-                id?: string;
-                name?: string;
-                model_version?: string | null;
-                traffic_allocation?: number;
-                is_control?: boolean;
-            }[] | null;
-            /** @description Device groups the experiment targets. Empty array when none configured. */
-            target_groups?: {
-                id: string;
-                name: string;
-                group_type?: string | null;
-            }[];
-        } & {
-            [key: string]: unknown;
+            arguments: string;
         };
-        /**
-         * ExperimentListResponse
-         * @description Bare array of experiment objects scoped to one deployment.
-         */
-        ExperimentListResponse: components["schemas"]["Experiment"][];
-        /**
-         * ExperimentTimeseries
-         * @description Time-bucketed metric means per variant. Interval buckets are 'hour', 'day' (default), or 'week'. Mirrors get_experiment_timeseries() return shape.
-         */
-        ExperimentTimeseries: {
-            experiment_id: string;
-            metric_name: string;
-            /**
-             * @description Bucket granularity. Values outside this set default to 'day' on the server.
-             * @enum {string}
-             */
-            interval: ExperimentTimeseriesInterval;
-            variants: {
-                variant_id: string;
-                variant_name: string;
-                is_control: boolean;
-                data_points: {
-                    /** @description Bucket key. Format depends on interval: ISO datetime string for 'hour', YYYY-MM-DD for 'day', YYYY-WWW for 'week'. */
-                    timestamp: string;
-                    /** @description Mean metric value across all events in this bucket. */
-                    value: number;
-                    /** @description Number of events in this bucket. */
-                    count: number;
-                }[];
-            }[];
-        } & {
-            [key: string]: unknown;
+        response__ToolCallOutput: {
+            /** @constant */
+            type: "tool_call";
+            toolCall: components["schemas"]["response__ToolCall"];
         };
-        /**
-         * ExperimentSequentialAnalysis
-         * @description The server returns StatisticalAnalyzer.sequential_test() verbatim. No fixed required fields are guaranteed by the server today — treat all fields as optional in SDK codegen until the analyzer interface is stabilised.
-         */
-        ExperimentSequentialAnalysis: {
-            [key: string]: unknown;
+        response__Usage: {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
         };
-        /**
-         * ExperimentSegmentAnalysis
-         * @description Remaining fields are merged from StatisticalAnalyzer.segment_analysis() and are analyzer-defined.
-         */
-        ExperimentSegmentAnalysis: {
-            experiment_id: string;
-            metric: string;
-            /** @description Device metadata key used to partition events (e.g. 'platform', 'os_version'). Defaults to 'platform' when the query param is omitted. */
-            segment_by: string;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * ExperimentSampleSize
-         * @description Required sample size for the experiment's primary metric and current enrollment progress. Mirrors get_experiment_sample_size() return shape.
-         */
-        ExperimentSampleSize: {
-            /** @description Required observations per variant group. */
-            sample_size_per_group: number;
-            /** @description sample_size_per_group * 2. */
-            total_sample_size: number;
-            /** @description Target statistical power (e.g. 0.80). */
-            power: number;
-            /** @description Significance level (e.g. 0.05). */
-            alpha: number;
-            /** @description Minimum relative effect size the experiment is powered to detect. */
-            minimum_detectable_effect: number;
-            /** @description Effect type label returned by StatisticalAnalyzer (e.g. 'relative'). */
-            effect_type: string;
-            /** @description Current number of control-group observations. */
-            current_control_n: number;
-            /** @description Current number of treatment-group observations. */
-            current_treatment_n: number;
-            /** @description Enrollment progress as percentage of total_sample_size. Rounded to 1 decimal place. */
-            progress_percent: number;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * ExperimentNonparametric
-         * @description Nonparametric analysis results: Mann-Whitney U test plus per-variant normality assessment. Mirrors get_nonparametric_analysis() return shape.
-         */
-        ExperimentNonparametric: {
-            experiment_id: string;
-            metric: string;
-            /** @description Mann-Whitney U test output from StatisticalAnalyzer.mann_whitney_test(). Shape is analyzer-defined; treat all sub-fields as optional. */
-            mann_whitney?: {
-                [key: string]: unknown;
-            };
-            /** @description Normality test output for the control group from StatisticalAnalyzer.test_normality(). */
-            normality_control?: {
-                is_normal?: boolean;
-            } & {
-                [key: string]: unknown;
-            };
-            /** @description Normality test output for the treatment group. */
-            normality_treatment?: {
-                is_normal?: boolean;
-            } & {
-                [key: string]: unknown;
-            };
-            /**
-             * @description 't-test' when both groups pass normality; 'mann_whitney_u' otherwise.
-             * @enum {string}
-             */
-            recommended_test: ExperimentNonparametricRecommended_test;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * ExperimentGuardrailsResult
-         * @description Per-metric guardrail check results. Mirrors check_experiment_guardrails() return shape.
-         */
-        ExperimentGuardrailsResult: {
-            experiment_id: string;
-            /** @description One entry per metric in the request body. Shape of each entry is returned from StatisticalAnalyzer.check_guardrails(). */
-            guardrails: ({
-                metric_name?: string;
-                /**
-                 * @description pass = guardrail held; violation = threshold breached.
-                 * @enum {string}
-                 */
-                status?: ExperimentGuardrailsResultGuardrailsStatus;
-            } & {
-                [key: string]: unknown;
-            })[];
-            /** @description True if any metric status == 'violation'. */
-            any_violation: boolean;
-            /** @description Human-readable summary: 'All guardrails pass' or 'Guardrail violation detected — review before proceeding'. */
-            recommendation: string;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * ExperimentAnalytics
-         * @description Full analytics summary for an experiment: per-variant stats, t-test significance, and statistical power. Mirrors get_experiment_analytics() return shape.
-         */
-        ExperimentAnalytics: {
-            /** @description Experiment UUID. */
-            experiment_id: string;
-            experiment_name: string;
-            /** @enum {string} */
-            status: ExperimentAnalyticsStatus;
-            /** @description Metric name used for analysis. Defaults to experiment.primary_metric when metric_name query param is omitted. */
-            primary_metric: string;
-            total_events: number;
-            total_devices: number;
-            /** Format: date-time */
-            started_at?: string | null;
-            /** @description Per-variant analytics summary. */
-            variants: components["schemas"]["ExperimentAnalytics__VariantAnalytics"][];
-            /** @description Welch t-test result. Null when either variant has fewer than 2 observations. */
-            significance_result?: components["schemas"]["ExperimentAnalytics__SignificanceResult"] | null;
-            /** @description Observed statistical power. Null when significance_result is null. */
-            statistical_power?: number | null;
-            recommendation?: string | null;
-            warnings?: string[];
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * ChatTurnRequest
-         * @description Request to submit a user turn and receive an assistant response.
-         */
-        chat_turn_request: {
-            /** @description Thread to append the turn to. */
-            threadId: string;
-            /** @description User message text. */
-            input: string;
-            /** @description Typed input parts (transitional — mirrors contentParts on messages). When present, takes precedence over input string. */
-            inputParts?: components["schemas"]["content_part"][] | null;
-            /** @description Optional generation configuration. */
-            config?: {
-                maxTokens?: number;
-                temperature?: number;
-                topP?: number;
-                stop?: string[];
-            };
-        };
-        /** @description Typed content part for multimodal messages. Each media part requires exactly one source (assetId, url, or data). */
-        content_part: components["schemas"]["content_part__InputText"] | components["schemas"]["content_part__InputImage"] | components["schemas"]["content_part__InputAudio"] | components["schemas"]["content_part__InputVideo"];
-        /**
-         * ChatTurnResult
-         * @description Result of a chat turn containing the user and assistant messages.
-         */
-        chat_turn_result: {
-            /** @description The user message that initiated the turn. */
-            userMessage: components["schemas"]["chat_message"];
-            /** @description The assistant response message. */
-            assistantMessage: components["schemas"]["chat_message"];
-        };
-        /**
-         * ChatMessage
-         * @description A single message within a chat thread.
-         */
-        chat_message: {
-            /** @description Unique message identifier. */
-            id: string;
-            /** @description Parent thread identifier. */
-            threadId: string;
-            /**
-             * @description Message author role.
-             * @enum {string}
-             */
-            role: Chat_messageRole;
-            /** @description Text content of the message. */
-            content?: string | null;
-            /** @description Tool calls emitted by the assistant. */
-            toolCalls?: components["schemas"]["response__ToolCall"][] | null;
-            /** @description For role=tool, the ID of the tool call being responded to. */
-            toolCallId?: string | null;
-            /** @description Optional generation performance metrics. */
-            metrics?: components["schemas"]["chat_message__GenerationMetrics"] | null;
-            /** @description Typed content parts (canonical when present). content field becomes derived shorthand: concatenation of all InputText parts joined by newline, null if no text parts. Both present with conflicting values is invalid. Assistant messages use content only (output parts reserved for future). */
-            contentParts?: components["schemas"]["content_part"][] | null;
-            /**
-             * Format: date-time
-             * @description ISO 8601 creation timestamp.
-             */
-            createdAt: string;
-        };
-        /**
-         * ChatThread
-         * @description A conversation thread containing messages.
-         */
-        chat_thread: {
-            /** @description Unique thread identifier. */
-            id: string;
-            /** @description Optional display title for the thread. */
-            title?: string;
-            /** @description Model used for inference in this thread. */
+        response_request: {
             model: string;
-            /**
-             * Format: date-time
-             * @description ISO 8601 creation timestamp.
-             */
-            createdAt: string;
-            /**
-             * Format: date-time
-             * @description ISO 8601 last-updated timestamp.
-             */
-            updatedAt: string;
-            /** @description Arbitrary key-value metadata. */
+            input: string | components["schemas"]["response_request__ContentBlock"][];
+            tools?: components["schemas"]["response_request__ToolDef"][];
+            instructions?: string;
+            previousResponseId?: string;
+            maxOutputTokens?: number;
+            temperature?: number;
+            topP?: number;
+            stop?: string[];
+            responseFormat?: components["schemas"]["response_request__ResponseFormat"];
             metadata?: {
                 [key: string]: unknown;
             };
         };
-        /** @description Result schema for audio.speech.create. Carries audio bytes plus routing metadata. */
-        audio_speech_result: {
-            /** @description Synthesized audio. Wire encoding is platform-native bytes for SDK transports; the contract reference uses base64 for inspectability. */
-            audio_bytes: string;
-            /** @description MIME type of the audio bytes. e.g. 'audio/wav', 'audio/mpeg', 'audio/ogg'. */
-            content_type: string;
+        response_request__ContentBlock: {
+            /** @enum {string} */
+            role: Response_request__ContentBlockRole;
+            content?: unknown;
+            toolCallId?: string;
+        };
+        response_request__ResponseFormat: Response_request__ResponseFormatOneOf0 | {
+            /** @constant */
+            type: "json_schema";
+            schema: Record<string, never>;
+        };
+        response_request__ToolDef: {
+            name: string;
+            description?: string;
+            parameters?: Record<string, never>;
+            input_schema?: Record<string, never>;
+        };
+        response_stream_event: components["schemas"]["response_stream_event__TextDeltaEvent"] | components["schemas"]["response_stream_event__ToolCallDeltaEvent"] | components["schemas"]["response_stream_event__DoneEvent"];
+        response_stream_event__DoneEvent: {
+            /** @constant */
+            type: "done";
+            response: components["schemas"]["response"];
+        };
+        response_stream_event__TextDeltaEvent: {
+            /** @constant */
+            type: "text_delta";
+            delta: string;
+        };
+        response_stream_event__ToolCallDeltaEvent: {
+            /** @constant */
+            type: "tool_call_delta";
+            index: number;
+            id?: string;
+            name?: string;
+            argumentsDelta?: string;
+        };
+        /**
+         * RuntimeBenchmarkSubmissionResponse
+         * @description Response body for POST /api/v2/runtime/benchmarks after a benchmark is accepted for aggregation.
+         */
+        runtime_benchmark_submission_response_schema: {
+            /** @description Server-generated benchmark submission identifier. */
+            id: string;
             /**
-             * @description Audio format actually returned. May differ from request.response_format if the locality cannot honor the request and cloud fallback was selected.
+             * @description True when the submission passed validation and was stored.
+             * @constant
+             */
+            accepted: true;
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp when the server accepted the submission.
+             */
+            created_at: string;
+        };
+        /**
+         * RuntimeBenchmarkSubmission
+         * @description Request body for POST /api/v2/runtime/benchmarks. Submits real inference benchmark results from a device. Must NOT contain prompts, responses, audio, transcripts, or file paths.
+         */
+        runtime_benchmark_submission_schema: {
+            /**
+             * @description Where this benchmark originated.
+             * @default planner
              * @enum {string}
              */
-            format: Audio_speech_resultFormat;
-            /** @description Resolved model id (after app ref resolution). For @app/<slug>/tts requests this is the underlying model the app maps to. */
+            source: Runtime_benchmark_submission_schemaSource;
+            /** @description Model identifier that was benchmarked. */
             model: string;
-            /** @description Upstream provider key when cloud execution was selected ('openai', 'elevenlabs', ...). Null when execution was local. */
-            provider?: string | null;
-            /** @description Voice actually used. May echo the caller's voice or be the locality default when the caller omitted it. */
-            voice?: string | null;
-            /** @description Sample rate of the audio in Hz, when known. Local sherpa returns the model's native rate (typically 24000 for Kokoro, 22050 for Piper). Cloud providers may not surface this. */
-            sample_rate?: number | null;
-            /** @description Audio duration in milliseconds, when computable. Local execution always populates this; cloud execution may leave it null. */
-            duration_ms?: number | null;
-            /** @description End-to-end latency of the synthesis call in milliseconds, measured from request start to bytes received. */
+            /** @description Model version string, if known. */
+            model_version?: string;
+            /** @description Content digest of the artifact that was benchmarked (e.g. SHA-256 hex). */
+            artifact_digest?: string;
+            /** @description Capability that was benchmarked (e.g. 'chat', 'embeddings', 'transcription'). */
+            capability: string;
+            /** @description Canonical engine identifier used for the benchmark (e.g. 'mlx-lm', 'llama.cpp'). */
+            engine: string;
+            /** @description Engine version string, if known. */
+            engine_version?: string;
+            /** @description Quantization level used (e.g. 'q4_k_m', 'int8'). */
+            quantization?: string;
+            /** @description Device runtime profile describing the hardware where the benchmark ran. */
+            device: components["schemas"]["device_runtime_profile_schema"];
+            /** @description Number of tokens generated during the benchmark run. */
+            benchmark_tokens?: number;
+            /** @description Time to first token in milliseconds. */
+            ttft_ms?: number;
+            /** @description Token generation throughput in tokens per second. */
+            tokens_per_second?: number;
+            /** @description Total inference latency in milliseconds. */
             latency_ms?: number;
-            /** @description Routing metadata. No user content (input text, raw audio bytes, file paths, provider request ids). */
-            route?: {
-                /**
-                 * @description Where the synthesis ran.
-                 * @enum {string}
-                 */
-                locality: Audio_speech_resultRouteLocality;
-                /** @description Engine id. 'sherpa-onnx' for on-device, null or provider name for cloud. */
-                engine?: string | null;
-                /** @description Resolved routing policy preset (e.g. 'local_only', 'cloud_only', 'auto', 'local_first'). */
-                policy?: string | null;
-                /**
-                 * @description True when the primary locality failed and the request succeeded via fallback (e.g. local failed, cloud_first cloud succeeded).
-                 * @default false
-                 */
-                fallback_used: boolean;
-            };
-            /** @description Generic billing unit count for cloud execution. Pairs with unit_kind. Null on local. */
-            billed_units?: number | null;
-            /**
-             * @description Unit kind for billed_units. 'characters' for OpenAI tts-1 / tts-1-hd, 'milliseconds' for per-minute billed providers. Null on local.
-             * @enum {string|null}
-             */
-            unit_kind?: "characters" | "milliseconds" | null;
-        };
-        /** @description Request schema for audio.speech.create. Synthesizes speech from text via the unified facade (local sherpa-onnx or hosted cloud, decided by routing policy). */
-        audio_speech_request: {
-            /** @description Model ref. Common forms: an Octomil app ref like '@app/<slug>/tts', a hosted provider model id like 'tts-1', or a local model id like 'kokoro-82m'. Must resolve to a model with the tts ModelCapability. */
-            model: string;
-            /** @description Text to synthesize. Must not be empty. Maximum 4096 characters per call (matches OpenAI tts-1 input cap). */
-            input: string;
-            /** @description Voice id. Pass-through to the routed locality: cloud accepts provider voices ('alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer' for OpenAI), local accepts model-specific voices (e.g. Kokoro 'af_bella', 'am_adam'). Mismatches raise voice_not_supported_for_locality. Defaults to the model's locality-appropriate first voice when omitted. */
-            voice?: string;
-            /**
-             * @description Output audio format. 'wav' is supported on every locality. mp3/ogg/opus/flac/aac/pcm depend on the routed locality: cloud providers cover all, local sherpa-onnx is wav-only until local transcoding ships (see PR 6 in the implementation plan).
-             * @default wav
-             * @enum {string}
-             */
-            response_format: Audio_speech_requestResponse_format;
-            /**
-             * @description Playback speed multiplier. Bounds match OpenAI audio.speech.create.
-             * @default 1
-             */
-            speed: number;
-        };
-        /**
-         * Thread
-         * @description Agent conversation thread.
-         */
-        Thread: {
-            id: string;
-            agent_type: string;
-            model?: string | null;
-            title?: string | null;
+            /** @description Peak memory usage during inference in bytes. */
+            peak_memory_bytes?: number;
+            /** @description Whether the benchmark run completed successfully. */
+            success: boolean;
+            /** @description Error code if the benchmark failed. */
+            error_code?: string;
+            /** @description Arbitrary metadata. Must NOT contain keys related to prompts, responses, audio, transcripts, or file paths. */
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            updated_at: string;
-            messages?: components["schemas"]["Message"][] | null;
         };
         /**
-         * Message
-         * @description A message within an agent thread.
+         * RuntimePlanRequest
+         * @description Request body for POST /api/v2/runtime/plan. Asks the server to resolve an optimized runtime execution plan for a model on a specific device.
          */
-        Message: {
-            id: string;
-            thread_id: string;
-            /** @enum {string} */
-            role: MessageRole;
-            content?: string | null;
-            tool_calls?: {
-                [key: string]: unknown;
-            }[] | null;
-            tool_call_id?: string | null;
-            metrics?: {
-                [key: string]: unknown;
-            } | null;
-            /** Format: date-time */
-            created_at: string;
-        };
-        /**
-         * CreateSessionResponse
-         * @description Response to POST /agents/sessions.
-         */
-        CreateSessionResponse: {
-            session_id: string;
+        runtime_plan_request_schema: {
+            /** @description Model identifier to plan for (e.g. 'gemma-3-1b', 'smollm2-135m'). */
             model: string;
-            model_ref?: string | null;
-            model_name?: string | null;
-            model_version?: string | null;
-            use_case: string;
-            binding_key: string;
-            device_id?: string | null;
-            deployment_id?: string | null;
-            deployment_key?: string | null;
-            tools: {
-                [key: string]: unknown;
-            }[];
-            instructions: string;
+            /**
+             * @description Inference capability the plan should target.
+             * @enum {string}
+             */
+            capability: Runtime_plan_request_schemaCapability;
+            /**
+             * @description Routing policy controlling how candidates are prioritized and filtered. Defaults to local_first on the server. The auto value is retained for older SDK compatibility and is resolved by the server.
+             * @enum {string}
+             */
+            routing_policy?: Runtime_plan_request_schemaRouting_policy;
+            /** @description Application identifier registered with Octomil. */
+            app_id?: string;
+            /** @description Application slug for @app/{slug}/{capability} resolution. When present, the server resolves the app's configured model and routing policy. */
+            app_slug?: string;
+            /** @description Organization identifier. May also be derived from auth context on the server. */
+            org_id?: string;
+            /** @description Device runtime profile describing the hardware and installed engines. */
+            device: components["schemas"]["device_runtime_profile_schema"];
+            /** @description When true (or omitted), cloud candidates may appear in fallback_candidates under local_first policy. Set to false to suppress cloud fallback entirely. */
+            allow_cloud_fallback?: boolean;
         };
         /**
-         * Run
-         * @description One agent invocation within a thread.
+         * RuntimePlanResponse
+         * @description Response body from POST /api/v2/runtime/plan. Contains an ordered list of engine candidates the SDK should try.
          */
-        Run: {
-            id: string;
-            thread_id: string;
-            agent_type: string;
+        runtime_plan_response_schema: {
+            /**
+             * @description Schema version of the plan response. Version 2 introduces gate_class, evaluation_phase, fallback_eligible on CandidateGate.
+             * @default 2
+             */
+            plan_schema_version: number;
+            /** @description Model identifier the plan was generated for. */
             model: string;
-            /** @enum {string} */
-            status: RunStatus;
-            query: string;
-            summary?: string | null;
-            confidence?: number | null;
-            error?: string | null;
-            steps?: components["schemas"]["Step"][] | null;
-            pending_approvals?: components["schemas"]["ApprovalRequest"][] | null;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            completed_at?: string | null;
-        };
-        /**
-         * Step
-         * @description Atomic trace unit within a run.
-         */
-        Step: {
-            id: string;
-            step_index: number;
-            /** @enum {string} */
-            step_type: StepStep_type;
-            tool_name?: string | null;
-            tool_call_id?: string | null;
-            status: string;
-            error_code?: string | null;
-            latency_ms: number;
-        };
-        /**
-         * ApprovalRequest
-         * @description A high-risk tool action awaiting approval.
-         */
-        ApprovalRequest: {
-            id: string;
-            tool_name: string;
-            payload: {
-                [key: string]: unknown;
-            };
-            /** @enum {string} */
-            risk_level: ApprovalRequestRisk_level;
-            /** @enum {string} */
-            status: ApprovalRequestStatus;
-        };
-        /**
-         * AgentManifest
-         * @description Registry-driven metadata for all registered agents.
-         */
-        AgentManifest: {
-            [key: string]: unknown;
-        };
-        ApiKeyScopesResponse__KeyTypeScopesResponse: {
-            groups: {
-                [key: string]: {
-                    label: string;
-                    description: string;
-                    scopes: string[];
-                };
-            };
+            /** @description Capability the plan was generated for. */
+            capability: string;
+            /** @description Routing policy that was applied (may differ from the request if defaulted). */
+            policy: string;
+            /** @description Ordered engine candidates (highest priority first). */
+            candidates: components["schemas"]["runtime_plan_response_schema__RuntimeCandidatePlan"][];
+            /** @description Fallback candidates if primary candidates all fail. */
+            fallback_candidates?: components["schemas"]["runtime_plan_response_schema__RuntimeCandidatePlan"][];
+            /**
+             * @description How long this plan is valid, in seconds. Default: 604800 (7 days).
+             * @default 604800
+             */
+            plan_ttl_seconds: number;
+            /**
+             * @description Whether the SDK is allowed to fall back to cloud inference if all local candidates fail. Private/local_only policies set this to false.
+             * @default true
+             */
+            fallback_allowed: boolean;
+            /**
+             * @description Whether public clients (browser publishable keys, mobile bundle keys) are allowed to dispatch this plan against the hosted gateway. Default false. Server flips true only when the app capability has 'Allow public clients' enabled AND the routing policy is not Private/local_only AND the request key carries the cloud:inference:public scope. Server-key callers ignore this field.
+             * @default false
+             */
+            public_client_allowed: boolean;
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp of when the server generated this plan.
+             */
+            server_generated_at: string;
+            /** @description Opaque server-generated ID for correlating the plan with SDK route events and monitoring records. */
+            plan_correlation_id?: string;
+            /** @description Resolved application context when the request used an @app/{slug}/{capability} model ref or explicit app_slug. Null for plain model requests. */
+            app_resolution?: components["schemas"]["app_resolution_schema"] | null;
+            /** @description General model-reference resolution metadata for plain, capability-default, deployment, and experiment refs. App refs use app_resolution. */
+            resolution?: components["schemas"]["runtime_plan_response_schema__ModelResolution"] | null;
         };
         /** @description Resolved model-reference metadata used to trace app, capability, deployment, and experiment routing decisions. */
         runtime_plan_response_schema__ModelResolution: {
@@ -8827,6 +8894,48 @@ export interface components {
             capability?: string;
             /** @description Routing policy supplied by the resolved deployment, experiment, or capability default when present. */
             routing_policy?: string;
+        };
+        /** @description Artifact recommendation from the server planner. */
+        runtime_plan_response_schema__RuntimeArtifactPlan: {
+            /** @description Model identifier. */
+            model_id: string;
+            /** @description Server-assigned artifact ID. */
+            artifact_id?: string;
+            /** @description Model version string. */
+            model_version?: string;
+            /** @description Model format (e.g. 'gguf', 'safetensors', 'mlmodelc', 'onnx'). */
+            format?: string;
+            /** @description Quantization level (e.g. 'q4_k_m', 'int8', 'f16'). */
+            quantization?: string;
+            /**
+             * Format: uri
+             * @description Download URI for the artifact.
+             */
+            uri?: string;
+            /** @description Content digest (e.g. SHA-256 hex). */
+            digest?: string;
+            /** @description Artifact size in bytes. */
+            size_bytes?: number;
+            /** @description Minimum RAM required in bytes to run this artifact. */
+            min_ram_bytes?: number;
+            /** @description Relative paths the prepare adapter must stage before the runtime can load. e.g. ['model.onnx','tokens.txt','voices.bin','espeak-ng-data/']. Trailing slash marks a directory bundle. */
+            required_files?: string[];
+            /** @description One or more download endpoints for the artifact. Multi-URL supports CDN/origin failover and parallel chunk fetches. Hosted_gateway candidates leave this empty. */
+            download_urls?: {
+                /** Format: uri */
+                url: string;
+                /** Format: date-time */
+                expires_at?: string;
+                /** @description Optional request headers (e.g. signed-URL auth) the SDK must send with the GET. No bearer leaks: server-issued only. */
+                headers?: {
+                    [key: string]: string;
+                };
+            }[];
+            /**
+             * Format: uri
+             * @description Optional URI to an artifact manifest describing per-file digests, chunk layouts, and total assembled size. When present, the SDK fetches this before downloading and uses it to drive chunked, resumable downloads with per-chunk verification.
+             */
+            manifest_uri?: string;
         };
         /** @description A single candidate in a runtime plan, representing either a local engine or cloud inference. */
         runtime_plan_response_schema__RuntimeCandidatePlan: {
@@ -8871,221 +8980,112 @@ export interface components {
              */
             prepare_policy: Runtime_plan_response_schema__RuntimeCandidatePlanPrepare_policy;
         };
-        /** @description Artifact recommendation from the server planner. */
-        runtime_plan_response_schema__RuntimeArtifactPlan: {
-            /** @description Model identifier. */
-            model_id: string;
-            /** @description Server-assigned artifact ID. */
-            artifact_id?: string;
-            /** @description Model version string. */
-            model_version?: string;
-            /** @description Model format (e.g. 'gguf', 'safetensors', 'mlmodelc', 'onnx'). */
-            format?: string;
-            /** @description Quantization level (e.g. 'q4_k_m', 'int8', 'f16'). */
-            quantization?: string;
+        /**
+         * TelemetryBatch
+         * @description Batched telemetry event payload uploaded by the device to the telemetry ingestion endpoint.
+         */
+        telemetry_batch: {
+            /** @description Unique identifier for this batch, used for deduplication on the server. */
+            batchId: string;
+            /** @description Opaque device identifier. */
+            deviceId: string;
+            /** @description Version of the Octomil SDK that generated this batch. */
+            sdkVersion?: string;
             /**
-             * Format: uri
-             * @description Download URI for the artifact.
+             * Format: date-time
+             * @description ISO 8601 timestamp when this batch was assembled on-device.
              */
-            uri?: string;
-            /** @description Content digest (e.g. SHA-256 hex). */
-            digest?: string;
-            /** @description Artifact size in bytes. */
-            size_bytes?: number;
-            /** @description Minimum RAM required in bytes to run this artifact. */
-            min_ram_bytes?: number;
-            /** @description Relative paths the prepare adapter must stage before the runtime can load. e.g. ['model.onnx','tokens.txt','voices.bin','espeak-ng-data/']. Trailing slash marks a directory bundle. */
-            required_files?: string[];
-            /** @description One or more download endpoints for the artifact. Multi-URL supports CDN/origin failover and parallel chunk fetches. Hosted_gateway candidates leave this empty. */
-            download_urls?: {
-                /** Format: uri */
-                url: string;
-                /** Format: date-time */
-                expires_at?: string;
-                /** @description Optional request headers (e.g. signed-URL auth) the SDK must send with the GET. No bearer leaks: server-issued only. */
-                headers?: {
-                    [key: string]: string;
+            capturedAt: string;
+            /** @description List of telemetry events in this batch. */
+            events: {
+                /** @description Unique event identifier (UUID or equivalent). */
+                eventId: string;
+                /** @description Event name from event_names.yaml (e.g. artifact.download_started). */
+                name: string;
+                /**
+                 * Format: date-time
+                 * @description ISO 8601 timestamp when the event occurred.
+                 */
+                timestamp: string;
+                /**
+                 * @description TelemetryClass enum value governing upload priority.
+                 * @enum {string}
+                 */
+                telemetryClass: Telemetry_batchEventsTelemetryClass;
+                /** @description OTLP trace ID if this event is attached to a span. */
+                traceId?: string;
+                /** @description OTLP span ID if this event is a span event. */
+                spanId?: string;
+                /** @description Arbitrary key-value attributes for this event. */
+                attributes?: {
+                    [key: string]: string | number | boolean;
                 };
             }[];
-            /**
-             * Format: uri
-             * @description Optional URI to an artifact manifest describing per-file digests, chunk layouts, and total assembled size. When present, the SDK fetches this before downloading and uses it to drive chunked, resumable downloads with per-chunk verification.
-             */
-            manifest_uri?: string;
         };
-        /** @description A locally-installed inference engine detected on the device. */
-        device_runtime_profile_schema__InstalledRuntime: {
-            /** @description Canonical engine identifier (e.g. 'coreml', 'mlx-lm', 'llama.cpp', 'onnxruntime'). */
-            engine: string;
-            /** @description Engine version string, if known. */
-            version?: string;
-            /**
-             * @description Whether the engine is currently usable.
-             * @default true
-             */
-            available: boolean;
-            /** @description Hardware accelerator used by this engine (e.g. 'metal', 'ane', 'cuda'). */
-            accelerator?: string;
-            /** @description Arbitrary metadata about the engine installation. */
-            metadata?: {
-                [key: string]: unknown;
+        /**
+         * TrainingPlan
+         * @description Server-issued training plan defining local training configuration for a federated round.
+         */
+        training_plan: {
+            /** @description Opaque unique identifier for this training plan. */
+            planId: string;
+            /** @description Federated round this plan belongs to. */
+            roundId: string;
+            /** @description Training job this round is part of. */
+            jobId: string;
+            /** @description ArtifactId of the base model to train. Device must have this artifact staged. */
+            modelArtifactId: string;
+            /** @description ArtifactId of an adapter to fine-tune, if applicable. */
+            adapterArtifactId?: string;
+            /** @description Local training hyperparameters. */
+            hyperparameters: {
+                /** @description Number of local training epochs. */
+                epochs: number;
+                /** @description Mini-batch size for local SGD. */
+                batchSize: number;
+                /** @description Initial learning rate. */
+                learningRate: number;
+                /** @description Gradient clipping norm bound for DP. */
+                maxGradNorm?: number;
+                weightDecay?: number;
+                warmupSteps?: number;
             };
-        };
-        response_stream_event__TextDeltaEvent: {
-            /** @constant */
-            type: "text_delta";
-            delta: string;
-        };
-        response_stream_event__ToolCallDeltaEvent: {
-            /** @constant */
-            type: "tool_call_delta";
-            index: number;
-            id?: string;
-            name?: string;
-            argumentsDelta?: string;
-        };
-        response_stream_event__DoneEvent: {
-            /** @constant */
-            type: "done";
-            response: components["schemas"]["response"];
-        };
-        response__OutputItem: components["schemas"]["response__TextOutput"] | components["schemas"]["response__ToolCallOutput"];
-        response__TextOutput: {
-            /** @constant */
-            type: "text";
-            text: string;
-        };
-        response__ToolCallOutput: {
-            /** @constant */
-            type: "tool_call";
-            toolCall: components["schemas"]["response__ToolCall"];
-        };
-        response__ToolCall: {
-            id: string;
-            name: string;
-            arguments: string;
-        };
-        response__Usage: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-        };
-        response_request__ContentBlock: {
-            /** @enum {string} */
-            role: Response_request__ContentBlockRole;
-            content?: unknown;
-            toolCallId?: string;
-        };
-        response_request__ToolDef: {
-            name: string;
-            description?: string;
-            parameters?: Record<string, never>;
-            input_schema?: Record<string, never>;
-        };
-        response_request__ResponseFormat: Response_request__ResponseFormatOneOf0 | {
-            /** @constant */
-            type: "json_schema";
-            schema: Record<string, never>;
-        };
-        ExperimentAnalytics__ConfidenceInterval: {
-            lower?: number;
-            upper?: number;
-            confidence_level?: number;
-            mean?: number;
-            margin_of_error?: number;
-        };
-        ExperimentAnalytics__VariantAnalytics: {
-            variant_id: string;
-            variant_name: string;
-            is_control: boolean;
-            sample_count: number;
-            unique_devices: number;
-            mean?: number | null;
-            std_dev?: number | null;
-            confidence_interval?: components["schemas"]["ExperimentAnalytics__ConfidenceInterval"] | null;
-        };
-        ExperimentAnalytics__SignificanceResult: {
-            is_significant: boolean;
-            p_value: number;
-            t_statistic?: number | null;
-            significance_level?: number | null;
-            confidence_level?: number | null;
-            control_mean?: number | null;
-            treatment_mean?: number | null;
-            relative_difference?: number | null;
-            absolute_difference?: number | null;
-            effect_size?: number | null;
-            effect_magnitude?: string | null;
-            control_n?: number | null;
-            treatment_n?: number | null;
-            degrees_of_freedom?: number | null;
-            is_sufficient_sample?: boolean | null;
-        };
-        content_part__InputText: {
-            /** @constant */
-            type: "input_text";
-            text: string;
-        };
-        content_part__InputImage: {
-            /** @constant */
-            type: "input_image";
-            /** @description Asset service reference (preferred for persisted messages) */
-            assetId?: string;
-            /** Format: uri */
-            url?: string;
-            /** @description Base64 offline fallback, ~10MB max. Do not use for persisted chat history. */
-            data?: string;
-            /** @enum {string} */
-            mediaType?: Content_part__InputImageMediaType;
-            /**
-             * @description Vision model routing hint
-             * @default auto
-             * @enum {string}
-             */
-            detail: Content_part__InputImageDetail;
-        } & (unknown | unknown | unknown);
-        content_part__InputAudio: {
-            /** @constant */
-            type: "input_audio";
-            assetId?: string;
-            /** Format: uri */
-            url?: string;
-            data?: string;
-            /** @enum {string} */
-            mediaType?: Content_part__InputAudioMediaType;
-        } & (unknown | unknown | unknown);
-        content_part__InputVideo: {
-            /** @constant */
-            type: "input_video";
-            assetId?: string;
-            /** Format: uri */
-            url?: string;
-            data?: string;
-            /** @enum {string} */
-            mediaType?: Content_part__InputVideoMediaType;
-            /** @description Runtime hint for frame extraction */
-            maxFrames?: number;
-        } & (unknown | unknown | unknown);
-        chat_message__GenerationMetrics: {
-            /** @description Time to first token in milliseconds. */
-            ttftMs: number;
-            /** @description Decode throughput in tokens per second. */
-            decodeTokensPerSec: number;
-            /** @description Total tokens generated. */
-            totalTokens: number;
-            /** @description Total generation latency in milliseconds. */
-            totalLatencyMs: number;
-        };
-        ErrorEnvelope: {
-            error: {
-                /** @enum {string} */
-                code: ErrorEnvelopeErrorCode;
-                message: string;
-                details?: {
-                    [key: string]: unknown;
-                };
-                request_id?: string;
+            /** @description Differential privacy configuration. */
+            privacyConfig: {
+                /**
+                 * @description DP noise mechanism to apply.
+                 * @enum {string}
+                 */
+                mechanism: Training_planPrivacyConfigMechanism;
+                /** @description Privacy budget epsilon. */
+                epsilon?: number;
+                /** @description Privacy budget delta. */
+                delta?: number;
+                noiseMultiplier?: number;
+                /** @description L2 sensitivity bound for clipping. */
+                clipNorm?: number;
+                /**
+                 * @description Whether secure aggregation is required for this round.
+                 * @default false
+                 */
+                secureAggregation: boolean;
             };
+            /** @description Local data selection constraints. */
+            dataConfig?: {
+                /** @description SDK-registered dataset key to train on. */
+                datasetKey?: string;
+                /** @description Maximum number of local samples to use. */
+                maxSamples?: number;
+                /** @description Minimum required samples; device aborts if below this. */
+                minSamples?: number;
+            };
+            /** @description Maximum wall-clock seconds allowed for local training. */
+            executionWindowSeconds?: number;
+            /**
+             * Format: date-time
+             * @description Round deadline; device must complete and upload before this timestamp.
+             */
+            expiresAt: string;
         };
     };
     responses: never;
@@ -9094,131 +9094,131 @@ export interface components {
     headers: never;
     pathItems: never;
 }
-export type SchemaTelemetryBatch = components['schemas']['telemetry_batch'];
-export type SchemaUpdateUsageLimitsRequest = components['schemas']['UpdateUsageLimitsRequest'];
-export type SchemaUsageLimitsResponse = components['schemas']['UsageLimitsResponse'];
-export type SchemaUpdatePoliciesRequest = components['schemas']['UpdatePoliciesRequest'];
-export type SchemaPoliciesResponse = components['schemas']['PoliciesResponse'];
-export type SchemaUpdateAuthConfigRequest = components['schemas']['UpdateAuthConfigRequest'];
-export type SchemaAuthConfigResponse = components['schemas']['AuthConfigResponse'];
-export type SchemaUpdateSettingsRequest = components['schemas']['UpdateSettingsRequest'];
-export type SchemaOrgSettingsResponse = components['schemas']['OrgSettingsResponse'];
-export type SchemaCreatePublishableKeyRequest = components['schemas']['CreatePublishableKeyRequest'];
-export type SchemaCreatePublishableKeyResponse = components['schemas']['CreatePublishableKeyResponse'];
-export type SchemaIntegrationTestResponse = components['schemas']['IntegrationTestResponse'];
-export type SchemaUpdateIntegrationRequest = components['schemas']['UpdateIntegrationRequest'];
-export type SchemaIntegrationDetailResponse = components['schemas']['IntegrationDetailResponse'];
-export type SchemaCreateIntegrationRequest = components['schemas']['CreateIntegrationRequest'];
-export type SchemaIntegrationResponse = components['schemas']['IntegrationResponse'];
-export type SchemaUpdateRoutingRequest = components['schemas']['UpdateRoutingRequest'];
-export type SchemaUpdateRoutingResponse = components['schemas']['UpdateRoutingResponse'];
-export type SchemaUpdateLocalRuntimeRequest = components['schemas']['UpdateLocalRuntimeRequest'];
-export type SchemaLocalTargetResponse = components['schemas']['LocalTargetResponse'];
-export type SchemaTestConnectionResponse = components['schemas']['TestConnectionResponse'];
-export type SchemaCreateLocalRuntimeRequest = components['schemas']['CreateLocalRuntimeRequest'];
-export type SchemaExecutionHealthResponse = components['schemas']['ExecutionHealthResponse'];
-export type SchemaExecutionConfigResponse = components['schemas']['ExecutionConfigResponse'];
-export type SchemaCloudTargetResponse = components['schemas']['CloudTargetResponse'];
-export type SchemaUpdateCloudPolicyRequest = components['schemas']['UpdateCloudPolicyRequest'];
-export type SchemaCloudPolicyResponse = components['schemas']['CloudPolicyResponse'];
-export type SchemaUpdateCredentialRequest = components['schemas']['UpdateCredentialRequest'];
-export type SchemaCredentialResponse = components['schemas']['CredentialResponse'];
-export type SchemaCreateCredentialRequest = components['schemas']['CreateCredentialRequest'];
-export type SchemaUpdateConnectionRequest = components['schemas']['UpdateConnectionRequest'];
-export type SchemaConnectionResponse = components['schemas']['ConnectionResponse'];
-export type SchemaConnectionModelsResponse = components['schemas']['ConnectionModelsResponse'];
-export type SchemaCreateConnectionRequest = components['schemas']['CreateConnectionRequest'];
-export type SchemaUpdateBillingRequest = components['schemas']['UpdateBillingRequest'];
-export type SchemaBillingSupportContextResponse = components['schemas']['BillingSupportContextResponse'];
-export type SchemaBillingInvoicesResponse = components['schemas']['BillingInvoicesResponse'];
-export type SchemaBillingResponse = components['schemas']['BillingResponse'];
-export type SchemaPortalRequest = components['schemas']['PortalRequest'];
-export type SchemaPortalResponse = components['schemas']['PortalResponse'];
-export type SchemaCheckoutRequest = components['schemas']['CheckoutRequest'];
-export type SchemaCheckoutResponse = components['schemas']['CheckoutResponse'];
-export type SchemaReconcileCheckoutRequest = components['schemas']['ReconcileCheckoutRequest'];
-export type SchemaReconcileCheckoutResponse = components['schemas']['ReconcileCheckoutResponse'];
-export type SchemaCreateAppKeyRequest = components['schemas']['CreateAppKeyRequest'];
-export type SchemaCreateAppKeyResponse = components['schemas']['CreateAppKeyResponse'];
-export type SchemaCreateApiKeyResponse = components['schemas']['CreateApiKeyResponse'];
+export type SchemaAgentManifest = components['schemas']['AgentManifest'];
+export type SchemaAlertRuleResponse = components['schemas']['AlertRuleResponse'];
 export type SchemaApiKeyResponse = components['schemas']['ApiKeyResponse'];
 export type SchemaApiKeyScopesResponse = components['schemas']['ApiKeyScopesResponse'];
+export type SchemaApiKeyScopesResponseKeyTypeScopesResponse = components['schemas']['ApiKeyScopesResponse__KeyTypeScopesResponse'];
+export type SchemaApprovalRequest = components['schemas']['ApprovalRequest'];
+export type SchemaAuthConfigResponse = components['schemas']['AuthConfigResponse'];
+export type SchemaBillingInvoicesResponse = components['schemas']['BillingInvoicesResponse'];
+export type SchemaBillingResponse = components['schemas']['BillingResponse'];
+export type SchemaBillingSupportContextResponse = components['schemas']['BillingSupportContextResponse'];
+export type SchemaCheckoutRequest = components['schemas']['CheckoutRequest'];
+export type SchemaCheckoutResponse = components['schemas']['CheckoutResponse'];
+export type SchemaCloudPolicyResponse = components['schemas']['CloudPolicyResponse'];
+export type SchemaCloudTargetResponse = components['schemas']['CloudTargetResponse'];
+export type SchemaConnectionModelsResponse = components['schemas']['ConnectionModelsResponse'];
+export type SchemaConnectionResponse = components['schemas']['ConnectionResponse'];
 export type SchemaCreateApiKeyRequest = components['schemas']['CreateApiKeyRequest'];
-export type SchemaRuntimePlanResponseSchema = components['schemas']['runtime_plan_response_schema'];
-export type SchemaCandidateGateSchema = components['schemas']['candidate_gate_schema'];
-export type SchemaAppResolutionSchema = components['schemas']['app_resolution_schema'];
-export type SchemaRuntimePlanRequestSchema = components['schemas']['runtime_plan_request_schema'];
-export type SchemaDeviceRuntimeProfileSchema = components['schemas']['device_runtime_profile_schema'];
-export type SchemaRuntimeBenchmarkSubmissionResponseSchema = components['schemas']['runtime_benchmark_submission_response_schema'];
-export type SchemaRuntimeBenchmarkSubmissionSchema = components['schemas']['runtime_benchmark_submission_schema'];
-export type SchemaResponseStreamEvent = components['schemas']['response_stream_event'];
-export type SchemaResponse = components['schemas']['response'];
-export type SchemaResponseRequest = components['schemas']['response_request'];
+export type SchemaCreateApiKeyResponse = components['schemas']['CreateApiKeyResponse'];
+export type SchemaCreateAppKeyRequest = components['schemas']['CreateAppKeyRequest'];
+export type SchemaCreateAppKeyResponse = components['schemas']['CreateAppKeyResponse'];
+export type SchemaCreateConnectionRequest = components['schemas']['CreateConnectionRequest'];
+export type SchemaCreateCredentialRequest = components['schemas']['CreateCredentialRequest'];
+export type SchemaCreateIntegrationRequest = components['schemas']['CreateIntegrationRequest'];
+export type SchemaCreateLocalRuntimeRequest = components['schemas']['CreateLocalRuntimeRequest'];
+export type SchemaCreatePublishableKeyRequest = components['schemas']['CreatePublishableKeyRequest'];
+export type SchemaCreatePublishableKeyResponse = components['schemas']['CreatePublishableKeyResponse'];
+export type SchemaCreateSessionResponse = components['schemas']['CreateSessionResponse'];
+export type SchemaCredentialResponse = components['schemas']['CredentialResponse'];
+export type SchemaErrorEnvelope = components['schemas']['ErrorEnvelope'];
+export type SchemaExecutionConfigResponse = components['schemas']['ExecutionConfigResponse'];
+export type SchemaExecutionHealthResponse = components['schemas']['ExecutionHealthResponse'];
+export type SchemaExperiment = components['schemas']['Experiment'];
+export type SchemaExperimentAnalytics = components['schemas']['ExperimentAnalytics'];
+export type SchemaExperimentAnalyticsConfidenceInterval = components['schemas']['ExperimentAnalytics__ConfidenceInterval'];
+export type SchemaExperimentAnalyticsSignificanceResult = components['schemas']['ExperimentAnalytics__SignificanceResult'];
+export type SchemaExperimentAnalyticsVariantAnalytics = components['schemas']['ExperimentAnalytics__VariantAnalytics'];
+export type SchemaExperimentGuardrailsResult = components['schemas']['ExperimentGuardrailsResult'];
+export type SchemaExperimentListResponse = components['schemas']['ExperimentListResponse'];
+export type SchemaExperimentNonparametric = components['schemas']['ExperimentNonparametric'];
+export type SchemaExperimentSampleSize = components['schemas']['ExperimentSampleSize'];
+export type SchemaExperimentSegmentAnalysis = components['schemas']['ExperimentSegmentAnalysis'];
+export type SchemaExperimentSequentialAnalysis = components['schemas']['ExperimentSequentialAnalysis'];
+export type SchemaExperimentTargetGroups = components['schemas']['ExperimentTargetGroups'];
+export type SchemaExperimentTimeseries = components['schemas']['ExperimentTimeseries'];
 export type SchemaIncident = components['schemas']['Incident'];
 export type SchemaIncidentListResponse = components['schemas']['IncidentListResponse'];
-export type SchemaUpdateAlertRuleRequest = components['schemas']['UpdateAlertRuleRequest'];
-export type SchemaAlertRuleResponse = components['schemas']['AlertRuleResponse'];
+export type SchemaIntegrationDetailResponse = components['schemas']['IntegrationDetailResponse'];
+export type SchemaIntegrationResponse = components['schemas']['IntegrationResponse'];
+export type SchemaIntegrationTestResponse = components['schemas']['IntegrationTestResponse'];
 export type SchemaJob = components['schemas']['Job'];
 export type SchemaJobsOverview = components['schemas']['JobsOverview'];
-export type SchemaTrainingPlan = components['schemas']['training_plan'];
-export type SchemaDeviceSyncRequest = components['schemas']['device_sync_request'];
-export type SchemaObservedState = components['schemas']['observed_state'];
-export type SchemaActiveBinding = components['schemas']['active_binding'];
-export type SchemaActiveModelPointer = components['schemas']['active_model_pointer'];
-export type SchemaDeviceSyncResponse = components['schemas']['device_sync_response'];
-export type SchemaDesiredState = components['schemas']['desired_state'];
-export type SchemaPolicyConfig = components['schemas']['policy_config'];
-export type SchemaDesiredModelEntry = components['schemas']['desired_model_entry'];
-export type SchemaArtifactManifest = components['schemas']['artifact_manifest'];
-export type SchemaExperimentTargetGroups = components['schemas']['ExperimentTargetGroups'];
-export type SchemaExperiment = components['schemas']['Experiment'];
-export type SchemaExperimentListResponse = components['schemas']['ExperimentListResponse'];
-export type SchemaExperimentTimeseries = components['schemas']['ExperimentTimeseries'];
-export type SchemaExperimentSequentialAnalysis = components['schemas']['ExperimentSequentialAnalysis'];
-export type SchemaExperimentSegmentAnalysis = components['schemas']['ExperimentSegmentAnalysis'];
-export type SchemaExperimentSampleSize = components['schemas']['ExperimentSampleSize'];
-export type SchemaExperimentNonparametric = components['schemas']['ExperimentNonparametric'];
-export type SchemaExperimentGuardrailsResult = components['schemas']['ExperimentGuardrailsResult'];
-export type SchemaExperimentAnalytics = components['schemas']['ExperimentAnalytics'];
-export type SchemaChatTurnRequest = components['schemas']['chat_turn_request'];
-export type SchemaContentPart = components['schemas']['content_part'];
-export type SchemaChatTurnResult = components['schemas']['chat_turn_result'];
-export type SchemaChatMessage = components['schemas']['chat_message'];
-export type SchemaChatThread = components['schemas']['chat_thread'];
-export type SchemaAudioSpeechResult = components['schemas']['audio_speech_result'];
-export type SchemaAudioSpeechRequest = components['schemas']['audio_speech_request'];
-export type SchemaThread = components['schemas']['Thread'];
+export type SchemaLocalTargetResponse = components['schemas']['LocalTargetResponse'];
 export type SchemaMessage = components['schemas']['Message'];
-export type SchemaCreateSessionResponse = components['schemas']['CreateSessionResponse'];
+export type SchemaOrgSettingsResponse = components['schemas']['OrgSettingsResponse'];
+export type SchemaPoliciesResponse = components['schemas']['PoliciesResponse'];
+export type SchemaPortalRequest = components['schemas']['PortalRequest'];
+export type SchemaPortalResponse = components['schemas']['PortalResponse'];
+export type SchemaReconcileCheckoutRequest = components['schemas']['ReconcileCheckoutRequest'];
+export type SchemaReconcileCheckoutResponse = components['schemas']['ReconcileCheckoutResponse'];
 export type SchemaRun = components['schemas']['Run'];
 export type SchemaStep = components['schemas']['Step'];
-export type SchemaApprovalRequest = components['schemas']['ApprovalRequest'];
-export type SchemaAgentManifest = components['schemas']['AgentManifest'];
-export type SchemaApiKeyScopesResponseKeyTypeScopesResponse = components['schemas']['ApiKeyScopesResponse__KeyTypeScopesResponse'];
-export type SchemaRuntimePlanResponseSchemaModelResolution = components['schemas']['runtime_plan_response_schema__ModelResolution'];
-export type SchemaRuntimePlanResponseSchemaRuntimeCandidatePlan = components['schemas']['runtime_plan_response_schema__RuntimeCandidatePlan'];
-export type SchemaRuntimePlanResponseSchemaRuntimeArtifactPlan = components['schemas']['runtime_plan_response_schema__RuntimeArtifactPlan'];
+export type SchemaTestConnectionResponse = components['schemas']['TestConnectionResponse'];
+export type SchemaThread = components['schemas']['Thread'];
+export type SchemaUpdateAlertRuleRequest = components['schemas']['UpdateAlertRuleRequest'];
+export type SchemaUpdateAuthConfigRequest = components['schemas']['UpdateAuthConfigRequest'];
+export type SchemaUpdateBillingRequest = components['schemas']['UpdateBillingRequest'];
+export type SchemaUpdateCloudPolicyRequest = components['schemas']['UpdateCloudPolicyRequest'];
+export type SchemaUpdateConnectionRequest = components['schemas']['UpdateConnectionRequest'];
+export type SchemaUpdateCredentialRequest = components['schemas']['UpdateCredentialRequest'];
+export type SchemaUpdateIntegrationRequest = components['schemas']['UpdateIntegrationRequest'];
+export type SchemaUpdateLocalRuntimeRequest = components['schemas']['UpdateLocalRuntimeRequest'];
+export type SchemaUpdatePoliciesRequest = components['schemas']['UpdatePoliciesRequest'];
+export type SchemaUpdateRoutingRequest = components['schemas']['UpdateRoutingRequest'];
+export type SchemaUpdateRoutingResponse = components['schemas']['UpdateRoutingResponse'];
+export type SchemaUpdateSettingsRequest = components['schemas']['UpdateSettingsRequest'];
+export type SchemaUpdateUsageLimitsRequest = components['schemas']['UpdateUsageLimitsRequest'];
+export type SchemaUsageLimitsResponse = components['schemas']['UsageLimitsResponse'];
+export type SchemaActiveBinding = components['schemas']['active_binding'];
+export type SchemaActiveModelPointer = components['schemas']['active_model_pointer'];
+export type SchemaAppResolutionSchema = components['schemas']['app_resolution_schema'];
+export type SchemaArtifactManifest = components['schemas']['artifact_manifest'];
+export type SchemaAudioSpeechRequest = components['schemas']['audio_speech_request'];
+export type SchemaAudioSpeechResult = components['schemas']['audio_speech_result'];
+export type SchemaCandidateGateSchema = components['schemas']['candidate_gate_schema'];
+export type SchemaChatMessage = components['schemas']['chat_message'];
+export type SchemaChatMessageGenerationMetrics = components['schemas']['chat_message__GenerationMetrics'];
+export type SchemaChatThread = components['schemas']['chat_thread'];
+export type SchemaChatTurnRequest = components['schemas']['chat_turn_request'];
+export type SchemaChatTurnResult = components['schemas']['chat_turn_result'];
+export type SchemaContentPart = components['schemas']['content_part'];
+export type SchemaContentPartInputAudio = components['schemas']['content_part__InputAudio'];
+export type SchemaContentPartInputImage = components['schemas']['content_part__InputImage'];
+export type SchemaContentPartInputText = components['schemas']['content_part__InputText'];
+export type SchemaContentPartInputVideo = components['schemas']['content_part__InputVideo'];
+export type SchemaDesiredModelEntry = components['schemas']['desired_model_entry'];
+export type SchemaDesiredState = components['schemas']['desired_state'];
+export type SchemaDeviceRuntimeProfileSchema = components['schemas']['device_runtime_profile_schema'];
 export type SchemaDeviceRuntimeProfileSchemaInstalledRuntime = components['schemas']['device_runtime_profile_schema__InstalledRuntime'];
-export type SchemaResponseStreamEventTextDeltaEvent = components['schemas']['response_stream_event__TextDeltaEvent'];
-export type SchemaResponseStreamEventToolCallDeltaEvent = components['schemas']['response_stream_event__ToolCallDeltaEvent'];
-export type SchemaResponseStreamEventDoneEvent = components['schemas']['response_stream_event__DoneEvent'];
+export type SchemaDeviceSyncRequest = components['schemas']['device_sync_request'];
+export type SchemaDeviceSyncResponse = components['schemas']['device_sync_response'];
+export type SchemaObservedState = components['schemas']['observed_state'];
+export type SchemaPolicyConfig = components['schemas']['policy_config'];
+export type SchemaResponse = components['schemas']['response'];
 export type SchemaResponseOutputItem = components['schemas']['response__OutputItem'];
 export type SchemaResponseTextOutput = components['schemas']['response__TextOutput'];
-export type SchemaResponseToolCallOutput = components['schemas']['response__ToolCallOutput'];
 export type SchemaResponseToolCall = components['schemas']['response__ToolCall'];
+export type SchemaResponseToolCallOutput = components['schemas']['response__ToolCallOutput'];
 export type SchemaResponseUsage = components['schemas']['response__Usage'];
+export type SchemaResponseRequest = components['schemas']['response_request'];
 export type SchemaResponseRequestContentBlock = components['schemas']['response_request__ContentBlock'];
-export type SchemaResponseRequestToolDef = components['schemas']['response_request__ToolDef'];
 export type SchemaResponseRequestResponseFormat = components['schemas']['response_request__ResponseFormat'];
-export type SchemaExperimentAnalyticsConfidenceInterval = components['schemas']['ExperimentAnalytics__ConfidenceInterval'];
-export type SchemaExperimentAnalyticsVariantAnalytics = components['schemas']['ExperimentAnalytics__VariantAnalytics'];
-export type SchemaExperimentAnalyticsSignificanceResult = components['schemas']['ExperimentAnalytics__SignificanceResult'];
-export type SchemaContentPartInputText = components['schemas']['content_part__InputText'];
-export type SchemaContentPartInputImage = components['schemas']['content_part__InputImage'];
-export type SchemaContentPartInputAudio = components['schemas']['content_part__InputAudio'];
-export type SchemaContentPartInputVideo = components['schemas']['content_part__InputVideo'];
-export type SchemaChatMessageGenerationMetrics = components['schemas']['chat_message__GenerationMetrics'];
-export type SchemaErrorEnvelope = components['schemas']['ErrorEnvelope'];
+export type SchemaResponseRequestToolDef = components['schemas']['response_request__ToolDef'];
+export type SchemaResponseStreamEvent = components['schemas']['response_stream_event'];
+export type SchemaResponseStreamEventDoneEvent = components['schemas']['response_stream_event__DoneEvent'];
+export type SchemaResponseStreamEventTextDeltaEvent = components['schemas']['response_stream_event__TextDeltaEvent'];
+export type SchemaResponseStreamEventToolCallDeltaEvent = components['schemas']['response_stream_event__ToolCallDeltaEvent'];
+export type SchemaRuntimeBenchmarkSubmissionResponseSchema = components['schemas']['runtime_benchmark_submission_response_schema'];
+export type SchemaRuntimeBenchmarkSubmissionSchema = components['schemas']['runtime_benchmark_submission_schema'];
+export type SchemaRuntimePlanRequestSchema = components['schemas']['runtime_plan_request_schema'];
+export type SchemaRuntimePlanResponseSchema = components['schemas']['runtime_plan_response_schema'];
+export type SchemaRuntimePlanResponseSchemaModelResolution = components['schemas']['runtime_plan_response_schema__ModelResolution'];
+export type SchemaRuntimePlanResponseSchemaRuntimeArtifactPlan = components['schemas']['runtime_plan_response_schema__RuntimeArtifactPlan'];
+export type SchemaRuntimePlanResponseSchemaRuntimeCandidatePlan = components['schemas']['runtime_plan_response_schema__RuntimeCandidatePlan'];
+export type SchemaTelemetryBatch = components['schemas']['telemetry_batch'];
+export type SchemaTrainingPlan = components['schemas']['training_plan'];
 export type $defs = Record<string, never>;
 export interface operations {
     admin_billing_get_zoho_export_status: {
@@ -25025,146 +25025,16 @@ export enum PathsApiV1TrainingRoundsRound_idSecaggUnmaskPostResponses200ContentA
     failed = "failed",
     waiting = "waiting"
 }
-export enum Telemetry_batchEventsTelemetryClass {
-    must_keep = "must_keep",
-    important = "important",
-    best_effort = "best_effort"
+export enum AlertRuleResponseAlert_type {
+    threshold = "threshold",
+    anomaly = "anomaly",
+    sla = "sla"
 }
-export enum UpdatePoliciesRequestPrivacy_mode {
-    standard = "standard",
-    strict = "strict",
-    off = "off"
-}
-export enum PoliciesResponsePrivacy_mode {
-    standard = "standard",
-    strict = "strict",
-    off = "off"
-}
-export enum UpdateAuthConfigRequestIdentity_mode {
-    email_password = "email_password",
-    sso = "sso",
-    passkey = "passkey"
-}
-export enum AuthConfigResponseIdentity_mode {
-    email_password = "email_password",
-    sso = "sso",
-    passkey = "passkey"
-}
-export enum UpdateSettingsRequestIdentity_mode {
-    email_password = "email_password",
-    sso = "sso",
-    passkey = "passkey"
-}
-export enum UpdateSettingsRequestDevice_network_policy {
-    any = "any",
-    wifi_only = "wifi_only",
-    cellular_allowed = "cellular_allowed"
-}
-export enum OrgSettingsResponseIdentity_mode {
-    email_password = "email_password",
-    sso = "sso",
-    passkey = "passkey"
-}
-export enum CreatePublishableKeyRequestEnvironment {
-    live = "live",
-    test = "test"
-}
-export enum CreatePublishableKeyResponseEnvironment {
-    live = "live",
-    test = "test"
-}
-export enum IntegrationDetailResponseIntegration_type {
-    slack = "slack",
-    email = "email",
-    webhook = "webhook",
-    siem = "siem"
-}
-export enum CreateIntegrationRequestIntegration_type {
-    slack = "slack",
-    email = "email",
-    webhook = "webhook",
-    siem = "siem"
-}
-export enum IntegrationResponseIntegration_type {
-    slack = "slack",
-    email = "email",
-    webhook = "webhook",
-    siem = "siem"
-}
-export enum UpdateRoutingResponseCloud_routing_strategy {
-    ordered_failover = "ordered_failover",
-    weighted_shuffle = "weighted_shuffle",
-    least_busy = "least_busy"
-}
-export enum LocalTargetResponseStatus {
-    active = "active",
-    disabled = "disabled"
-}
-export enum ExecutionHealthResponseStrategy {
-    ordered_failover = "ordered_failover",
-    weighted_shuffle = "weighted_shuffle",
-    least_busy = "least_busy"
-}
-export enum ExecutionConfigResponseRouting_strategy {
-    ordered_failover = "ordered_failover",
-    weighted_shuffle = "weighted_shuffle",
-    least_busy = "least_busy"
-}
-export enum CloudPolicyResponseCloud_credential_policy {
-    byok_only = "byok_only",
-    byok_and_managed = "byok_and_managed",
-    managed_only = "managed_only",
-    disabled = "disabled"
-}
-export enum ConnectionResponseConnection_type {
-    byok = "byok",
-    managed = "managed"
-}
-export enum CreateConnectionRequestConnection_type {
-    byok = "byok",
-    managed = "managed"
-}
-export enum BillingSupportContextResponsePlan {
-    free = "free",
-    starter = "starter",
-    pro = "pro",
-    enterprise = "enterprise"
-}
-export enum BillingResponsePlan {
-    free = "free",
-    starter = "starter",
-    pro = "pro",
-    enterprise = "enterprise"
-}
-export enum BillingResponseStatus {
-    active = "active",
-    trialing = "trialing",
-    past_due = "past_due",
-    paused = "paused",
-    incomplete = "incomplete",
-    canceled = "canceled"
-}
-export enum ReconcileCheckoutResponsePlan {
-    free = "free",
-    starter = "starter",
-    pro = "pro",
-    enterprise = "enterprise"
-}
-export enum ReconcileCheckoutResponseStatus {
-    active = "active",
-    trialing = "trialing",
-    past_due = "past_due",
-    paused = "paused",
-    incomplete = "incomplete",
-    canceled = "canceled"
-}
-export enum CreateAppKeyRequestEnvironment {
-    live = "live",
-    test = "test"
-}
-export enum CreateAppKeyResponseEnvironment {
-    live = "live",
-    test = "test"
+export enum AlertRuleResponseSeverity {
+    info = "info",
+    warning = "warning",
+    error = "error",
+    critical = "critical"
 }
 export enum ApiKeyResponseKey_type {
     org_key = "org_key",
@@ -25181,244 +25051,6 @@ export enum ApiKeyScopesResponseScopesEligible_key_types {
     publishable_key = "publishable_key",
     app_key = "app_key"
 }
-export enum Model_ref_kind_schema {
-    model = "model",
-    app = "app",
-    capability = "capability",
-    deployment = "deployment",
-    experiment = "experiment",
-    alias = "alias",
-    default = "default",
-    unknown = "unknown"
-}
-export enum Candidate_gate_schemaCode {
-    artifact_verified = "artifact_verified",
-    runtime_available = "runtime_available",
-    model_loads = "model_loads",
-    context_fits = "context_fits",
-    modality_supported = "modality_supported",
-    tool_support = "tool_support",
-    min_tokens_per_second = "min_tokens_per_second",
-    max_ttft_ms = "max_ttft_ms",
-    max_error_rate = "max_error_rate",
-    min_free_memory_bytes = "min_free_memory_bytes",
-    min_free_storage_bytes = "min_free_storage_bytes",
-    benchmark_fresh = "benchmark_fresh",
-    min_battery_pct = "min_battery_pct",
-    max_thermal_state = "max_thermal_state",
-    require_charging = "require_charging",
-    require_wifi = "require_wifi",
-    schema_valid = "schema_valid",
-    tool_call_valid = "tool_call_valid",
-    safety_passed = "safety_passed",
-    evaluator_score_min = "evaluator_score_min",
-    json_parseable = "json_parseable",
-    max_refusal_rate = "max_refusal_rate"
-}
-export enum Candidate_gate_schemaSource {
-    server = "server",
-    sdk = "sdk",
-    runtime = "runtime"
-}
-export enum Candidate_gate_schemaGate_class {
-    readiness = "readiness",
-    performance = "performance",
-    output_quality = "output_quality"
-}
-export enum Candidate_gate_schemaEvaluation_phase {
-    pre_inference = "pre_inference",
-    during_inference = "during_inference",
-    post_inference = "post_inference"
-}
-export enum Runtime_plan_request_schemaCapability {
-    chat = "chat",
-    responses = "responses",
-    embeddings = "embeddings",
-    transcription = "transcription",
-    audio = "audio",
-    tts = "tts"
-}
-export enum Runtime_plan_request_schemaRouting_policy {
-    private = "private",
-    local_only = "local_only",
-    local_first = "local_first",
-    cloud_first = "cloud_first",
-    cloud_only = "cloud_only",
-    performance_first = "performance_first",
-    auto = "auto"
-}
-export enum Device_runtime_profile_schemaSdk {
-    python = "python",
-    node = "node",
-    ios = "ios",
-    android = "android",
-    browser = "browser"
-}
-export enum Runtime_benchmark_submission_schemaSource {
-    planner = "planner",
-    runner = "runner",
-    manual = "manual"
-}
-export enum ResponseFinishReason {
-    stop = "stop",
-    tool_calls = "tool_calls",
-    length = "length",
-    content_filter = "content_filter"
-}
-export enum IncidentSeverity {
-    info = "info",
-    warning = "warning",
-    error = "error",
-    critical = "critical",
-    medium = "medium"
-}
-export enum IncidentStatus {
-    open = "open",
-    acknowledged = "acknowledged",
-    investigating = "investigating",
-    resolved = "resolved",
-    closed = "closed"
-}
-export enum UpdateAlertRuleRequestSeverity {
-    info = "info",
-    warning = "warning",
-    error = "error",
-    critical = "critical"
-}
-export enum AlertRuleResponseAlert_type {
-    threshold = "threshold",
-    anomaly = "anomaly",
-    sla = "sla"
-}
-export enum AlertRuleResponseSeverity {
-    info = "info",
-    warning = "warning",
-    error = "error",
-    critical = "critical"
-}
-export enum JobStatus {
-    queued = "queued",
-    scheduled = "scheduled",
-    running = "running",
-    in_progress = "in_progress",
-    completed = "completed",
-    failed = "failed",
-    cancelled = "cancelled"
-}
-export enum Training_planPrivacyConfigMechanism {
-    none = "none",
-    gaussian = "gaussian",
-    laplace = "laplace"
-}
-export enum Observed_stateModelsHealth {
-    healthy = "healthy",
-    degraded = "degraded",
-    unhealthy = "unhealthy"
-}
-export enum Active_bindingAdaptersAdapterType {
-    lora = "lora",
-    qlora = "qlora",
-    prefix_tuning = "prefix_tuning"
-}
-export enum Policy_configCloudFallbackPreferredProvider {
-    octomil = "octomil",
-    openai = "openai",
-    anthropic = "anthropic",
-    groq = "groq",
-    together = "together",
-    moonshot = "moonshot",
-    minimax = "minimax",
-    deepseek = "deepseek"
-}
-export enum Policy_configCloudFallbackProviderOrder {
-    octomil = "octomil",
-    openai = "openai",
-    anthropic = "anthropic",
-    groq = "groq",
-    together = "together",
-    moonshot = "moonshot",
-    minimax = "minimax",
-    deepseek = "deepseek"
-}
-export enum Policy_configCloudFallbackCredentialPolicy {
-    byok_and_managed = "byok_and_managed",
-    byok_only = "byok_only",
-    managed_only = "managed_only",
-    disabled = "disabled"
-}
-export enum ExperimentStatus {
-    draft = "draft",
-    running = "running",
-    paused = "paused",
-    completed = "completed",
-    cancelled = "cancelled"
-}
-export enum ExperimentTimeseriesInterval {
-    hour = "hour",
-    day = "day",
-    week = "week"
-}
-export enum ExperimentNonparametricRecommended_test {
-    t_test = "t-test",
-    mann_whitney_u = "mann_whitney_u"
-}
-export enum ExperimentGuardrailsResultGuardrailsStatus {
-    pass = "pass",
-    violation = "violation"
-}
-export enum ExperimentAnalyticsStatus {
-    draft = "draft",
-    running = "running",
-    paused = "paused",
-    completed = "completed",
-    cancelled = "cancelled"
-}
-export enum Chat_messageRole {
-    system = "system",
-    user = "user",
-    assistant = "assistant",
-    tool = "tool"
-}
-export enum Audio_speech_resultFormat {
-    wav = "wav",
-    mp3 = "mp3",
-    ogg = "ogg",
-    opus = "opus",
-    flac = "flac",
-    aac = "aac",
-    pcm = "pcm"
-}
-export enum Audio_speech_resultRouteLocality {
-    on_device = "on_device",
-    cloud = "cloud"
-}
-export enum Audio_speech_requestResponse_format {
-    wav = "wav",
-    mp3 = "mp3",
-    ogg = "ogg",
-    opus = "opus",
-    flac = "flac",
-    aac = "aac",
-    pcm = "pcm"
-}
-export enum MessageRole {
-    user = "user",
-    assistant = "assistant",
-    tool = "tool"
-}
-export enum RunStatus {
-    queued = "queued",
-    running = "running",
-    completed = "completed",
-    failed = "failed",
-    awaiting_approval = "awaiting_approval",
-    cancelled = "cancelled"
-}
-export enum StepStep_type {
-    llm_call = "llm_call",
-    tool_call = "tool_call",
-    approval_gate = "approval_gate"
-}
 export enum ApprovalRequestRisk_level {
     low = "low",
     medium = "medium",
@@ -25431,49 +25063,66 @@ export enum ApprovalRequestStatus {
     rejected = "rejected",
     expired = "expired"
 }
-export enum Runtime_plan_response_schema__RuntimeCandidatePlanLocality {
-    local = "local",
-    cloud = "cloud"
+export enum AuthConfigResponseIdentity_mode {
+    email_password = "email_password",
+    sso = "sso",
+    passkey = "passkey"
 }
-export enum Runtime_plan_response_schema__RuntimeCandidatePlanDelivery_mode {
-    hosted_gateway = "hosted_gateway",
-    sdk_runtime = "sdk_runtime",
-    external_endpoint = "external_endpoint"
+export enum BillingResponsePlan {
+    free = "free",
+    starter = "starter",
+    pro = "pro",
+    enterprise = "enterprise"
 }
-export enum Runtime_plan_response_schema__RuntimeCandidatePlanPrepare_policy {
-    lazy = "lazy",
-    explicit_only = "explicit_only",
+export enum BillingResponseStatus {
+    active = "active",
+    trialing = "trialing",
+    past_due = "past_due",
+    paused = "paused",
+    incomplete = "incomplete",
+    canceled = "canceled"
+}
+export enum BillingSupportContextResponsePlan {
+    free = "free",
+    starter = "starter",
+    pro = "pro",
+    enterprise = "enterprise"
+}
+export enum CloudPolicyResponseCloud_credential_policy {
+    byok_only = "byok_only",
+    byok_and_managed = "byok_and_managed",
+    managed_only = "managed_only",
     disabled = "disabled"
 }
-export enum Response_request__ContentBlockRole {
-    system = "system",
-    user = "user",
-    assistant = "assistant",
-    tool = "tool"
+export enum ConnectionResponseConnection_type {
+    byok = "byok",
+    managed = "managed"
 }
-export enum Response_request__ResponseFormatOneOf0 {
-    text = "text",
-    json_object = "json_object"
+export enum CreateAppKeyRequestEnvironment {
+    live = "live",
+    test = "test"
 }
-export enum Content_part__InputImageMediaType {
-    image_jpeg = "image/jpeg",
-    image_png = "image/png",
-    image_webp = "image/webp",
-    image_gif = "image/gif"
+export enum CreateAppKeyResponseEnvironment {
+    live = "live",
+    test = "test"
 }
-export enum Content_part__InputImageDetail {
-    auto = "auto",
-    low = "low",
-    high = "high"
+export enum CreateConnectionRequestConnection_type {
+    byok = "byok",
+    managed = "managed"
 }
-export enum Content_part__InputAudioMediaType {
-    audio_mpeg = "audio/mpeg",
-    audio_wav = "audio/wav",
-    audio_ogg = "audio/ogg"
+export enum CreateIntegrationRequestIntegration_type {
+    slack = "slack",
+    email = "email",
+    webhook = "webhook",
+    siem = "siem"
 }
-export enum Content_part__InputVideoMediaType {
-    video_mp4 = "video/mp4",
-    video_webm = "video/webm"
+export enum CreatePublishableKeyRequestEnvironment {
+    live = "live",
+    test = "test"
+}
+export enum CreatePublishableKeyResponseEnvironment {
+    live = "live",
+    test = "test"
 }
 export enum ErrorEnvelopeErrorCode {
     accelerator_unavailable = "accelerator_unavailable",
@@ -25577,4 +25226,355 @@ export enum ErrorEnvelopeErrorCode {
     upstream_provider_unavailable = "upstream_provider_unavailable",
     version_not_found = "version_not_found",
     weight_upload_failed = "weight_upload_failed"
+}
+export enum ExecutionConfigResponseRouting_strategy {
+    ordered_failover = "ordered_failover",
+    weighted_shuffle = "weighted_shuffle",
+    least_busy = "least_busy"
+}
+export enum ExecutionHealthResponseStrategy {
+    ordered_failover = "ordered_failover",
+    weighted_shuffle = "weighted_shuffle",
+    least_busy = "least_busy"
+}
+export enum ExperimentStatus {
+    draft = "draft",
+    running = "running",
+    paused = "paused",
+    completed = "completed",
+    cancelled = "cancelled"
+}
+export enum ExperimentAnalyticsStatus {
+    draft = "draft",
+    running = "running",
+    paused = "paused",
+    completed = "completed",
+    cancelled = "cancelled"
+}
+export enum ExperimentGuardrailsResultGuardrailsStatus {
+    pass = "pass",
+    violation = "violation"
+}
+export enum ExperimentNonparametricRecommended_test {
+    t_test = "t-test",
+    mann_whitney_u = "mann_whitney_u"
+}
+export enum ExperimentTimeseriesInterval {
+    hour = "hour",
+    day = "day",
+    week = "week"
+}
+export enum IncidentSeverity {
+    info = "info",
+    warning = "warning",
+    error = "error",
+    critical = "critical",
+    medium = "medium"
+}
+export enum IncidentStatus {
+    open = "open",
+    acknowledged = "acknowledged",
+    investigating = "investigating",
+    resolved = "resolved",
+    closed = "closed"
+}
+export enum IntegrationDetailResponseIntegration_type {
+    slack = "slack",
+    email = "email",
+    webhook = "webhook",
+    siem = "siem"
+}
+export enum IntegrationResponseIntegration_type {
+    slack = "slack",
+    email = "email",
+    webhook = "webhook",
+    siem = "siem"
+}
+export enum JobStatus {
+    queued = "queued",
+    scheduled = "scheduled",
+    running = "running",
+    in_progress = "in_progress",
+    completed = "completed",
+    failed = "failed",
+    cancelled = "cancelled"
+}
+export enum LocalTargetResponseStatus {
+    active = "active",
+    disabled = "disabled"
+}
+export enum MessageRole {
+    user = "user",
+    assistant = "assistant",
+    tool = "tool"
+}
+export enum OrgSettingsResponseIdentity_mode {
+    email_password = "email_password",
+    sso = "sso",
+    passkey = "passkey"
+}
+export enum PoliciesResponsePrivacy_mode {
+    standard = "standard",
+    strict = "strict",
+    off = "off"
+}
+export enum ReconcileCheckoutResponsePlan {
+    free = "free",
+    starter = "starter",
+    pro = "pro",
+    enterprise = "enterprise"
+}
+export enum ReconcileCheckoutResponseStatus {
+    active = "active",
+    trialing = "trialing",
+    past_due = "past_due",
+    paused = "paused",
+    incomplete = "incomplete",
+    canceled = "canceled"
+}
+export enum RunStatus {
+    queued = "queued",
+    running = "running",
+    completed = "completed",
+    failed = "failed",
+    awaiting_approval = "awaiting_approval",
+    cancelled = "cancelled"
+}
+export enum StepStep_type {
+    llm_call = "llm_call",
+    tool_call = "tool_call",
+    approval_gate = "approval_gate"
+}
+export enum UpdateAlertRuleRequestSeverity {
+    info = "info",
+    warning = "warning",
+    error = "error",
+    critical = "critical"
+}
+export enum UpdateAuthConfigRequestIdentity_mode {
+    email_password = "email_password",
+    sso = "sso",
+    passkey = "passkey"
+}
+export enum UpdatePoliciesRequestPrivacy_mode {
+    standard = "standard",
+    strict = "strict",
+    off = "off"
+}
+export enum UpdateRoutingResponseCloud_routing_strategy {
+    ordered_failover = "ordered_failover",
+    weighted_shuffle = "weighted_shuffle",
+    least_busy = "least_busy"
+}
+export enum UpdateSettingsRequestIdentity_mode {
+    email_password = "email_password",
+    sso = "sso",
+    passkey = "passkey"
+}
+export enum UpdateSettingsRequestDevice_network_policy {
+    any = "any",
+    wifi_only = "wifi_only",
+    cellular_allowed = "cellular_allowed"
+}
+export enum Active_bindingAdaptersAdapterType {
+    lora = "lora",
+    qlora = "qlora",
+    prefix_tuning = "prefix_tuning"
+}
+export enum Audio_speech_requestResponse_format {
+    wav = "wav",
+    mp3 = "mp3",
+    ogg = "ogg",
+    opus = "opus",
+    flac = "flac",
+    aac = "aac",
+    pcm = "pcm"
+}
+export enum Audio_speech_resultFormat {
+    wav = "wav",
+    mp3 = "mp3",
+    ogg = "ogg",
+    opus = "opus",
+    flac = "flac",
+    aac = "aac",
+    pcm = "pcm"
+}
+export enum Audio_speech_resultRouteLocality {
+    on_device = "on_device",
+    cloud = "cloud"
+}
+export enum Candidate_gate_schemaCode {
+    artifact_verified = "artifact_verified",
+    runtime_available = "runtime_available",
+    model_loads = "model_loads",
+    context_fits = "context_fits",
+    modality_supported = "modality_supported",
+    tool_support = "tool_support",
+    min_tokens_per_second = "min_tokens_per_second",
+    max_ttft_ms = "max_ttft_ms",
+    max_error_rate = "max_error_rate",
+    min_free_memory_bytes = "min_free_memory_bytes",
+    min_free_storage_bytes = "min_free_storage_bytes",
+    benchmark_fresh = "benchmark_fresh",
+    min_battery_pct = "min_battery_pct",
+    max_thermal_state = "max_thermal_state",
+    require_charging = "require_charging",
+    require_wifi = "require_wifi",
+    schema_valid = "schema_valid",
+    tool_call_valid = "tool_call_valid",
+    safety_passed = "safety_passed",
+    evaluator_score_min = "evaluator_score_min",
+    json_parseable = "json_parseable",
+    max_refusal_rate = "max_refusal_rate"
+}
+export enum Candidate_gate_schemaSource {
+    server = "server",
+    sdk = "sdk",
+    runtime = "runtime"
+}
+export enum Candidate_gate_schemaGate_class {
+    readiness = "readiness",
+    performance = "performance",
+    output_quality = "output_quality"
+}
+export enum Candidate_gate_schemaEvaluation_phase {
+    pre_inference = "pre_inference",
+    during_inference = "during_inference",
+    post_inference = "post_inference"
+}
+export enum Chat_messageRole {
+    system = "system",
+    user = "user",
+    assistant = "assistant",
+    tool = "tool"
+}
+export enum Content_part__InputAudioMediaType {
+    audio_mpeg = "audio/mpeg",
+    audio_wav = "audio/wav",
+    audio_ogg = "audio/ogg"
+}
+export enum Content_part__InputImageMediaType {
+    image_jpeg = "image/jpeg",
+    image_png = "image/png",
+    image_webp = "image/webp",
+    image_gif = "image/gif"
+}
+export enum Content_part__InputImageDetail {
+    auto = "auto",
+    low = "low",
+    high = "high"
+}
+export enum Content_part__InputVideoMediaType {
+    video_mp4 = "video/mp4",
+    video_webm = "video/webm"
+}
+export enum Device_runtime_profile_schemaSdk {
+    python = "python",
+    node = "node",
+    ios = "ios",
+    android = "android",
+    browser = "browser"
+}
+export enum Model_ref_kind_schema {
+    model = "model",
+    app = "app",
+    capability = "capability",
+    deployment = "deployment",
+    experiment = "experiment",
+    alias = "alias",
+    default = "default",
+    unknown = "unknown"
+}
+export enum Observed_stateModelsHealth {
+    healthy = "healthy",
+    degraded = "degraded",
+    unhealthy = "unhealthy"
+}
+export enum Policy_configCloudFallbackPreferredProvider {
+    octomil = "octomil",
+    openai = "openai",
+    anthropic = "anthropic",
+    groq = "groq",
+    together = "together",
+    moonshot = "moonshot",
+    minimax = "minimax",
+    deepseek = "deepseek"
+}
+export enum Policy_configCloudFallbackProviderOrder {
+    octomil = "octomil",
+    openai = "openai",
+    anthropic = "anthropic",
+    groq = "groq",
+    together = "together",
+    moonshot = "moonshot",
+    minimax = "minimax",
+    deepseek = "deepseek"
+}
+export enum Policy_configCloudFallbackCredentialPolicy {
+    byok_and_managed = "byok_and_managed",
+    byok_only = "byok_only",
+    managed_only = "managed_only",
+    disabled = "disabled"
+}
+export enum ResponseFinishReason {
+    stop = "stop",
+    tool_calls = "tool_calls",
+    length = "length",
+    content_filter = "content_filter"
+}
+export enum Response_request__ContentBlockRole {
+    system = "system",
+    user = "user",
+    assistant = "assistant",
+    tool = "tool"
+}
+export enum Response_request__ResponseFormatOneOf0 {
+    text = "text",
+    json_object = "json_object"
+}
+export enum Runtime_benchmark_submission_schemaSource {
+    planner = "planner",
+    runner = "runner",
+    manual = "manual"
+}
+export enum Runtime_plan_request_schemaCapability {
+    chat = "chat",
+    responses = "responses",
+    embeddings = "embeddings",
+    transcription = "transcription",
+    audio = "audio",
+    tts = "tts"
+}
+export enum Runtime_plan_request_schemaRouting_policy {
+    private = "private",
+    local_only = "local_only",
+    local_first = "local_first",
+    cloud_first = "cloud_first",
+    cloud_only = "cloud_only",
+    performance_first = "performance_first",
+    auto = "auto"
+}
+export enum Runtime_plan_response_schema__RuntimeCandidatePlanLocality {
+    local = "local",
+    cloud = "cloud"
+}
+export enum Runtime_plan_response_schema__RuntimeCandidatePlanDelivery_mode {
+    hosted_gateway = "hosted_gateway",
+    sdk_runtime = "sdk_runtime",
+    external_endpoint = "external_endpoint"
+}
+export enum Runtime_plan_response_schema__RuntimeCandidatePlanPrepare_policy {
+    lazy = "lazy",
+    explicit_only = "explicit_only",
+    disabled = "disabled"
+}
+export enum Telemetry_batchEventsTelemetryClass {
+    must_keep = "must_keep",
+    important = "important",
+    best_effort = "best_effort"
+}
+export enum Training_planPrivacyConfigMechanism {
+    none = "none",
+    gaussian = "gaussian",
+    laplace = "laplace"
 }
