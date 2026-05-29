@@ -23,8 +23,9 @@ describe("generated control-plane client", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].method).toBe("GET");
-    expect(calls[0].url).toBe("https://api.test/api/v1/devices/d1/desired-state");
+    const [call] = calls;
+    expect(call?.method).toBe("GET");
+    expect(call?.url).toBe("https://api.test/api/v1/devices/d1/desired-state");
   });
 
   it("issues a typed POST with a JSON body", async () => {
