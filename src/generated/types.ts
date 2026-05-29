@@ -8740,11 +8740,8 @@ export interface components {
         runtime_benchmark_submission_response_schema: {
             /** @description Server-generated benchmark submission identifier. */
             id: string;
-            /**
-             * @description True when the submission passed validation and was stored.
-             * @constant
-             */
-            accepted: true;
+            /** @description True when the submission passed validation and was stored. */
+            accepted: boolean;
             /**
              * Format: date-time
              * @description ISO 8601 timestamp when the server accepted the submission.
@@ -17194,8 +17191,6 @@ export interface operations {
                     device_id: string;
                     /** @description Participation record identifier for this round. */
                     participation_id: string;
-                    /** @description Alias for device_id (camelCase legacy field). */
-                    deviceId?: string;
                     /** @description Alias for participation_id (camelCase legacy field). */
                     participationToken?: string;
                     /** @description Current FederatedParticipationState enum value. */
