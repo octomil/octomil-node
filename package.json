@@ -41,7 +41,8 @@
   },
   "dependencies": {
     "koffi": "^2.16.2",
-    "onnxruntime-node": "^1.17.0"
+    "onnxruntime-node": "^1.17.0",
+    "openapi-fetch": "0.13.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
