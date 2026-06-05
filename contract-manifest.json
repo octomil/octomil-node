@@ -1,6 +1,6 @@
 {
   "sdk": "@octomil/sdk",
-  "contractVersion": "1.30.0",
+  "contractVersion": "1.32.0",
   "methods": [
     "responses.create",
     "responses.stream",
