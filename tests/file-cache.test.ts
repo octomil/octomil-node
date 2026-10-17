@@ -17,6 +17,10 @@ vi.mock("node:fs", () => {
     writeFileSync: vi.fn((path: string, content: string) => {
       store[path] = content;
     }),
+    renameSync: vi.fn((from: string, to: string) => {
+      store[to] = store[from];
+      delete store[from];
+    }),
     mkdirSync: vi.fn(),
     rmSync: vi.fn(),
     // Expose store for test manipulation
@@ -188,5 +192,20 @@ describe("FileCache", () => {
     fsMock.__store["/tmp/test-cache/manifest.json"] = "not json";
     expect(cache.has("model:v1")).toBe(false);
     expect(cache.list()).toEqual([]);
+  });
+
+  it("refuses to overwrite a corrupt manifest but reads as empty", () => {
+    fsMock.__store["/tmp/test-cache/manifest.json"] = "{not json";
+    expect(cache.list()).toEqual([]);
+    expect(() =>
+      cache.register({
+        modelRef: "m:latest",
+        filePath: "/tmp/test-cache/m/latest/model.onnx",
+        checksum: "abc",
+        cachedAt: new Date().toISOString(),
+        sizeBytes: 1,
+      }),
+    ).toThrow("unreadable");
+    expect(fsMock.__store["/tmp/test-cache/manifest.json"]).toBe("{not json");
   });
 });
