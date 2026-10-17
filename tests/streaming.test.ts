@@ -189,11 +189,10 @@ describe("streamInference", () => {
     await expect(gen.next()).rejects.toThrow("ECONNREFUSED");
   });
 
-  it("should skip malformed SSE lines", async () => {
+  it("should skip non-data SSE lines", async () => {
     const mockResponse = makeSSEResponse([
       "event: message",
       ": comment",
-      "data: not-json",
       'data: {"token": "ok", "done": true}',
     ]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
@@ -205,6 +204,32 @@ describe("streamInference", () => {
 
     expect(tokens).toHaveLength(1);
     expect(tokens[0]!.token).toBe("ok");
+  });
+
+  it("should throw on a malformed data event", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeSSEResponse(["data: not-json"]),
+    );
+
+    const gen = streamInference(config, "model", "hi");
+    await expect(gen.next()).rejects.toThrow("Malformed SSE event");
+  });
+
+  it("should cancel the underlying stream on early exit", async () => {
+    const cancel = vi.fn();
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"token": "a", "done": false}\n'));
+      },
+      cancel,
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(stream, { status: 200 }));
+
+    for await (const _tok of streamInference(config, "model", "hi")) {
+      break;
+    }
+    expect(cancel).toHaveBeenCalled();
   });
 
   it("should strip trailing slash from serverUrl", async () => {

@@ -371,11 +371,13 @@ export class OctomilClient {
    * @param modelId - Model identifier (e.g. `"phi-4-mini"`).
    * @param input - A string prompt or array of chat messages.
    * @param parameters - Optional generation parameters.
+   * @param signal - Optional abort signal.
    */
   async *streamPredict(
     modelId: string,
     input: StreamInput,
     parameters?: Record<string, unknown>,
+    signal?: AbortSignal,
   ): AsyncGenerator<StreamToken> {
     yield* streamInference(
       { serverUrl: this.serverUrl, apiKey: this.apiKey },
@@ -383,6 +385,7 @@ export class OctomilClient {
       input,
       parameters,
       this._telemetry,
+      signal,
     );
   }
 
