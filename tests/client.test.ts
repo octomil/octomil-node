@@ -1,3 +1,7 @@
+import { mkdtempSync, existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OctomilClient } from "../src/client.js";
 import { OctomilError, ErrorCode} from "../src/types.js";
@@ -13,7 +17,10 @@ vi.mock("../src/model-downloader.js", () => ({
       sizeBytes: 2048,
       checksum: "sha256hash",
     }),
-    download: vi.fn().mockResolvedValue(undefined),
+    download: vi.fn(async (_url: string, dest: string) => {
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, "model");
+    }),
   })),
 }));
 
@@ -64,7 +71,7 @@ describe("OctomilClient", () => {
         orgId: "org-123",
         serverUrl: "https://api.test.com",
       },
-      cacheDir: "/tmp/test-cache",
+      cacheDir: mkdtempSync(join(tmpdir(), "octomil-client-test-")),
     });
   });
 
@@ -113,7 +120,7 @@ describe("OctomilClient", () => {
       }
     });
 
-    it("should skip integrity check when no checksum provided", async () => {
+    it("rejects when the registry returns no checksum", async () => {
       const { ModelDownloader } = await import("../src/model-downloader.js");
       const mockDownloader = (ModelDownloader as any).mock.results[0].value;
       mockDownloader.resolve.mockResolvedValue({
@@ -125,10 +132,33 @@ describe("OctomilClient", () => {
         checksum: undefined,
       });
 
+      await expect(client.pull("test-model:latest")).rejects.toMatchObject({
+        code: ErrorCode.ChecksumMismatch,
+      });
+      expect(mockDownloader.download).not.toHaveBeenCalled();
+    });
+
+    it("deletes the partial file on checksum mismatch", async () => {
       const { computeFileHash } = await import("../src/integrity.js");
-      const model = await client.pull("test-model:latest");
-      expect(model).toBeDefined();
-      expect(computeFileHash).not.toHaveBeenCalled();
+      (computeFileHash as any).mockResolvedValue("wrong-hash");
+      const { ModelDownloader } = await import("../src/model-downloader.js");
+      const mockDownloader = (ModelDownloader as any).mock.results[0].value;
+
+      await expect(client.pull("test-model:latest")).rejects.toMatchObject({
+        code: ErrorCode.ChecksumMismatch,
+      });
+      const dest = mockDownloader.download.mock.calls[0][1] as string;
+      expect(existsSync(dest)).toBe(false);
+      expect(existsSync(dest.replace(/\.part$/, ""))).toBe(false);
+    });
+
+    it("rejects traversal in the model reference", async () => {
+      await expect(client.pull("../../evil:tag")).rejects.toMatchObject({
+        code: ErrorCode.InvalidInput,
+      });
+      await expect(client.pull("model:../../x")).rejects.toMatchObject({
+        code: ErrorCode.InvalidInput,
+      });
     });
   });
 

@@ -6,6 +6,8 @@ import { mkdir } from "node:fs/promises";
 import type { PullResult } from "./types.js";
 import { OctomilError, ErrorCode} from "./types.js";
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export class ModelDownloader {
   constructor(
     private readonly serverUrl: string,
@@ -30,6 +32,7 @@ export class ModelDownloader {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!resp.ok) {
@@ -58,7 +61,15 @@ export class ModelDownloader {
   ): Promise<void> {
     await mkdir(dirname(destPath), { recursive: true });
 
-    const resp = await fetch(url);
+    // Bound time-to-headers only; the body may legitimately take long.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let resp: Response;
+    try {
+      resp = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!resp.ok || !resp.body) {
       throw new OctomilError(
         ErrorCode.DownloadFailed,

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { Model } from "./model.js";
 import { ModelDownloader } from "./model-downloader.js";
@@ -32,6 +33,7 @@ import { ModelReadinessManager } from "./manifest/readiness-manager.js";
 import type { AppManifest } from "./manifest/types.js";
 import type { ModelRef } from "./model-ref.js";
 import { DeviceContext } from "./device-context.js";
+import { safeJoinUnder, validateRelativePath } from "./prepare/safe-join.js";
 
 const DEFAULT_SERVER_URL = "https://api.octomil.com";
 const DEFAULT_CACHE_DIR = join(homedir(), ".octomil", "models");
@@ -232,12 +234,26 @@ export class OctomilClient {
   }
 
   async pull(modelRef: string, options?: PullOptions): Promise<Model> {
+    const refParts = modelRef.split(":");
+    if (refParts.length > 2) {
+      throw new OctomilError(ErrorCode.InvalidInput, `Invalid model reference: ${modelRef}`);
+    }
+    refParts.forEach((part) => validateRelativePath(part));
+
     // Resolve from registry
     const pullResult = await this.downloader.resolve(
       modelRef,
       options?.version,
       options?.format,
     );
+
+    if (!pullResult.checksum) {
+      throw new OctomilError(
+        ErrorCode.ChecksumMismatch,
+        `Registry returned no checksum for ${modelRef}`,
+      );
+    }
+    const expectedChecksum = pullResult.checksum.toLowerCase();
 
     // Check cache (unless force)
     if (!options?.force && this.cache.has(modelRef, pullResult.checksum)) {
@@ -256,23 +272,30 @@ export class OctomilClient {
     }
 
     // Download
-    const destDir = join(this.cacheDir, ...modelRef.split(":"));
-    const destPath = join(destDir, "model.onnx");
-    await this.downloader.download(
-      pullResult.downloadUrl,
-      destPath,
-      options?.onProgress,
+    await mkdir(this.cacheDir, { recursive: true });
+    const destPath = await safeJoinUnder(
+      this.cacheDir,
+      `${refParts.join("/")}/model.onnx`,
     );
+    const partPath = `${destPath}.part`;
+    try {
+      await this.downloader.download(
+        pullResult.downloadUrl,
+        partPath,
+        options?.onProgress,
+      );
 
-    // Verify integrity
-    if (pullResult.checksum) {
-      const hash = await computeFileHash(destPath);
-      if (hash !== pullResult.checksum) {
+      const hash = (await computeFileHash(partPath)).toLowerCase();
+      if (hash !== expectedChecksum) {
         throw new OctomilError(
           ErrorCode.ChecksumMismatch,
           `Integrity check failed for ${modelRef}`,
         );
       }
+      await rename(partPath, destPath);
+    } catch (err) {
+      await rm(partPath, { force: true });
+      throw err;
     }
 
     // Register in cache
@@ -280,7 +303,7 @@ export class OctomilClient {
     this.cache.register({
       modelRef,
       filePath: destPath,
-      checksum: pullResult.checksum ?? "",
+      checksum: pullResult.checksum,
       cachedAt: new Date().toISOString(),
       sizeBytes,
     });
