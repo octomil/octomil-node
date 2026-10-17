@@ -23,6 +23,7 @@ import { getSdkVersion } from "./telemetry.js";
 import { SPAN_NAMES } from "./_generated/span_names.js";
 import { SPAN_ATTRIBUTES } from "./_generated/span_attributes.js";
 import type { TelemetryReporter } from "./telemetry.js";
+import { fetchWithConnectTimeout } from "./http.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -181,7 +182,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/register`, {
+      response = await fetchWithConnectTimeout(`${this.serverUrl}/api/v1/devices/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -230,7 +231,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithConnectTimeout(
         `${this.serverUrl}/api/v1/devices/${id}/heartbeat`,
         {
           method: "POST",
@@ -272,7 +273,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithConnectTimeout(
         `${this.serverUrl}/api/v1/devices/${id}/assignments`,
         {
           method: "GET",
@@ -375,7 +376,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithConnectTimeout(
         `${this.serverUrl}/api/v1/devices/${id}/observed-state`,
         {
           method: "POST",
@@ -427,7 +428,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithConnectTimeout(
         `${this.serverUrl}/api/v1/devices/${id}/desired-state`,
         {
           method: "GET",
@@ -462,7 +463,7 @@ export class ControlClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.serverUrl}/api/v1/devices/${id}/sync`, {
+      response = await fetchWithConnectTimeout(`${this.serverUrl}/api/v1/devices/${id}/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

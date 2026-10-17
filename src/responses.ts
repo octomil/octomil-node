@@ -33,6 +33,7 @@ import {
 } from "./runtime/routing/request-router.js";
 import { buildRouteEvent, type RouteEvent } from "./runtime/routing/route-event.js";
 import { parseModelRef } from "./runtime/routing/model-ref-parser.js";
+import { fetchWithConnectTimeout } from "./http.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1538,7 +1539,7 @@ export class ResponsesClient {
   ): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`, {
+      response = await fetchWithConnectTimeout(`${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
