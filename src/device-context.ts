@@ -130,8 +130,8 @@ export class DeviceContext {
 
     const newId = randomUUID();
     try {
-      mkdirSync(DeviceContext.STORAGE_DIR, { recursive: true });
-      writeFileSync(DeviceContext.STORAGE_FILE, newId, "utf-8");
+      mkdirSync(DeviceContext.STORAGE_DIR, { recursive: true, mode: 0o700 });
+      writeFileSync(DeviceContext.STORAGE_FILE, newId, { encoding: "utf-8", mode: 0o600 });
     } catch {
       // Write failed — use ephemeral ID
     }

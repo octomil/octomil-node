@@ -97,4 +97,26 @@ describe("configure", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(ctx.registrationState).toBe("failed");
   });
+
+  it("should mark context failed on 401 without retrying", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+    const ctx = await configure({
+      auth: { type: "publishable_key", key: "oct_pub_test_abc" },
+      monitoring: { enabled: true },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(ctx.registrationState).toBe("failed");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("should reject a non-https baseUrl", async () => {
+    await expect(
+      configure({
+        auth: { type: "publishable_key", key: "oct_pub_test_abc" },
+        baseUrl: "http://evil.example.com",
+      }),
+    ).rejects.toThrow("https");
+  });
 });

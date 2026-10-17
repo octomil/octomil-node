@@ -30,10 +30,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pack:check": "npm pack --dry-run --json",
-    "exports:check": "node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
+    "exports:check": "node scripts/check_exports.mjs && node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
     "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run exports:check && pnpm run pack:check",
     "test:watch": "vitest",
-    "lint": "eslint src/ tests/",
     "format": "prettier --write .",
     "fetch:runtime": "node scripts/fetch_runtime_dev.mjs",
     "openapi:generate": "OCTOMIL_NODE_PATH=$PWD OCTOMIL_BROWSER=0 ../octomil-contracts/tools/sdkgen/generate-typescript.sh",
@@ -41,13 +40,21 @@
   },
   "dependencies": {
     "koffi": "^2.16.2",
-    "onnxruntime-node": "^1.17.0",
     "openapi-fetch": "0.13.5"
+  },
+  "peerDependencies": {
+    "onnxruntime-node": "^1.17.0"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^1.6.0",
     "esbuild": "^0.20.0",
+    "onnxruntime-node": "^1.17.0",
     "openapi-typescript": "7.13.0",
     "prettier": "^3.2.0",
     "typescript": "^5.4.0",

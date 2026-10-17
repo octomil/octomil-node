@@ -12,15 +12,16 @@ jobs:
   publish:
     timeout-minutes: 15
     name: Publish @octomil/sdk
+    environment: npm-publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org

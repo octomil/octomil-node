@@ -166,7 +166,9 @@ describe("ModelDownloader", () => {
         "/tmp/model.onnx",
       );
 
-      expect(fetchMock).toHaveBeenCalledWith("https://cdn.test.com/model.onnx");
+      expect(fetchMock).toHaveBeenCalledWith("https://cdn.test.com/model.onnx", {
+        signal: expect.any(AbortSignal),
+      });
     });
 
     it("should throw DOWNLOAD_FAILED on failed download", async () => {

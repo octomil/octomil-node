@@ -5,9 +5,7 @@
  * POST /api/v2/telemetry/events.
  */
 
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { SDK_VERSION } from "./sdk-version.js";
 import { platform } from "node:os";
 import { OTLP_RESOURCE_ATTRIBUTES } from "./_generated/otlp_resource_attributes.js";
 import {
@@ -84,14 +82,7 @@ const EVENT_NAME_MAP: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export function getSdkVersion(): string {
-  try {
-    const thisDir = dirname(fileURLToPath(import.meta.url));
-    const pkgPath = join(thisDir, "..", "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version: string };
-    return pkg.version;
-  } catch {
-    return "0.0.0";
-  }
+  return SDK_VERSION;
 }
 
 function toOtlpValue(v: unknown): OtlpKeyValue["value"] {
@@ -147,6 +138,7 @@ export class TelemetryReporter {
   private readonly flushInterval: number;
   private readonly maxBatchSize: number;
   private readonly resource: TelemetryResource;
+  private static readonly MAX_QUEUE = 1000;
 
   constructor(
     private readonly serverUrl: string,
@@ -186,7 +178,7 @@ export class TelemetryReporter {
       timestamp: new Date().toISOString(),
       attributes,
     });
-    if (this.queue.length >= this.maxBatchSize) {
+    if (this.queue.length === this.maxBatchSize) {
       void this.flush();
     }
   }
@@ -256,17 +248,28 @@ export class TelemetryReporter {
     };
 
     try {
-      await fetch(`${this.serverUrl}/api/v2/telemetry/events`, {
+      const resp = await fetch(`${this.serverUrl}/api/v2/telemetry/events`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(envelope),
+        signal: AbortSignal.timeout(10_000),
       });
+      // 4xx other than 408/429 will not succeed on retry; drop the batch.
+      if (!resp.ok && (resp.status >= 500 || resp.status === 408 || resp.status === 429)) {
+        this.requeue(batch);
+      }
     } catch {
-      // best-effort — swallow errors
+      this.requeue(batch);
     }
+  }
+
+  private requeue(batch: TelemetryEvent[]): void {
+    this.queue.unshift(...batch);
+    const overflow = this.queue.length - TelemetryReporter.MAX_QUEUE;
+    if (overflow > 0) this.queue.splice(0, overflow);
   }
 
   async batch(events: TelemetryEvent[]): Promise<void> {
@@ -275,11 +278,11 @@ export class TelemetryReporter {
     await this.flush();
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
-    void this.flush();
+    await this.flush();
   }
 }

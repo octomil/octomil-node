@@ -121,7 +121,7 @@ export class InferenceEngine implements ModelRuntime {
     const feeds: Record<string, any> = {};
 
     if ("text" in input) {
-      // Text input: encode as Int32Array
+      // Not a real tokenizer: raw UTF-16 code units, only valid for models trained on that encoding.
       const textInput = input as { text: string };
       const encoded = new Int32Array(
         Array.from(textInput.text).map((c) => c.charCodeAt(0)),
@@ -177,7 +177,10 @@ export class InferenceEngine implements ModelRuntime {
     if (firstTensor && firstTensor.data instanceof Float32Array) {
       scores = Array.from(firstTensor.data);
       if (scores.length > 0) {
-        const maxIdx = scores.indexOf(Math.max(...scores));
+        let maxIdx = 0;
+        for (let i = 1; i < scores.length; i++) {
+          if (scores[i]! > scores[maxIdx]!) maxIdx = i;
+        }
         score = scores[maxIdx];
         label = String(maxIdx);
       }
@@ -190,7 +193,13 @@ export class InferenceEngine implements ModelRuntime {
   }
 
   dispose(): void {
+    const session = this._session as { release?: () => Promise<void> } | null;
     this._session = null;
+    try {
+      void session?.release?.()?.catch(() => {});
+    } catch {
+      // best-effort native release
+    }
   }
 }
 

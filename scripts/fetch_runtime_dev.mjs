@@ -778,7 +778,25 @@ function makeRequest(url, headers, maxRedirects, onResponse, onError) {
         return;
       }
       res.resume();
-      makeRequest(resHeaders.location, headers, maxRedirects - 1, onResponse, onError);
+      let next;
+      try {
+        next = new URL(resHeaders.location, url);
+      } catch {
+        onError(new FetchRuntimeError(`error: invalid redirect location from ${url}`));
+        return;
+      }
+      const from = new URL(url);
+      if (from.protocol === "https:" && next.protocol !== "https:") {
+        onError(new FetchRuntimeError(`error: refusing https -> ${next.protocol} redirect from ${from.host}`));
+        return;
+      }
+      let nextHeaders = headers;
+      if (next.host !== from.host) {
+        nextHeaders = Object.fromEntries(
+          Object.entries(headers).filter(([k]) => k.toLowerCase() !== "authorization"),
+        );
+      }
+      makeRequest(next.toString(), nextHeaders, maxRedirects - 1, onResponse, onError);
       return;
     }
     if (statusCode < 200 || statusCode >= 300) {
@@ -1019,8 +1037,10 @@ export async function main(argv = process.argv) {
       );
     }
 
-    // Write sentinel only after fully successful extraction.
-    await fs.writeFile(sentinel, version + "\n", "utf-8");
+    // Write sentinel only after fully successful extraction. The loader
+    // re-hashes the dylib against line 2 before koffi.load.
+    const dylibSha = await sha256File(dylib);
+    await fs.writeFile(sentinel, `${version}\nsha256:${dylibSha}\n`, "utf-8");
   } finally {
     if (existsSync(work)) {
       await fs.rm(work, { recursive: true, force: true });

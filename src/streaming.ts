@@ -51,6 +51,21 @@ export function parseSSELine(line: string): StreamToken | null {
   }
 }
 
+function parseEventLine(line: string): StreamToken | null {
+  const token = parseSSELine(line);
+  if (token) return token;
+  const data = line.trim().startsWith("data:") ? line.trim().slice(5).trim() : "";
+  if (data && data !== "[DONE]") {
+    throw new OctomilError(
+      ErrorCode.InferenceFailed,
+      `Malformed SSE event from streaming endpoint: ${data.slice(0, 200)}`,
+    );
+  }
+  return null;
+}
+
+const CONNECT_TIMEOUT_MS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Payload builder
 // ---------------------------------------------------------------------------
@@ -99,13 +114,21 @@ export async function* streamInference(
   input: StreamInput,
   parameters?: Record<string, unknown>,
   telemetry?: TelemetryReporter | null,
+  signal?: AbortSignal,
 ): AsyncGenerator<StreamToken> {
   const url = `${config.serverUrl.replace(/\/+$/, "")}/api/v1/inference/stream`;
   const body = JSON.stringify(buildPayload(modelId, input, parameters));
 
+  // Bound time-to-headers only; the stream itself may run long.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", () => controller.abort(), { once: true });
+
   let response: Response;
   try {
     response = await fetch(url, {
+      signal: controller.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -121,6 +144,8 @@ export async function* streamInference(
       `Cloud streaming request failed: ${String(err)}`,
       err,
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!response.ok) {
@@ -154,7 +179,7 @@ export async function* streamInference(
       buffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        const token = parseSSELine(line);
+        const token = parseEventLine(line);
         if (token) {
           telemetry?.track("inference.chunk_produced", {
             "model.id": modelId,
@@ -168,7 +193,7 @@ export async function* streamInference(
 
     // Process any remaining data in the buffer
     if (buffer.trim()) {
-      const token = parseSSELine(buffer);
+      const token = parseEventLine(buffer);
       if (token) {
         telemetry?.track("inference.chunk_produced", {
           "model.id": modelId,
@@ -179,6 +204,7 @@ export async function* streamInference(
       }
     }
   } finally {
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import type { CacheEntry, CacheInfo } from "./types.js";
+import { OctomilError, ErrorCode } from "./types.js";
 
 interface CacheManifest {
   entries: CacheEntry[];
@@ -13,21 +14,33 @@ export class FileCache {
     this.manifestPath = join(cacheDir, "manifest.json");
   }
 
-  private readManifest(): CacheManifest {
+  // Reads tolerate a corrupt manifest; mutations refuse so entries aren't silently overwritten.
+  private readManifest(strict = false): CacheManifest {
     if (!existsSync(this.manifestPath)) {
       return { entries: [] };
     }
     try {
       const raw = readFileSync(this.manifestPath, "utf-8");
-      return JSON.parse(raw) as CacheManifest;
-    } catch {
+      const parsed = JSON.parse(raw) as CacheManifest;
+      if (!Array.isArray(parsed?.entries)) throw new Error("invalid manifest shape");
+      return parsed;
+    } catch (err) {
+      if (strict) {
+        throw new OctomilError(
+          ErrorCode.InvalidInput,
+          `Cache manifest ${this.manifestPath} is unreadable; fix or delete it`,
+          err,
+        );
+      }
       return { entries: [] };
     }
   }
 
   private writeManifest(manifest: CacheManifest): void {
     mkdirSync(this.cacheDir, { recursive: true });
-    writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2));
+    const tmp = `${this.manifestPath}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(manifest, null, 2));
+    renameSync(tmp, this.manifestPath);
   }
 
   has(modelRef: string, checksum?: string): boolean {
@@ -47,7 +60,7 @@ export class FileCache {
   }
 
   register(entry: CacheEntry): void {
-    const manifest = this.readManifest();
+    const manifest = this.readManifest(true);
     const idx = manifest.entries.findIndex((e) => e.modelRef === entry.modelRef);
     if (idx >= 0) {
       manifest.entries[idx] = entry;
@@ -58,7 +71,7 @@ export class FileCache {
   }
 
   remove(modelRef: string): void {
-    const manifest = this.readManifest();
+    const manifest = this.readManifest(true);
     const entry = manifest.entries.find((e) => e.modelRef === modelRef);
     if (entry && existsSync(entry.filePath)) {
       try {

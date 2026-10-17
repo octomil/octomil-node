@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import koffi, { type IKoffiLib } from "koffi";
 import { RuntimeCapability } from "../../_generated/runtime_capability.js";
 import { OctomilError, ErrorCode } from "../../types.js";
@@ -8,6 +9,7 @@ import { OctomilError, ErrorCode } from "../../types.js";
 export const ENV_RUNTIME_DYLIB = "OCTOMIL_RUNTIME_DYLIB";
 export const ENV_RUNTIME_CACHE_DIR = "OCTOMIL_RUNTIME_CACHE_DIR";
 export const ENV_RUNTIME_FLAVOR = "OCTOMIL_RUNTIME_FLAVOR";
+export const ENV_RUNTIME_VERSION = "OCTOMIL_RUNTIME_VERSION";
 
 /**
  * Flavor preference order for default selection.
@@ -573,7 +575,11 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
 
   // Walk version dirs newest-first so that when we build the list the most
   // desirable candidate ends up at index 0 after the per-flavor sort below.
-  const versionDirs = readdirSync(root).sort(compareVersionDirs).reverse();
+  const versionOverride = process.env[ENV_RUNTIME_VERSION];
+  const versionDirs = readdirSync(root)
+    .filter((d) => !versionOverride || d === versionOverride)
+    .sort(compareVersionDirs)
+    .reverse();
 
   for (const versionDir of versionDirs) {
     const versionPath = join(root, versionDir);
@@ -646,6 +652,35 @@ export function fetchedRuntimeLibraryCandidates(): string[] {
   return candidates;
 }
 
+export function verifyCachedRuntimeLibrary(libraryPath: string): void {
+  const sentinelPath = join(dirname(libraryPath), CACHE_SENTINEL);
+  let expected: string | undefined;
+  try {
+    expected = /^sha256:([0-9a-f]{64})$/im.exec(
+      readFileSync(sentinelPath, "utf-8"),
+    )?.[1];
+  } catch {
+    // handled below
+  }
+  if (!expected) {
+    throw new NativeRuntimeError(
+      null,
+      ErrorCode.RuntimeUnavailable,
+      `Cached runtime ${libraryPath} has no recorded sha256; re-run fetch:runtime with --force`,
+    );
+  }
+  const actual = createHash("sha256")
+    .update(readFileSync(libraryPath))
+    .digest("hex");
+  if (actual !== expected.toLowerCase()) {
+    throw new NativeRuntimeError(
+      null,
+      ErrorCode.RuntimeUnavailable,
+      `Cached runtime ${libraryPath} failed sha256 verification; re-run fetch:runtime with --force`,
+    );
+  }
+}
+
 export function resolveNativeRuntimeLibrary(
   options: { libraryPath?: string } = {},
 ): string {
@@ -672,7 +707,10 @@ export function resolveNativeRuntimeLibrary(
   // fetchedRuntimeLibraryCandidates() returns candidates newest-version-first,
   // chat-before-stt within a version. Index 0 is always the best match.
   const best = candidates[0];
-  if (best) return best;
+  if (best) {
+    verifyCachedRuntimeLibrary(best);
+    return best;
+  }
 
   throw new NativeRuntimeError(
     null,
@@ -1945,19 +1983,31 @@ export class NativeRuntime {
         session._invalidateAfterRuntimeClose();
       }
     }
+    let busy = false;
     for (const model of [...this.models]) {
       try {
-        model.close();
+        if (model.close() === OCT_STATUS_BUSY) busy = true;
       } catch {
         model._invalidateAfterRuntimeClose();
       }
     }
+    // The runtime must outlive any model the native side still reports busy.
+    if (busy) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_BUSY,
+        ErrorCode.RuntimeUnavailable,
+        "Native runtime has busy models; close them before closing the runtime",
+      );
+    }
     this.sessions.clear();
     this.models.clear();
-    this.bindings.octRuntimeClose(this.runtime);
-    this.runtime = null;
-    this.closed = true;
-    this.bindings.lib.unload();
+    try {
+      this.bindings.octRuntimeClose(this.runtime);
+    } finally {
+      this.runtime = null;
+      this.closed = true;
+      this.bindings.lib.unload();
+    }
   }
 
   _detachSession(session: NativeSession): void {
@@ -2178,12 +2228,15 @@ export class NativeSession {
 
   close(): void {
     if (this.closed) return;
-    if (!this.handleInvalid) {
-      this.bindings.octSessionClose(this._handle);
+    try {
+      if (!this.handleInvalid) {
+        this.bindings.octSessionClose(this._handle);
+      }
+    } finally {
+      this.closed = true;
+      this.borrowedModel?._releaseBorrower(this);
+      this._owner._detachSession(this);
     }
-    this.closed = true;
-    this.borrowedModel?._releaseBorrower(this);
-    this._owner._detachSession(this);
   }
 
   _invalidateAfterRuntimeClose(): void {

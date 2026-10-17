@@ -26,7 +26,7 @@ import type {
   RuntimeCandidatePlan,
 } from "../planner/types.js";
 
-import { downloadOne, fileDigest } from "./durable-downloader.js";
+import { downloadOne } from "./durable-downloader.js";
 import type { DownloadEndpoint } from "./durable-downloader.js";
 import { materializeFile } from "./materializer.js";
 import { safeJoinUnderSync, validateRelativePath } from "./safe-join.js";
@@ -174,21 +174,6 @@ export class PrepareManager {
       digest: artifact.digest,
       fetchImpl: this.fetchImpl,
     });
-
-    // Idempotent cache hit: re-verify the bytes against the digest
-    // even when we hit the cache, then materialize. The materializer
-    // runs a size-equal short-circuit so the runtime copy step is
-    // skipped on warm starts.
-    if (downloadResult.cacheHit) {
-      const reverify = await fileDigest(downloadResult.filePath);
-      if (reverify !== artifact.digest) {
-        throw new OctomilError(
-          ErrorCode.DownloadFailed,
-          `PrepareManager: cached artifact failed digest re-verification. ` +
-            `expected ${artifact.digest} got ${reverify}`,
-        );
-      }
-    }
 
     const materialized = await materializeFile({
       sourcePath: downloadResult.filePath,

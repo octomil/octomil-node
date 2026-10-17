@@ -18,6 +18,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -25,6 +26,8 @@ import {
   fetchedRuntimeLibraryCandidates,
   ENV_RUNTIME_CACHE_DIR,
   ENV_RUNTIME_FLAVOR,
+  ENV_RUNTIME_VERSION,
+  verifyCachedRuntimeLibrary,
 } from "../src/runtime/native/loader.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -252,5 +255,34 @@ describe("fetchedRuntimeLibraryCandidates — OCTOMIL_RUNTIME_FLAVOR env var", (
     expect(result).toContain(chatDylib);
     expect(result).toContain(legacyDylib);
     expect(result).not.toContain(path.join(tmp, "v0.1.5", "stt", "lib", DYLIB));
+  });
+});
+
+describe("runtime pinning and hash verification", () => {
+  afterEach(() => {
+    delete process.env[ENV_RUNTIME_VERSION];
+  });
+
+  it("OCTOMIL_RUNTIME_VERSION selects exactly that version", () => {
+    const v14 = seedFlavorEntry(tmp, "v0.1.4", "chat");
+    seedFlavorEntry(tmp, "v0.1.5", "chat");
+    process.env[ENV_RUNTIME_VERSION] = "v0.1.4";
+    expect(fetchedRuntimeLibraryCandidates()).toEqual([v14]);
+  });
+
+  it("accepts a dylib matching the sentinel sha256", () => {
+    const dylib = seedFlavorEntry(tmp, "v0.1.5", "chat");
+    const sha = createHash("sha256").update("fake-chat").digest("hex");
+    writeFileSync(path.join(path.dirname(dylib), SENTINEL), `v0.1.5\nsha256:${sha}\n`);
+    expect(() => verifyCachedRuntimeLibrary(dylib)).not.toThrow();
+  });
+
+  it("rejects a tampered dylib and a sentinel without a hash", () => {
+    const dylib = seedFlavorEntry(tmp, "v0.1.5", "chat");
+    expect(() => verifyCachedRuntimeLibrary(dylib)).toThrow(/no recorded sha256/);
+    const sha = createHash("sha256").update("fake-chat").digest("hex");
+    writeFileSync(path.join(path.dirname(dylib), SENTINEL), `v0.1.5\nsha256:${sha}\n`);
+    writeFileSync(dylib, "tampered");
+    expect(() => verifyCachedRuntimeLibrary(dylib)).toThrow(/failed sha256/);
   });
 });

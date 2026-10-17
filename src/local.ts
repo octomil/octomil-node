@@ -14,6 +14,7 @@
 
 import { execFile } from "node:child_process";
 import { OctomilError, ErrorCode} from "./types.js";
+import { fetchWithConnectTimeout } from "./http.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,10 +81,29 @@ export function discoverFromEnv(): LocalRunnerEndpoint | null {
 
   if (!url || !token) return null;
 
+  if (!isLoopbackHttpUrl(url)) {
+    throw new OctomilError(
+      ErrorCode.InvalidInput,
+      "OCTOMIL_LOCAL_RUNNER_URL must be an http(s) loopback URL (localhost, 127.0.0.1 or ::1)",
+    );
+  }
+
   return {
     baseUrl: url.replace(/\/+$/, ""),
     token,
   };
+}
+
+function isLoopbackHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return (
+      (u.protocol === "http:" || u.protocol === "https:") &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -112,7 +132,7 @@ export async function discoverFromCli(
       typeof parsed.base_url === "string" ? parsed.base_url : null;
     const token = typeof parsed.token === "string" ? parsed.token : null;
 
-    if (!baseUrl || !token) return null;
+    if (!baseUrl || !token || !isLoopbackHttpUrl(baseUrl)) return null;
 
     return {
       baseUrl: baseUrl.replace(/\/+$/, ""),
@@ -139,7 +159,7 @@ export async function localRunnerPost(
   const url = `${endpoint.baseUrl}${path}`;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithConnectTimeout(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -179,7 +199,7 @@ export async function localRunnerMultipartPost(
   const url = `${endpoint.baseUrl}${path}`;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithConnectTimeout(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${endpoint.token}`,
@@ -226,6 +246,22 @@ export async function localRunnerHealthCheck(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+const ENV_ALLOWLIST = [
+  "PATH", "HOME", "USERPROFILE", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL",
+  "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+];
+
+function minimalEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (ENV_ALLOWLIST.includes(key.toUpperCase()) || key.startsWith("OCTOMIL_")) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
 function execAsync(
   command: string,
   args: string[],
@@ -238,7 +274,7 @@ function execAsync(
       {
         timeout: timeoutMs,
         encoding: "utf-8",
-        env: { ...process.env },
+        env: minimalEnv(),
       },
       (error, stdout, _stderr) => {
         if (error) {

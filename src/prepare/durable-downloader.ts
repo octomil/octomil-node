@@ -16,7 +16,7 @@
  * artifacts (the static Kokoro recipe). The path-safety / digest /
  * atomic-publish guarantees match Python so cross-SDK contracts hold.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as fsp from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -45,6 +45,44 @@ export interface DownloadOptions {
   digest: string;
   /** Optional fetch override for tests; defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
+  /** Abort the whole download after this many ms. Default 30 minutes. */
+  timeoutMs?: number;
+  /** Refuse bodies larger than this. Default 16 GiB. */
+  maxBytes?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_MAX_BYTES = 16 * 1024 ** 3;
+const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "x-api-key",
+]);
+
+/** Validate a planner-supplied endpoint; credential headers are dropped
+ *  unless the transport is https or loopback. */
+function sanitizeEndpoint(ep: DownloadEndpoint): Record<string, string> | undefined {
+  let url: URL;
+  try {
+    url = new URL(ep.url);
+  } catch {
+    throw new OctomilError(ErrorCode.InvalidInput, `prepare: invalid download url ${JSON.stringify(ep.url)}`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new OctomilError(ErrorCode.InvalidInput, `prepare: unsupported download scheme ${url.protocol}`);
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const secure = url.protocol === "https:" || loopback;
+  const headers: Record<string, string> = {};
+  for (const [name, value] of Object.entries(ep.headers ?? {})) {
+    if (!/^[A-Za-z0-9-]+$/.test(name) || typeof value !== "string" || /[\r\n]/.test(value)) {
+      throw new OctomilError(ErrorCode.InvalidInput, `prepare: invalid download header ${JSON.stringify(name)}`);
+    }
+    if (!secure && CREDENTIAL_HEADERS.has(name.toLowerCase())) continue;
+    headers[name] = value;
+  }
+  return ep.headers ? headers : undefined;
 }
 
 export interface DownloadResult {
@@ -124,7 +162,8 @@ export async function fileDigest(filePath: string, algo = "sha256"): Promise<str
  *  path-safety + digest contract matches Python.
  */
 export async function downloadOne(options: DownloadOptions): Promise<DownloadResult> {
-  const { algo: digestAlgo } = parseDigest(options.digest);
+  const { algo: digestAlgo, hex: digestHex } = parseDigest(options.digest);
+  const expectedDigest = `${digestAlgo}:${digestHex}`;
   // Resolve the on-disk path with structural + symlink-escape
   // containment under destDir. We must do this BEFORE creating the
   // destination so a hostile pre-existing symlink layout cannot trick
@@ -140,7 +179,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
   // Idempotent fast path: file is already there with the right digest.
   if (await fileExists(finalPath)) {
     const onDisk = await fileDigest(finalPath, digestAlgo);
-    if (onDisk === options.digest) {
+    if (onDisk === expectedDigest) {
       return {
         filePath: finalPath,
         cacheHit: true,
@@ -159,15 +198,16 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
       "downloadOne: at least one endpoint is required.",
     );
   }
-  const partPath = `${finalPath}.part`;
-  await fsp.unlink(partPath).catch(() => {});
+  const partPath = `${finalPath}.${randomUUID()}.part`;
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const fetchImpl = options.fetchImpl ?? fetch;
   let lastError: unknown;
   for (const ep of options.endpoints) {
     try {
       const resp = await fetchImpl(ep.url, {
         method: "GET",
-        headers: ep.headers,
+        headers: sanitizeEndpoint(ep),
+        signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       });
       if (!resp.ok || !resp.body) {
         lastError = new OctomilError(
@@ -199,6 +239,12 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
           for await (const chunk of source) {
             const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
             await hashAndCount(buf);
+            if (bytes > maxBytes) {
+              throw new OctomilError(
+                ErrorCode.DownloadFailed,
+                `prepare: download from ${ep.url} exceeded ${maxBytes} bytes`,
+              );
+            }
             yield buf;
           }
         },
@@ -208,7 +254,7 @@ export async function downloadOne(options: DownloadOptions): Promise<DownloadRes
       void hashed;
 
       const computed = `${digestAlgo}:${hash.digest("hex")}`;
-      if (computed !== options.digest) {
+      if (computed !== expectedDigest) {
         await fsp.unlink(partPath).catch(() => {});
         throw new OctomilError(
           ErrorCode.DownloadFailed,

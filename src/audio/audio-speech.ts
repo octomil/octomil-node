@@ -17,6 +17,7 @@ import {
   NativeTtsStreamBackend,
   type TtsAudioChunk,
 } from "../runtime/native/tts_stream_backend.js";
+import { fetchWithConnectTimeout } from "../http.js";
 
 export type { TtsAudioChunk, TtsStreamingMode } from "../runtime/native/tts_stream_backend.js";
 
@@ -166,7 +167,7 @@ export class AudioSpeech {
 
     let resp: Response;
     try {
-      resp = await fetch(this.hostedBase + SPEECH_PATH, {
+      resp = await fetchWithConnectTimeout(this.hostedBase + SPEECH_PATH, {
         method: "POST",
         headers,
         body: JSON.stringify(body),

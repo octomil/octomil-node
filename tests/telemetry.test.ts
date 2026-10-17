@@ -198,6 +198,33 @@ describe("TelemetryReporter", () => {
     reporter.dispose();
   });
 
+  it("should requeue the batch on a 5xx response and resend it", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+    const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
+    reporter.track("event1");
+    await reporter.flush();
+    await reporter.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await reporter.dispose();
+  });
+
+  it("should drop the batch on a non-retryable 4xx response", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
+    reporter.track("event1");
+    await reporter.flush();
+    await reporter.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await reporter.dispose();
+  });
+
+  it("dispose awaits the final flush", async () => {
+    const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
+    reporter.track("event1");
+    await reporter.dispose();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("should clear timer on dispose", async () => {
     const reporter = new TelemetryReporter("https://api.test.com", "key123", "org-1", 1000);
     reporter.dispose();

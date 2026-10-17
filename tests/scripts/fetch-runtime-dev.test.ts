@@ -26,6 +26,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import * as http from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -35,6 +36,7 @@ import {
   loadManifest,
   resolveManifestAsset,
   sha256File,
+  downloadAsset,
   verifySha256,
   isAppleDouble,
   safeExtract,
@@ -969,5 +971,37 @@ describe("main() sentinel behaviour", () => {
     expect(code).toBe(0);
     expect(stdoutLines.some((l) => l.includes("fetch_runtime_dev.mjs"))).toBe(true);
     expect(stdoutLines.some((l) => l.includes("--version"))).toBe(true);
+  });
+});
+
+describe("downloadAsset redirects", () => {
+  it("drops Authorization when redirected to a different host", async () => {
+    let seen: http.IncomingHttpHeaders | undefined;
+    const target = http.createServer((req, res) => {
+      seen = req.headers;
+      res.end("payload");
+    });
+    await new Promise<void>((r) => target.listen(0, "127.0.0.1", r));
+    const tport = (target.address() as { port: number }).port;
+    const origin = http.createServer((_req, res) => {
+      res.writeHead(302, { location: `http://127.0.0.1:${tport}/blob` });
+      res.end();
+    });
+    await new Promise<void>((r) => origin.listen(0, "127.0.0.1", r));
+    const oport = (origin.address() as { port: number }).port;
+    const tmp = await makeTmp();
+    try {
+      const dest = path.join(tmp, "out");
+      vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      await downloadAsset(`http://127.0.0.1:${oport}/asset`, dest, "secret");
+      expect(seen).toBeDefined();
+      expect(seen!.authorization).toBeUndefined();
+      expect(await fs.readFile(dest, "utf-8")).toBe("payload");
+    } finally {
+      vi.restoreAllMocks();
+      origin.close();
+      target.close();
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
   });
 });

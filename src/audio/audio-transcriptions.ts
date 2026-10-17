@@ -30,6 +30,7 @@ import {
 } from "../runtime/routing/request-router.js";
 import { buildRouteEvent, type RouteEvent } from "../runtime/routing/route-event.js";
 import { parseModelRef } from "../runtime/routing/model-ref-parser.js";
+import { fetchWithConnectTimeout } from "../http.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -221,7 +222,7 @@ export class AudioTranscriptions {
 
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithConnectTimeout(
         `${baseUrl.replace(/\/+$/, "")}/v1/audio/transcriptions`,
         {
           method: "POST",
