@@ -17,9 +17,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
 
@@ -45,6 +45,12 @@ jobs:
           # contract surface only; source stays private in octomil-contracts).
           url="https://github.com/octomil/octomil-contract-bundles/releases/download/v${version}/contract-bundle-${version}.tar.gz"
           if curl -fsSL "$url" -o "$RUNNER_TEMP/contract-bundle/contract-bundle-${version}.tar.gz"; then
+            expected="$(awk -v f="contract-bundle-${version}.tar.gz" '$2 == f { print $1 }' CONTRACT_BUNDLE_SHA256)"
+            if [ -z "$expected" ]; then
+              echo "::error::CONTRACT_BUNDLE_SHA256 has no entry for contract-bundle-${version}.tar.gz"
+              exit 1
+            fi
+            echo "${expected}  $RUNNER_TEMP/contract-bundle/contract-bundle-${version}.tar.gz" | sha256sum -c -
             tar -xzf "$RUNNER_TEMP/contract-bundle/contract-bundle-${version}.tar.gz" \
               --strip-components=1 \
               -C .contract
@@ -85,13 +91,13 @@ jobs:
           print(f"Contract root ready from ${{ steps.contract.outputs.source }}: v{version}")
           PY
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
-          version: 9
+          version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
         with:
-          node-version: 18
+          node-version: 24
           cache: pnpm
 
       - name: Install SDK dependencies
@@ -129,7 +135,7 @@ jobs:
 
       - name: Upload parity report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: parity-node-${{ steps.contract.outputs.version }}
           path: parity_report.json
