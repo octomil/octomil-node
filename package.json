@@ -30,7 +30,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pack:check": "npm pack --dry-run --json",
-    "exports:check": "node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
+    "exports:check": "node scripts/check_exports.mjs && node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
     "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run exports:check && pnpm run pack:check",
     "test:watch": "vitest",
     "lint": "eslint src/ tests/",

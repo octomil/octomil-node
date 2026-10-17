@@ -5,9 +5,7 @@
  * POST /api/v2/telemetry/events.
  */
 
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { SDK_VERSION } from "./sdk-version.js";
 import { platform } from "node:os";
 import { OTLP_RESOURCE_ATTRIBUTES } from "./_generated/otlp_resource_attributes.js";
 import {
@@ -84,14 +82,7 @@ const EVENT_NAME_MAP: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export function getSdkVersion(): string {
-  try {
-    const thisDir = dirname(fileURLToPath(import.meta.url));
-    const pkgPath = join(thisDir, "..", "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version: string };
-    return pkg.version;
-  } catch {
-    return "0.0.0";
-  }
+  return SDK_VERSION;
 }
 
 function toOtlpValue(v: unknown): OtlpKeyValue["value"] {

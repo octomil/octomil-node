@@ -5,15 +5,8 @@
  * adapted for the Node.js environment.
  */
 
+import { SDK_VERSION } from "../sdk-version.js";
 import type { DeviceRuntimeProfile } from "./types.js";
-
-/** Return the @octomil/sdk version from package.json. */
-function getSdkVersion(): string {
-  // We cannot do a synchronous import of package.json in ESM,
-  // so we hardcode the version and update it at release time.
-  // This matches the pattern used by other parts of the SDK.
-  return "1.3.2";
-}
 
 /**
  * Collect a device runtime profile describing the current Node.js environment.
@@ -38,7 +31,7 @@ export async function collectDeviceRuntimeProfile(): Promise<DeviceRuntimeProfil
 
   return {
     sdk: "node",
-    sdk_version: getSdkVersion(),
+    sdk_version: SDK_VERSION,
     platform,
     arch,
     os_version: release,
