@@ -1983,19 +1983,31 @@ export class NativeRuntime {
         session._invalidateAfterRuntimeClose();
       }
     }
+    let busy = false;
     for (const model of [...this.models]) {
       try {
-        model.close();
+        if (model.close() === OCT_STATUS_BUSY) busy = true;
       } catch {
         model._invalidateAfterRuntimeClose();
       }
     }
+    // The runtime must outlive any model the native side still reports busy.
+    if (busy) {
+      throw new NativeRuntimeError(
+        OCT_STATUS_BUSY,
+        ErrorCode.RuntimeUnavailable,
+        "Native runtime has busy models; close them before closing the runtime",
+      );
+    }
     this.sessions.clear();
     this.models.clear();
-    this.bindings.octRuntimeClose(this.runtime);
-    this.runtime = null;
-    this.closed = true;
-    this.bindings.lib.unload();
+    try {
+      this.bindings.octRuntimeClose(this.runtime);
+    } finally {
+      this.runtime = null;
+      this.closed = true;
+      this.bindings.lib.unload();
+    }
   }
 
   _detachSession(session: NativeSession): void {
@@ -2216,12 +2228,15 @@ export class NativeSession {
 
   close(): void {
     if (this.closed) return;
-    if (!this.handleInvalid) {
-      this.bindings.octSessionClose(this._handle);
+    try {
+      if (!this.handleInvalid) {
+        this.bindings.octSessionClose(this._handle);
+      }
+    } finally {
+      this.closed = true;
+      this.borrowedModel?._releaseBorrower(this);
+      this._owner._detachSession(this);
     }
-    this.closed = true;
-    this.borrowedModel?._releaseBorrower(this);
-    this._owner._detachSession(this);
   }
 
   _invalidateAfterRuntimeClose(): void {
