@@ -14,6 +14,7 @@ import {
 import type { MonitoringConfig } from "./monitoring-config.js";
 import { platform, arch, release, totalmem } from "node:os";
 import { getSdkVersion } from "./telemetry.js";
+import { OctomilError, ErrorCode } from "./types.js";
 
 const platformMap: Record<string, string> = {
   darwin: "macos",
@@ -36,6 +37,7 @@ export interface ConfigureOptions {
 // ---------------------------------------------------------------------------
 
 let _deviceContext: DeviceContext | null = null;
+let _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 export function getDeviceContext(): DeviceContext | null {
   return _deviceContext;
@@ -50,6 +52,22 @@ export async function configure(
 ): Promise<DeviceContext> {
   if (options.auth?.type === "publishable_key") {
     validatePublishableKey(options.auth.key);
+  }
+
+  if (options.baseUrl !== undefined) {
+    const url = new URL(options.baseUrl);
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+      throw new OctomilError(
+        ErrorCode.InvalidInput,
+        "configure(): baseUrl must use https",
+      );
+    }
+  }
+
+  if (_heartbeatTimer) {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = null;
   }
 
   const installationId = DeviceContext.getOrCreateInstallationId();
@@ -115,10 +133,11 @@ async function silentRegister(
       method: "POST",
       headers,
       body: JSON.stringify(registrationBody),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
-      if (response.status === 403) {
+      if (response.status === 401 || response.status === 403) {
         // Non-retryable
         context._markFailed();
         return;
@@ -164,6 +183,7 @@ function startHeartbeat(
 ): void {
   const intervalMs = options.monitoring?.heartbeatIntervalMs ?? 300_000;
 
+  if (_heartbeatTimer) clearInterval(_heartbeatTimer);
   const timer = setInterval(async () => {
     const headers = context.authHeaders();
     if (!headers) return;
@@ -176,11 +196,13 @@ function startHeartbeat(
         body: JSON.stringify({
           device_identifier: context.installationId,
         }),
+        signal: AbortSignal.timeout(15_000),
       });
     } catch {
       // Heartbeat failures are non-fatal
     }
   }, intervalMs);
+  _heartbeatTimer = timer;
 
   // Allow Node.js process to exit even if heartbeat timer is running
   if (timer && typeof timer === "object" && "unref" in timer) {
