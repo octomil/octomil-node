@@ -395,16 +395,16 @@ export class OctomilClient {
    * This is the canonical shutdown method. `dispose()` is kept as an alias
    * for backward compatibility.
    */
-  close(): void {
+  async close(): Promise<void> {
     for (const model of this._loadedModels.values()) {
       model.dispose();
     }
     this._loadedModels.clear();
-    this._telemetry?.dispose();
+    await this._telemetry?.dispose();
   }
 
   /** @deprecated Use `close()` instead. */
-  dispose(): void {
-    this.close();
+  dispose(): Promise<void> {
+    return this.close();
   }
 }

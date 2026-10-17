@@ -138,6 +138,7 @@ export class TelemetryReporter {
   private readonly flushInterval: number;
   private readonly maxBatchSize: number;
   private readonly resource: TelemetryResource;
+  private static readonly MAX_QUEUE = 1000;
 
   constructor(
     private readonly serverUrl: string,
@@ -177,7 +178,7 @@ export class TelemetryReporter {
       timestamp: new Date().toISOString(),
       attributes,
     });
-    if (this.queue.length >= this.maxBatchSize) {
+    if (this.queue.length === this.maxBatchSize) {
       void this.flush();
     }
   }
@@ -247,17 +248,28 @@ export class TelemetryReporter {
     };
 
     try {
-      await fetch(`${this.serverUrl}/api/v2/telemetry/events`, {
+      const resp = await fetch(`${this.serverUrl}/api/v2/telemetry/events`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(envelope),
+        signal: AbortSignal.timeout(10_000),
       });
+      // 4xx other than 408/429 will not succeed on retry; drop the batch.
+      if (!resp.ok && (resp.status >= 500 || resp.status === 408 || resp.status === 429)) {
+        this.requeue(batch);
+      }
     } catch {
-      // best-effort — swallow errors
+      this.requeue(batch);
     }
+  }
+
+  private requeue(batch: TelemetryEvent[]): void {
+    this.queue.unshift(...batch);
+    const overflow = this.queue.length - TelemetryReporter.MAX_QUEUE;
+    if (overflow > 0) this.queue.splice(0, overflow);
   }
 
   async batch(events: TelemetryEvent[]): Promise<void> {
@@ -266,11 +278,11 @@ export class TelemetryReporter {
     await this.flush();
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
-    void this.flush();
+    await this.flush();
   }
 }
