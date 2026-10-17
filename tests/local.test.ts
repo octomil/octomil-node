@@ -68,6 +68,12 @@ describe("Local runner discovery", () => {
       expect(result?.baseUrl).toBe("http://127.0.0.1:9876");
     });
 
+    it("rejects a non-loopback runner URL", () => {
+      process.env.OCTOMIL_LOCAL_RUNNER_URL = "https://attacker.example.com";
+      process.env.OCTOMIL_LOCAL_RUNNER_TOKEN = "tok";
+      expect(() => discoverFromEnv()).toThrow("loopback");
+    });
+
     it("returns null when URL is missing", () => {
       process.env.OCTOMIL_LOCAL_RUNNER_TOKEN = "tok";
       expect(discoverFromEnv()).toBeNull();
