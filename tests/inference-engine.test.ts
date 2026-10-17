@@ -206,6 +206,27 @@ describe("InferenceEngine", () => {
       expect(MockTensor).toHaveBeenCalledWith("float32", rawData, [1, 3]);
     });
 
+    it("should handle outputs larger than the argument limit", async () => {
+      const big = new Float32Array(500_000);
+      big[123_456] = 9;
+      const mockSession = {
+        inputNames: ["input"],
+        outputNames: ["output"],
+        run: mockRun.mockResolvedValue({ output: { data: big, dims: [1, big.length] } }),
+      };
+
+      const result = await engine.run(mockSession, { raw: new Float32Array([1]), dims: [1, 1] });
+      expect(result.label).toBe("123456");
+    });
+
+    it("releases the native session on dispose", async () => {
+      const release = vi.fn().mockResolvedValue(undefined);
+      mockSessionCreate.mockResolvedValue({ inputNames: [], outputNames: [], run: mockRun, release });
+      await engine.createSession("/path/model.onnx");
+      engine.dispose();
+      expect(release).toHaveBeenCalledOnce();
+    });
+
     it("should infer tensor type for Int32Array", async () => {
       const mockSession = {
         inputNames: ["input"],
