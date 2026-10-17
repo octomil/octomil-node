@@ -126,6 +126,65 @@ describe("downloadOne", () => {
     expect(onDisk.equals(bytes)).toBe(true);
   });
 
+  it("accepts an uppercase digest", async () => {
+    const bytes = Buffer.from("case insensitive");
+    const upper = "sha256:" + sha256(bytes).slice(7).toUpperCase();
+    const result = await downloadOne({
+      destDir: path.join(tmpRoot, "dest"),
+      relativePath: "model.bin",
+      endpoints: [{ url: "https://example.test/model.bin" }],
+      digest: upper,
+      fetchImpl: fakeFetchOk(bytes),
+    });
+    expect(result.bytesDownloaded).toBe(bytes.length);
+  });
+
+  it("drops credential headers on plain-http non-loopback endpoints", async () => {
+    const bytes = Buffer.from("payload");
+    const inner = fakeFetchOk(bytes);
+    let sent: Record<string, string> | undefined;
+    const fetchImpl = ((url: string, init: RequestInit) => {
+      sent = init.headers as Record<string, string>;
+      return (inner as any)(url, init);
+    }) as unknown as typeof fetch;
+    await downloadOne({
+      destDir: path.join(tmpRoot, "dest"),
+      relativePath: "model.bin",
+      endpoints: [
+        {
+          url: "http://example.test/model.bin",
+          headers: { Authorization: "Bearer x", Range: "bytes=0-" },
+        },
+      ],
+      digest: sha256(bytes),
+      fetchImpl,
+    });
+    expect(sent).toEqual({ Range: "bytes=0-" });
+  });
+
+  it("rejects non-http schemes and oversized bodies", async () => {
+    const bytes = Buffer.from("0123456789");
+    await expect(
+      downloadOne({
+        destDir: path.join(tmpRoot, "dest"),
+        relativePath: "a.bin",
+        endpoints: [{ url: "file:///etc/passwd" }],
+        digest: sha256(bytes),
+        fetchImpl: fakeFetchOk(bytes),
+      }),
+    ).rejects.toThrow(/unsupported download scheme/);
+    await expect(
+      downloadOne({
+        destDir: path.join(tmpRoot, "dest"),
+        relativePath: "b.bin",
+        endpoints: [{ url: "https://example.test/b.bin" }],
+        digest: sha256(bytes),
+        fetchImpl: fakeFetchOk(bytes),
+        maxBytes: 4,
+      }),
+    ).rejects.toThrow(/exceeded 4 bytes/);
+  });
+
   it("rejects a digest mismatch and does not publish", async () => {
     const bytes = Buffer.from("abc");
     const lying = sha256(Buffer.from("xyz")); // wrong digest
