@@ -419,7 +419,6 @@ pnpm install
 pnpm test          # run tests
 pnpm build         # build ESM + CJS
 pnpm typecheck     # type check
-pnpm lint          # lint
 pnpm format        # format
 ```
 

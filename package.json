@@ -33,7 +33,6 @@
     "exports:check": "node scripts/check_exports.mjs && node -e 'import(\"./dist/esm/index.js\").then((m)=>{for (const name of [\"Octomil\",\"OctomilClient\",\"ResponsesClient\"]) if (typeof m[name] !== \"function\") throw new Error(`${name} export missing`)})'",
     "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run exports:check && pnpm run pack:check",
     "test:watch": "vitest",
-    "lint": "eslint src/ tests/",
     "format": "prettier --write .",
     "fetch:runtime": "node scripts/fetch_runtime_dev.mjs",
     "openapi:generate": "OCTOMIL_NODE_PATH=$PWD OCTOMIL_BROWSER=0 ../octomil-contracts/tools/sdkgen/generate-typescript.sh",
