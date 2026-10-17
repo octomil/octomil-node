@@ -122,7 +122,7 @@ describe("streamInference chunk telemetry", () => {
     expect(tokens).toHaveLength(1);
   });
 
-  it("should skip chunk events for malformed SSE lines", async () => {
+  it("should fail the stream on malformed SSE data without emitting chunk events", async () => {
     const mockResponse = makeSSEResponse([
       "event: message",
       "data: not-json",
@@ -131,17 +131,14 @@ describe("streamInference chunk telemetry", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
 
     const telemetry = createMockTelemetry();
-    const tokens: StreamToken[] = [];
-    for await (const tok of streamInference(config, "model", "Hi", undefined, telemetry)) {
-      tokens.push(tok);
-    }
+    const consume = async () => {
+      for await (const _ of streamInference(config, "model", "Hi", undefined, telemetry)) {
+        // drain
+      }
+    };
 
-    expect(tokens).toHaveLength(1);
-    expect(telemetry.track).toHaveBeenCalledTimes(1);
-    expect(telemetry.track).toHaveBeenCalledWith("inference.chunk_produced", {
-      "model.id": "model",
-      "inference.chunk_index": 0,
-    });
+    await expect(consume()).rejects.toThrow(/Malformed SSE event/);
+    expect(telemetry.track).not.toHaveBeenCalled();
   });
 });
 
