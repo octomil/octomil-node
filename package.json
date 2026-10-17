@@ -41,13 +41,21 @@
   },
   "dependencies": {
     "koffi": "^2.16.2",
-    "onnxruntime-node": "^1.17.0",
     "openapi-fetch": "0.13.5"
+  },
+  "peerDependencies": {
+    "onnxruntime-node": "^1.17.0"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^1.6.0",
     "esbuild": "^0.20.0",
+    "onnxruntime-node": "^1.17.0",
     "openapi-typescript": "7.13.0",
     "prettier": "^3.2.0",
     "typescript": "^5.4.0",
